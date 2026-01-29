@@ -309,11 +309,22 @@ document.addEventListener("DOMContentLoaded", function () {
     });
   }
 
+  function findSlotById(slotId) {
+    return slots.find((slot) => slot.id === slotId) || null;
+  }
+
+  function isSameDay(date, dayKey) {
+    if (!date) return false;
+    return date.toISOString().slice(0, 10) === dayKey;
+  }
+
   const ec = EventCalendar.create(el, {
     view: "timeGridWeek", // week view is fine for a single resource
     locale: "nl",
     firstDay: 1,
-    editable: false, // we manage edits ourselves
+    editable: true,
+    eventStartEditable: true,
+    eventDurationEditable: true,
     selectable: false,
     height: "auto",
     nowIndicator: true,
@@ -430,6 +441,112 @@ document.addEventListener("DOMContentLoaded", function () {
     },
 
     events: [],
+
+    eventDrop: async (info) => {
+      const event = info.event;
+      const ext = event.extendedProps || {};
+
+      if (ext.type !== "assignment") {
+        info.revert();
+        return;
+      }
+
+      const assignment = assignments.find((a) => a.id === event.id);
+      if (!assignment) {
+        info.revert();
+        return;
+      }
+
+      const slot = findSlotById(assignment.slotId);
+      if (!slot) {
+        info.revert();
+        return;
+      }
+
+      const newStart = event.start ? new Date(event.start) : null;
+      const newEnd = event.end ? new Date(event.end) : null;
+      if (!newStart || !newEnd || isNaN(newStart) || isNaN(newEnd)) {
+        info.revert();
+        return;
+      }
+
+      const slotStart = new Date(slot.start);
+      const slotEnd = new Date(slot.end);
+      if (newStart < slotStart || newEnd > slotEnd) {
+        info.revert();
+        return;
+      }
+
+      const originalDateKey = (assignment.start || slot.start).slice(0, 10);
+      if (!isSameDay(newStart, originalDateKey) || !isSameDay(newEnd, originalDateKey)) {
+        info.revert();
+        return;
+      }
+
+      const pad = (n) => String(n).padStart(2, "0");
+      const dateStr = newStart.toISOString().slice(0, 10);
+      const timeStr = `${pad(newStart.getHours())}:${pad(newStart.getMinutes())}`;
+
+      const sheetId = assignment.sheetId || slot.sheetId;
+      if (!sheetId || !assignment.taskId) {
+        info.revert();
+        return;
+      }
+
+      try {
+        await JVGHApi.updateTask(sheetId, assignment.taskId, {
+          date: dateStr,
+          time: timeStr,
+        });
+      } catch (err) {
+        console.error("[JVGH] Failed to update task for drag move:", err);
+        info.revert();
+        return;
+      }
+
+      assignment.sheetId = sheetId;
+      assignment.start = newStart.toISOString();
+      assignment.end = newEnd.toISOString();
+    },
+
+    eventResize: (info) => {
+      const event = info.event;
+      const ext = event.extendedProps || {};
+
+      if (ext.type !== "assignment") {
+        info.revert();
+        return;
+      }
+
+      const assignment = assignments.find((a) => a.id === event.id);
+      if (!assignment) {
+        info.revert();
+        return;
+      }
+
+      const slot = findSlotById(assignment.slotId);
+      if (!slot) {
+        info.revert();
+        return;
+      }
+
+      const newStart = event.start ? new Date(event.start) : null;
+      const newEnd = event.end ? new Date(event.end) : null;
+      if (!newStart || !newEnd || isNaN(newStart) || isNaN(newEnd)) {
+        info.revert();
+        return;
+      }
+
+      const slotStart = new Date(slot.start);
+      const slotEnd = new Date(slot.end);
+      if (newStart < slotStart || newEnd > slotEnd) {
+        info.revert();
+        return;
+      }
+
+      assignment.start = newStart.toISOString();
+      assignment.end = newEnd.toISOString();
+    },
   });
 
   window.ec = ec;
