@@ -1,0 +1,627 @@
+
+:root {
+  --jvgh-blue: #002b5c;
+  --jvgh-blue-light: #07417f;
+  --jvgh-yellow: #f2b400;
+  --jvgh-green: #1fa45a;
+  --jvgh-bg: #f4f7fb;
+  --jvgh-card-radius: 14px;
+  --jvgh-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+               sans-serif;
+  background: radial-gradient(circle at top left, #ffffff 0, #e4ecf7 45%, #dbe4f4 100%);
+  color: #1b2340;
+  display: flex;
+  flex-direction: column;
+}
+
+.jvgh-open-day {
+  position: relative;
+}
+
+.jvgh-open-day .jvgh-open-dot {
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #e74c3c; /* red */
+  bottom: 4px;
+  right: 4px;
+}
+
+.jvgh-header {
+  background: linear-gradient(135deg, #000000, #444444);
+  color: #ffffff;
+  padding: 6px 7px;     /* smaller top/bottom padding */
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.25);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.jvgh-header-title {
+  font-size: 1.2rem;    
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.jvgh-header-subtitle {
+  font-size: 0.75rem;     /* was 0.9rem */
+  opacity: 0.85;
+}
+
+.jvgh-header-tag {
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  background-color: rgba(0, 0, 0, 0.12);
+}
+
+.jvgh-main {
+  flex: 1;
+  padding: 10px 20px;
+  display: flex;
+  justify-content: center;
+}
+
+/* 2-column layout: calendar + right sidebar */
+.jvgh-content {
+  width: 100%;
+  max-width: 1300px;
+  display: grid;
+  grid-template-columns: minmax(0, 3fr) minmax(260px, 1.3fr);
+  gap: 20px;
+}
+
+.jvgh-calendar-card {
+  background: #ffffff;
+  border-radius: var(--jvgh-card-radius);
+  box-shadow: var(--jvgh-shadow);
+  padding: 3px 3px 3px;
+  border-top: 1px solid var(--jvgh-yellow);
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.jvgh-calendar-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  padding-inline: 4px;
+}
+
+.jvgh-calendar-title {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--jvgh-blue);
+}
+
+.jvgh-calendar-subtitle {
+  font-size: 0.9rem;
+  color: #4c5774;
+}
+
+#ec {
+  margin-top: 4px;
+}
+
+/* Right column: draggable volunteers to plan */
+.jvgh-sidebar {
+  background: #ffffff;
+  border-radius: var(--jvgh-card-radius);
+  box-shadow: var(--jvgh-shadow);
+  padding: 14px 14px 10px;
+  border-top: 4px solid var(--jvgh-blue);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+
+  /* 👇 This makes it stay visible when you scroll */
+  position: sticky;
+  top: 24px; /* same as .jvgh-main top padding */
+  align-self: start;
+  max-height: calc(100vh - 48px); /* prevents overflow on very long pages */
+  overflow-y: auto;
+}
+
+.jvgh-sidebar-title {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--jvgh-blue);
+}
+
+.jvgh-sidebar-subtitle {
+  font-size: 0.85rem;
+  color: #4c5774;
+}
+
+.resource-list {
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: none;
+  overflow-y: visible;
+  padding-right: 0;
+}
+
+.resource-card {
+  border-radius: 10px;
+  border: 1px solid #d4ddf0;
+  padding: 4px 8px;
+  background: #f7f9ff;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  cursor: grab;
+  transition: all 0.15s ease-in-out;
+}
+
+.resource-card:hover {
+  background: #eef3ff;
+  border-color: var(--jvgh-blue-light);
+  box-shadow: 0 6px 15px rgba(0, 0, 0, 0.06);
+}
+
+
+.resource-card-bestuur {
+  background: #e8f1ff;
+  border-color: var(--jvgh-blue-light);
+}
+
+.resource-card-bestuur:hover {
+  background: #dbe8ff;
+  border-color: var(--jvgh-blue);
+  box-shadow: 0 6px 15px rgba(0, 0, 0, 0.08);
+}
+
+.resource-card-bestuur .resource-name {
+  color: var(--jvgh-blue);
+}
+
+.resource-name {
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: #202847;
+}
+
+.resource-meta {
+  font-size: 0.78rem;
+  color: #6a7493;
+}
+
+
+.resource-line {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+}
+
+.resource-meta-inline {
+  font-size: 0.78rem;
+  color: #6a7493;
+  white-space: nowrap;
+}
+
+.resource-hint {
+  margin-top: 6px;
+  font-size: 0.75rem;
+  color: #7b86a8;
+}
+
+.resource-hint strong {
+  color: var(--jvgh-blue);
+}
+
+/* EventCalendar styling tweaks */
+.ec {
+  --ec-border-color: #dde3f1;
+  --ec-today-bg: rgba(242, 180, 0, 0.12);
+  --ec-slot-border-color: #edf1fa;
+  --ec-bg-color: #ffffff;
+  --ec-text-color: #2a3252;
+  --ec-highlight-color: var(--jvgh-yellow);
+  font-size: 0.85rem;
+}
+
+.ec .ec-toolbar {
+  padding: 6px 6px 10px;
+  border-bottom: 1px solid #e1e6f2;
+  margin-bottom: 6px;
+}
+
+.ec .ec-toolbar-title {
+  font-weight: 700;
+  color: var(--jvgh-blue);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-size: 0.85rem;
+}
+
+.ec .ec-button {
+  background-color: #ffffff;
+  border-radius: 999px;
+  border: 1px solid #ced7ec;
+  padding: 4px 10px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #344063;
+  transition: all 0.15s;
+}
+
+.ec .ec-button:hover {
+  background-color: #f4f7fd;
+  border-color: var(--jvgh-blue-light);
+  color: var(--jvgh-blue-light);
+}
+
+.ec .ec-button.ec-button-primary,
+.ec .ec-button.ec-button-active {
+  background-color: var(--jvgh-blue);
+  border-color: var(--jvgh-blue);
+  color: #ffffff;
+}
+
+.ec .ec-today {
+  background-color: var(--ec-today-bg);
+}
+
+.ec .ec-resource {
+  font-weight: 600;
+  color: #252d4c;
+}
+
+.ec .ec-time-grid .ec-slot,
+.ec .ec-time-grid .ec-bg,
+.ec .ec-resource-time-grid .ec-slot,
+.ec .ec-resource-time-grid .ec-bg {
+  border-color: var(--ec-slot-border-color);
+}
+
+.ec .ec-event {
+  background-color: var(--jvgh-green);
+  border-radius: 6px;
+  border: 1px solid #0f7b3c;
+  color: #ffffff;
+  font-weight: 600;
+  padding: 0 1px;   /* was 1px 3px; more room for text */
+}
+
+.ec .ec-event:hover {
+  box-shadow: 0 0 0 2px rgba(31, 164, 90, 0.28);
+}
+
+.ec .ec-event.ical-event,
+.ec .ical-event {
+  background-color: var(--jvgh-blue-light);
+  border-color: #05305f;
+  color: #ffffff;
+}
+
+
+/* Bestuur assignments in calendar (blue instead of green) */
+.ec .ec-event.bestuur-assignment {
+  background-color: var(--jvgh-blue-light);
+  border-color: #05305f;
+  color: #ffffff;
+}
+
+
+.ec .ec-event-title {
+  font-size: 0.78rem;
+}
+
+.ec ::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.ec ::-webkit-scrollbar-track {
+  background: #eef2fb;
+  border-radius: 999px;
+}
+
+.ec ::-webkit-scrollbar-thumb {
+  background: #c3cce2;
+  border-radius: 999px;
+}
+
+.ec ::-webkit-scrollbar-thumb:hover {
+  background: #a1acc9;
+}
+
+/* Slot background colors */
+.ec .slot {
+  opacity: 0.9;
+}
+
+/* 0 of required → RED */
+.ec .slot-empty {
+  background-color: #ffe5e5 !important;
+  border-color: #ff8a8a !important;
+}
+
+/* 1..required-1 → ORANGE */
+.ec .slot-partial {
+  background-color: #fff4d5 !important;
+  border-color: #f2b400 !important;
+}
+
+/* planned >= required → GREEN */
+.ec .slot-full {
+  background-color: #e1f6e9 !important;
+  border-color: #1fa45a !important;
+}
+
+.ec-event-title {
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.2;
+  white-space: normal;
+}
+
+.ec-event-time {
+  font-size: 10px;
+  font-weight: 600;
+  margin-bottom: 2px;
+}
+
+/* Toggle switch */
+.toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 1px solid #e1e6f2;
+  border-radius: 10px;
+  background: #fafbff;
+}
+.toggle {
+  position: relative;
+  width: 48px;
+  height: 26px;
+  border-radius: 999px;
+  border: 1px solid #cfd7ea;
+  background: #e9eefb;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.toggle:before {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+  transition: left 0.2s;
+}
+.toggle.active {
+  background: var(--jvgh-blue);
+}
+.toggle.active:before {
+  left: 24px;
+}
+.small-muted {
+  font-size: 0.8rem;
+  color: #6a7493;
+}
+
+@media (max-width: 900px) {
+  .jvgh-main {
+     padding: 2px 2px;
+  }
+  .jvgh-header {
+    padding: 4px 6px;
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .jvgh-header-title {
+    font-size: 1.3rem;
+  }
+  .jvgh-content {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* Header layout helpers */
+.jvgh-header-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.jvgh-logo {
+  height: 25px !important;  /* smaller logo */
+  width: auto !important;
+  margin-right: 10px;
+  flex-shrink: 0;
+}
+
+.jvgh-header-text {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Hide the all-day row in timeGrid views */
+.ec .ec-daygrid,
+.ec .ec-daygrid-container,
+.ec .ec-all-day,
+.ec .ec-all-day-container {
+  display: none !important;
+}
+
+
+/* Fullscreen loading overlay for signups */
+#jvgh-loading-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(0, 0, 0, 0.55);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+}
+
+#jvgh-loading-overlay.jvgh-loading-visible {
+  display: flex;
+}
+
+.jvgh-loading-box {
+  background: #ffffff;
+  border-radius: 18px;
+  padding: 20px 26px 22px;
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.4);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-width: 220px;
+  max-width: 280px;
+  text-align: center;
+}
+
+.jvgh-loading-logo {
+  height: 40px;
+  width: auto;
+  margin-bottom: 4px;
+}
+
+.jvgh-loading-spinner {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 3px solid rgba(0, 43, 92, 0.18);
+  border-top-color: #f2b400;
+  animation: jvgh-spin 0.75s linear infinite;
+}
+
+.jvgh-loading-text {
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: #1b2340;
+}
+
+@keyframes jvgh-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.jvgh-loading-text {
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: #1b2340;
+}
+
+@keyframes jvgh-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* JVGH: layout for volunteer assignment content */
+/* Volunteer assignment layout with vertical times */
+.jvgh-assignment {
+  display: flex;
+  flex-direction: column;
+  white-space: normal;
+  line-height: 1.1;
+}
+
+.jvgh-assignment-times {
+  display: flex;
+  flex-direction: column;
+  font-size: 9px;
+  font-weight: 700;
+  white-space: nowrap;
+  margin-bottom: 1px;
+}
+
+.jvgh-time-line {
+  line-height: 1.0;
+}
+
+.jvgh-assignment-name {
+  font-size: 9px;
+  white-space: normal;
+  overflow-wrap: break-word;
+}
+
+@media print {
+
+  /* Hide the sidebar completely */
+  .jvgh-sidebar {
+    display: none !important;
+  }
+
+  /* Expand the calendar to full width */
+  .jvgh-content {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Remove extra padding for cleaner print */
+  .jvgh-main {
+    padding: 0 !important;
+  }
+
+  /* Optional: remove top black header for cleaner printing */
+  header.jvgh-header {
+    display: none !important;
+  }
+
+  /* Remove EventCalendar toolbar (prev/next buttons etc.) */
+  .ec-toolbar {
+    display: none !important;
+  }
+
+  /* Hide all-day row if still present */
+  .ec-daygrid,
+  .ec-daygrid-container,
+  .ec-all-day,
+  .ec-all-day-container {
+    display: none !important;
+  }
+}
+
+/* Print Button */
+.jvgh-print-btn {
+  padding: 6px 12px;
+  background: var(--jvgh-blue);
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 600;
+  margin-bottom: 10px;
+}
+
+/* Hide print button when printing */
+@media print {
+  .jvgh-print-btn {
+    display: none !important;
+  }
+}

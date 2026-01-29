@@ -1,0 +1,220 @@
+/* === JVGH / jeugdherk.be integrated look === */
+@font-face {
+  font-family: 'BebasNeue';
+  src: url('bebasneue_regular-webfont.woff2') format('woff2'),
+       url('bebasneue_regular-webfont.woff') format('woff');
+  font-weight: 400;
+  font-style: normal;
+}
+
+body {
+  background: #f8f9fa;
+  font-family: "Open Sans", Arial, sans-serif;
+  color: #343a40;
+  margin: 0;
+}
+
+/* --- Header with logo --- */
+.planner-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 20px 40px;
+  border-bottom: 1px solid #dee2e6;
+  background: #fff;
+  position: sticky;
+  top: 0;
+  z-index: 20;
+}
+
+.planner-logo {
+  height: 48px;
+  width: auto;
+}
+
+.planner-header-text {
+  display: flex;
+  flex-direction: column;
+}
+
+.planner-title {
+  font-family: "BebasNeue", sans-serif;
+  font-size: 2rem;
+  line-height: 1;
+  margin: 0;
+  color: #000;
+  letter-spacing: 0.03em;
+}
+
+.planner-subtitle {
+  font-size: 0.9rem;
+  color: #6c757d;
+  margin: 2px 0 0;
+}
+
+/* --- Main layout --- */
+.kantine-planner-wrapper {
+  max-width: 1200px;
+  margin: 20px auto;
+  padding: 0 20px;
+}
+
+.kantine-planner {
+  display: grid;
+  grid-template-columns: minmax(0, 3fr) minmax(260px, 1.3fr);
+  gap: 20px;
+}
+
+.kp-calendar-card {
+  background: #fff;
+  border-radius: 10px;
+  border: 1px solid #dee2e6;
+  padding: 1rem;
+}
+
+.kp-sidebar {
+  background: #fff;
+  border-radius: 10px;
+  border: 1px solid #dee2e6;
+  padding: 0.9rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  position: sticky;
+  top: 90px; /* below header */
+  align-self: start;
+  max-height: calc(100vh - 110px);
+  overflow-y: auto;
+}
+
+/* --- Text & titles --- */
+.kp-calendar-title,
+.kp-sidebar-title {
+  font-family: "BebasNeue", sans-serif;
+  text-transform: uppercase;
+  font-size: 1.4rem;
+  color: #000;
+  margin: 0 0 0.3rem;
+}
+
+.kp-calendar-subtitle,
+.kp-sidebar-subtitle {
+  font-size: 0.9rem;
+  color: #6c757d;
+  margin: 0;
+}
+
+.kp-legend {
+  padding: 2px 6px;
+  border-radius: 3px;
+  color: #fff;
+  font-size: 0.8rem;
+}
+
+.kp-empty { background: #dc3545; }
+.kp-partial { background: #fd7e14; }
+.kp-full { background: #28a745; }
+
+/* --- Volunteer list --- */
+.kp-resource-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.kp-resource-card {
+  background: #f8f9fa;
+  border: 1px solid #dee2e6;
+  border-radius: 6px;
+  padding: 8px 10px;
+  cursor: grab;
+  transition: all 0.2s ease-in-out;
+}
+
+.kp-resource-card:hover {
+  background: #fff;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+}
+
+.kp-resource-name {
+  font-weight: 600;
+  color: #212529;
+}
+
+.kp-resource-meta {
+  font-size: 0.8rem;
+  color: #6c757d;
+}
+
+.kp-resource-hint {
+  font-size: 0.75rem;
+  color: #6c757d;
+}
+
+/* --- Calendar styling --- */
+.ec {
+  font-size: 0.85rem;
+  --ec-border-color: #dee2e6;
+  --ec-slot-border-color: #f1f3f5;
+}
+
+.ec .ec-toolbar {
+  border-bottom: 1px solid #dee2e6;
+  padding-bottom: 6px;
+}
+
+.ec .ec-toolbar-title {
+  font-family: "BebasNeue", sans-serif;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #000;
+  font-size: 1rem;
+}
+
+.ec .ec-button {
+  background-color: #fff;
+  border-radius: 999px;
+  border: 1px solid #dee2e6;
+  padding: 4px 10px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #212529;
+}
+
+.ec .ec-button:hover {
+  border-color: #000;
+  color: #000;
+}
+
+.ec .ec-button.ec-button-primary,
+.ec .ec-button.ec-button-active {
+  background-color: #000;
+  color: #fff;
+  border-color: #000;
+}
+
+/* Slot background colors */
+.ec .slot-empty {
+  background-color: #ffe5e5 !important;
+  border-color: #ff8a8a !important;
+}
+
+.ec .slot-partial {
+  background-color: #fff4d5 !important;
+  border-color: #f2b400 !important;
+}
+
+.ec .slot-full {
+  background-color: #e1f6e9 !important;
+  border-color: #1fa45a !important;
+}
+
+/* Volunteer assignments */
+.ec .ec-event {
+  background-color: #1fa45a;
+  border-radius: 6px;
+  border: 1px solid #0f7b3c;
+  color: #ffffff;
+  font-weight: 600;
+  padding: 1px 3px;
+}

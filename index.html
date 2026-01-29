@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8" />
+  <title>JVGH – Kantinedienst Planner</title>
+
+  <!-- Local EventCalendar assets -->
+  <link rel="stylesheet" href="./vendor/event-calendar.min.css" />
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+<header class="jvgh-header">
+  <div class="jvgh-header-left">
+    <img
+      src="https://goldbug.be/wp-content/uploads/2024/11/cropped-logo-klein-zwart-2.png"
+      alt="JVGH logo"
+      class="jvgh-logo"
+    />
+    <div class="jvgh-header-text">
+      <div class="jvgh-header-title">JVGH – Kantinedienst Planner</div>
+      <div class="jvgh-header-subtitle">
+        Plan vrijwilligers in op de kantinedienst-shifts.
+      </div>
+    </div>
+     
+  </div>
+   <div>
+       <button id="share-button" class="jvgh-print-btn">Share as Image</button>
+       <button id="print-button" class="jvgh-print-btn">Print</button>
+    </div>
+  <div class="jvgh-header-tag">Intern clubgebruik</div>
+</header>
+
+<main class="jvgh-main">
+  <div class="jvgh-content">
+    <!-- LEFT: calendar -->
+    <section class="jvgh-calendar-card">
+      <div class="jvgh-calendar-header"></div>
+      <div id="ec"></div>
+    </section>
+
+    <!-- RIGHT: volunteers to plan -->
+  <aside class="jvgh-sidebar">
+    <!-- BESTUUR -->
+    <div class="jvgh-sidebar-title">Bestuur</div>
+    <div class="resource-list" id="resource-list-bestuur"></div>
+
+
+    <!-- VRIJWILLIGERS -->
+    <div class="jvgh-sidebar-title">Vrijwilligers</div>
+
+    <div class="resource-list" id="resource-list"></div>
+
+      <div class="jvgh-sidebar-title">Externe kalender</div>
+      <div class="toggle-row">
+        <div>
+          <div style="font-weight:600;">JVGH iCal</div>
+        </div>
+        <div id="ical-toggle" class="toggle" role="switch" aria-checked="false" tabindex="0"></div>
+      </div>
+      <div class="toggle-row" style="margin-top:8px;">
+        <div>
+          <div style="font-weight:600;">Shifts</div>
+        </div>
+        <div id="shift-toggle" class="toggle" role="switch" aria-checked="false" tabindex="0"></div>
+      </div>
+      <div id="ical-status" class="small-muted" style="margin-top:6px;"></div>
+    </aside>
+  </div>
+</main>
+
+<!-- External JS -->
+<script src="./vendor/event-calendar.min.js"></script>
+<script src="jvgh-api.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+<script src="main.js"></script>
+</body>
+</html>
