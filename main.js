@@ -42,6 +42,40 @@ document.getElementById("print-button").addEventListener("click", () => {
 
 const DEFAULT_ASSIGNMENT_DURATION_MINUTES = 240;
 
+function jvghDayKeyFromDate(d) {
+  if (!d) return null;
+  try {
+    return d.toISOString().slice(0, 10);
+  } catch {
+    return null;
+  }
+}
+
+function jvghPad2(n) {
+  return String(n).padStart(2, "0");
+}
+
+// Resolve sheetId ONLY from daySheetMap (authoritative), never from slots.
+// If missing, optionally try to load schedules once and re-check.
+async function jvghResolveSheetIdForDay(
+  dayKey,
+  loadExistingSchedulesOnce,
+  daySheetMap
+) {
+  if (!dayKey) return null;
+  if (daySheetMap.has(dayKey)) return daySheetMap.get(dayKey);
+
+  // try refresh once (if provided)
+  if (typeof loadExistingSchedulesOnce === "function") {
+    try {
+      await loadExistingSchedulesOnce();
+    } catch {}
+  }
+  if (daySheetMap.has(dayKey)) return daySheetMap.get(dayKey);
+
+  return null;
+}
+
 function logAssignmentDecision(action, reason, details = {}) {
   console.groupCollapsed(`[JVGH][${action}] ${reason}`);
   console.log(details);
@@ -50,10 +84,7 @@ function logAssignmentDecision(action, reason, details = {}) {
 }
 
 function getTaskDurationMinutes(taskQty) {
-  const qty = Number(taskQty);
-  if (!Number.isFinite(qty)) {
-    return DEFAULT_ASSIGNMENT_DURATION_MINUTES;
-  }
+  const qty = Number(taskQty) || 1;
   if (qty >= 60) {
     console.log("Using task.qty as duration (JVGH custom)", { qty });
     return qty;
@@ -484,7 +515,9 @@ document.addEventListener("DOMContentLoaded", function () {
           start: event.start,
           end: event.end,
           taskId: null,
-          sheetId: null,
+          oldDayKey: null,
+          newDayKey: null,
+          resolvedSheetId: null,
         });
         info.revert();
         return;
@@ -498,7 +531,9 @@ document.addEventListener("DOMContentLoaded", function () {
           start: event.start,
           end: event.end,
           taskId: null,
-          sheetId: null,
+          oldDayKey: null,
+          newDayKey: null,
+          resolvedSheetId: null,
         });
         info.revert();
         return;
@@ -511,7 +546,9 @@ document.addEventListener("DOMContentLoaded", function () {
           start: event.start,
           end: event.end,
           taskId: assignment.taskId,
-          sheetId: assignment.sheetId || null,
+          oldDayKey: assignment.start ? assignment.start.slice(0, 10) : null,
+          newDayKey: null,
+          resolvedSheetId: null,
         });
         info.revert();
         return;
@@ -526,47 +563,13 @@ document.addEventListener("DOMContentLoaded", function () {
           start: event.start,
           end: event.end,
           taskId: assignment.taskId,
-          sheetId: assignment.sheetId || null,
+          oldDayKey: assignment.start ? assignment.start.slice(0, 10) : null,
+          newDayKey: null,
+          resolvedSheetId: null,
         });
         info.revert();
         return;
       }
-
-      const targetDateKey = newStart.toISOString().slice(0, 10);
-      if (!isSameDay(newEnd, targetDateKey)) {
-        logAssignmentDecision("MOVE", "Move crosses calendar day", {
-          assignmentId: assignment.id,
-          slotId: assignment.slotId,
-          targetSlotId: null,
-          start: newStart.toISOString(),
-          end: newEnd.toISOString(),
-          taskId: assignment.taskId,
-          sheetId: assignment.sheetId || null,
-        });
-        info.revert();
-        return;
-      }
-
-      const targetSlot = findSlotForDate(newStart);
-      const resolvedSheetId =
-        (targetSlot && targetSlot.sheetId) || daySheetMap.get(targetDateKey);
-      if (!resolvedSheetId) {
-        logAssignmentDecision("MOVE", "Target sheetId not found for day", {
-          assignmentId: assignment.id,
-          slotId: assignment.slotId,
-          targetSlotId: targetSlot ? targetSlot.id : null,
-          start: newStart.toISOString(),
-          end: newEnd.toISOString(),
-          taskId: assignment.taskId,
-          sheetId: assignment.sheetId || null,
-        });
-        info.revert();
-        return;
-      }
-
-      const pad = (n) => String(n).padStart(2, "0");
-      const dateStr = targetDateKey;
-      const timeStr = `${pad(newStart.getHours())}:${pad(newStart.getMinutes())}`;
 
       const previousAssignment = {
         start: assignment.start,
@@ -575,12 +578,60 @@ document.addEventListener("DOMContentLoaded", function () {
         sheetId: assignment.sheetId,
       };
 
+      const oldDayKey = assignment.start ? assignment.start.slice(0, 10) : null;
+      const newDayKey = jvghDayKeyFromDate(newStart);
+      if (oldDayKey && newDayKey && oldDayKey !== newDayKey) {
+        logAssignmentDecision("MOVE", "Move crosses calendar day", {
+          assignmentId: assignment.id,
+          slotId: assignment.slotId,
+          targetSlotId: null,
+          start: newStart.toISOString(),
+          end: newEnd.toISOString(),
+          taskId: assignment.taskId,
+          oldDayKey,
+          newDayKey,
+          resolvedSheetId: null,
+        });
+        info.revert();
+        return;
+      }
+
+      const targetSlot = findSlotForDate(newStart);
+      const resolvedSheetId = await jvghResolveSheetIdForDay(
+        newDayKey,
+        loadExistingSchedulesOnce,
+        daySheetMap
+      );
+      if (!resolvedSheetId) {
+        assignment.start = previousAssignment.start;
+        assignment.end = previousAssignment.end;
+        assignment.slotId = previousAssignment.slotId;
+        assignment.sheetId = previousAssignment.sheetId;
+        logAssignmentDecision("MOVE", "No sheetId for day (daySheetMap missing)", {
+          assignmentId: assignment.id,
+          slotId: assignment.slotId,
+          targetSlotId: targetSlot ? targetSlot.id : null,
+          start: newStart.toISOString(),
+          end: newEnd.toISOString(),
+          taskId: assignment.taskId,
+          oldDayKey,
+          newDayKey,
+          resolvedSheetId: null,
+        });
+        info.revert();
+        return;
+      }
+
+      const dateStr = newDayKey;
+      const timeStr = `${jvghPad2(newStart.getHours())}:${jvghPad2(
+        newStart.getMinutes()
+      )}`;
+
       assignment.start = newStart.toISOString();
       assignment.end = newEnd.toISOString();
       if (targetSlot) {
         assignment.slotId = targetSlot.id;
       }
-      assignment.sheetId = resolvedSheetId;
 
       try {
         await JVGHApi.updateTask(resolvedSheetId, assignment.taskId, {
@@ -599,7 +650,9 @@ document.addEventListener("DOMContentLoaded", function () {
           start: assignment.start,
           end: assignment.end,
           taskId: assignment.taskId,
-          sheetId: resolvedSheetId,
+          oldDayKey,
+          newDayKey,
+          resolvedSheetId,
           error: err,
         });
         console.error("[JVGH] Failed to update task for drag move:", err);
@@ -608,7 +661,7 @@ document.addEventListener("DOMContentLoaded", function () {
       }
     },
 
-    eventResize: (info) => {
+    eventResize: async (info) => {
       const event = info.event;
       const ext = event.extendedProps || {};
 
@@ -619,7 +672,9 @@ document.addEventListener("DOMContentLoaded", function () {
           start: event.start,
           end: event.end,
           taskId: null,
-          sheetId: null,
+          oldDayKey: null,
+          newDayKey: null,
+          resolvedSheetId: null,
         });
         info.revert();
         return;
@@ -633,7 +688,9 @@ document.addEventListener("DOMContentLoaded", function () {
           start: event.start,
           end: event.end,
           taskId: null,
-          sheetId: null,
+          oldDayKey: null,
+          newDayKey: null,
+          resolvedSheetId: null,
         });
         info.revert();
         return;
@@ -646,7 +703,9 @@ document.addEventListener("DOMContentLoaded", function () {
           start: event.start,
           end: event.end,
           taskId: assignment.taskId || null,
-          sheetId: assignment.sheetId || null,
+          oldDayKey: assignment.start ? assignment.start.slice(0, 10) : null,
+          newDayKey: null,
+          resolvedSheetId: null,
         });
         info.revert();
         return;
@@ -661,11 +720,20 @@ document.addEventListener("DOMContentLoaded", function () {
           start: event.start,
           end: event.end,
           taskId: assignment.taskId || null,
-          sheetId: assignment.sheetId || null,
+          oldDayKey: assignment.start ? assignment.start.slice(0, 10) : null,
+          newDayKey: null,
+          resolvedSheetId: null,
         });
         info.revert();
         return;
       }
+
+      const previousAssignment = {
+        start: assignment.start,
+        end: assignment.end,
+        slotId: assignment.slotId,
+        sheetId: assignment.sheetId,
+      };
 
       if (newEnd <= newStart) {
         logAssignmentDecision("RESIZE", "Resize resulted in invalid duration", {
@@ -674,8 +742,14 @@ document.addEventListener("DOMContentLoaded", function () {
           start: newStart.toISOString(),
           end: newEnd.toISOString(),
           taskId: assignment.taskId || null,
-          sheetId: assignment.sheetId || null,
+          oldDayKey: assignment.start ? assignment.start.slice(0, 10) : null,
+          newDayKey: jvghDayKeyFromDate(newStart),
+          resolvedSheetId: null,
         });
+        assignment.start = previousAssignment.start;
+        assignment.end = previousAssignment.end;
+        assignment.slotId = previousAssignment.slotId;
+        assignment.sheetId = previousAssignment.sheetId;
         info.revert();
         return;
       }
@@ -686,11 +760,52 @@ document.addEventListener("DOMContentLoaded", function () {
       const durationMinutes = Math.round(
         (newEnd.getTime() - newStart.getTime()) / 60000
       );
+      if (!Number.isFinite(durationMinutes) || durationMinutes <= 0) {
+        logAssignmentDecision("RESIZE", "Resize resulted in invalid duration", {
+          assignmentId: assignment.id,
+          slotId: assignment.slotId,
+          start: assignment.start,
+          end: assignment.end,
+          taskId: assignment.taskId || null,
+          oldDayKey: assignment.start ? assignment.start.slice(0, 10) : null,
+          newDayKey: jvghDayKeyFromDate(newStart),
+          resolvedSheetId: null,
+        });
+        assignment.start = previousAssignment.start;
+        assignment.end = previousAssignment.end;
+        assignment.slotId = previousAssignment.slotId;
+        assignment.sheetId = previousAssignment.sheetId;
+        info.revert();
+        return;
+      }
+
+      const dayKey = jvghDayKeyFromDate(newStart);
+      const resolvedSheetId = await jvghResolveSheetIdForDay(
+        dayKey,
+        loadExistingSchedulesOnce,
+        daySheetMap
+      );
+      if (!resolvedSheetId) {
+        logAssignmentDecision("RESIZE", "No sheetId for day (daySheetMap missing)", {
+          assignmentId: assignment.id,
+          slotId: assignment.slotId,
+          start: assignment.start,
+          end: assignment.end,
+          taskId: assignment.taskId || null,
+          oldDayKey: assignment.start ? assignment.start.slice(0, 10) : null,
+          newDayKey: dayKey,
+          resolvedSheetId: null,
+        });
+        return;
+      }
+
       if (durationMinutes >= 60) {
         console.log("Using task.qty as duration (JVGH custom)", {
           qty: durationMinutes,
+          taskId: assignment.taskId,
+          sheetId: resolvedSheetId,
         });
-        JVGHApi.updateTask(assignment.sheetId, assignment.taskId, {
+        JVGHApi.updateTask(resolvedSheetId, assignment.taskId, {
           qty: durationMinutes,
         }).catch((err) => {
           console.error("[JVGH] Failed to update task duration:", err);
@@ -845,7 +960,18 @@ document.addEventListener("DOMContentLoaded", function () {
         const classNames = role === "bestuur" ? ["bestuur-assignment"] : [];
 
         const eventStart = a.start || slot.start;
-        const eventEnd = a.end || slot.end;
+        let eventEnd = a.end;
+        if (!eventEnd && eventStart && a.durationMinutes) {
+          const startDate = new Date(eventStart);
+          if (!isNaN(startDate)) {
+            eventEnd = new Date(
+              startDate.getTime() + a.durationMinutes * 60 * 1000
+            ).toISOString();
+          }
+        }
+        if (!eventEnd) {
+          eventEnd = slot.end;
+        }
 
         events.push({
           id: a.id,
@@ -1013,6 +1139,13 @@ document.addEventListener("DOMContentLoaded", function () {
           const timeStr = (task.time || "").slice(0, 5);
           if (!dateStr || !timeStr) continue;
 
+          const qty = Number(task.qty) || 1;
+          const durationMinutes =
+            qty >= 60 ? qty : DEFAULT_ASSIGNMENT_DURATION_MINUTES;
+          if (qty >= 60) {
+            console.log("Using task.qty as duration (JVGH custom)", { qty });
+          }
+
           const taskKey = dateStr + " " + timeStr;
           let slot = slotByKey.get(taskKey);
 
@@ -1028,9 +1161,8 @@ document.addEventListener("DOMContentLoaded", function () {
 
               const slotStartDate = new Date(year, month - 1, day, hour, minute, 0);
               const slotEndDate = new Date(
-                slotStartDate.getTime() +
-                  DEFAULT_ASSIGNMENT_DURATION_MINUTES * 60 * 1000
-              ); // default 4u
+                slotStartDate.getTime() + durationMinutes * 60 * 1000
+              );
 
               slot = {
                 id: "shift-task-" + String(task.id),
@@ -1090,7 +1222,6 @@ document.addEventListener("DOMContentLoaded", function () {
             startMinute,
             0
           );
-          const durationMinutes = getTaskDurationMinutes(task.qty);
           const assignmentEndDate = new Date(
             assignmentStartDate.getTime() + durationMinutes * 60 * 1000
           );
@@ -1129,6 +1260,7 @@ document.addEventListener("DOMContentLoaded", function () {
               role,
               start: assignmentStartIso,
               end: assignmentEndIso,
+              durationMinutes,
             });
           });
         }
