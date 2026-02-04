@@ -795,6 +795,13 @@ document.addEventListener("DOMContentLoaded", function () {
 
     // Voeg handmatige slots terug toe
     slots = slots.concat(manualSlots);
+    // 🔁 Re-attach sheetId to rebuilt slots
+    slots.forEach((slot) => {
+      const dayKey = slot.start.slice(0, 10);
+      if (!slot.sheetId && daySheetMap.has(dayKey)) {
+        slot.sheetId = daySheetMap.get(dayKey);
+      }
+    });
 
     // track which days still have open shifts
     //openShiftDays = new Map();
