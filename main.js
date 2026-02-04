@@ -464,7 +464,15 @@ document.addEventListener("DOMContentLoaded", function () {
       }
 
       const newStart = event.start ? new Date(event.start) : null;
-      const newEnd = event.end ? new Date(event.end) : null;
+      const fallbackEnd = assignment.end ? new Date(assignment.end) : null;
+      const originalStart = assignment.start ? new Date(assignment.start) : null;
+      const durationMs =
+        originalStart && fallbackEnd ? fallbackEnd.getTime() - originalStart.getTime() : 0;
+      const newEnd = event.end
+        ? new Date(event.end)
+        : newStart && durationMs
+          ? new Date(newStart.getTime() + durationMs)
+          : null;
       if (!newStart || !newEnd || isNaN(newStart) || isNaN(newEnd)) {
         info.revert();
         return;
