@@ -691,15 +691,16 @@ document.addEventListener("DOMContentLoaded", function () {
         return;
       }
 
-      if (clampedStart.getTime() !== newStart.getTime()) {
-        event.setStart(clampedStart);
-      }
-      if (clampedEnd.getTime() !== newEnd.getTime()) {
-        event.setEnd(clampedEnd);
-      }
+      const needsClamp =
+        clampedStart.getTime() !== newStart.getTime() ||
+        clampedEnd.getTime() !== newEnd.getTime();
 
       assignment.start = clampedStart.toISOString();
       assignment.end = clampedEnd.toISOString();
+
+      if (needsClamp) {
+        renderAll();
+      }
     },
   });
 
