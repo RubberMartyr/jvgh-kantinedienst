@@ -32,15 +32,39 @@ document.getElementById("share-button").addEventListener("click", async () => {
 });
 
 // main.js – JVGH Kantinedienst planner
+// NOTE:
+// dlssus_qty is overloaded:
+// - qty < 60  → volunteer capacity
+// - qty >= 60 → assignment duration in minutes (JVGH custom)
 document.getElementById("print-button").addEventListener("click", () => {
   window.print();
 });
+
+const DEFAULT_ASSIGNMENT_DURATION_MINUTES = 240;
 
 function logAssignmentDecision(action, reason, details = {}) {
   console.groupCollapsed(`[JVGH][${action}] ${reason}`);
   console.log(details);
   console.trace();
   console.groupEnd();
+}
+
+function getTaskDurationMinutes(taskQty) {
+  const qty = Number(taskQty);
+  if (!Number.isFinite(qty)) {
+    return DEFAULT_ASSIGNMENT_DURATION_MINUTES;
+  }
+  if (qty >= 60) {
+    console.log("Using task.qty as duration (JVGH custom)", { qty });
+    return qty;
+  }
+  return DEFAULT_ASSIGNMENT_DURATION_MINUTES;
+}
+
+function getTaskCapacity(taskQty) {
+  const qty = Number(taskQty);
+  if (!Number.isFinite(qty)) return 1;
+  return qty < 60 ? qty : 1;
 }
 
 
@@ -508,9 +532,9 @@ document.addEventListener("DOMContentLoaded", function () {
         return;
       }
 
-      const targetSlot = findSlotForDate(newStart);
-      if (!targetSlot) {
-        logAssignmentDecision("MOVE", "Target slot not found for start time", {
+      const targetDateKey = newStart.toISOString().slice(0, 10);
+      if (!isSameDay(newEnd, targetDateKey)) {
+        logAssignmentDecision("MOVE", "Move crosses calendar day", {
           assignmentId: assignment.id,
           slotId: assignment.slotId,
           targetSlotId: null,
@@ -523,48 +547,18 @@ document.addEventListener("DOMContentLoaded", function () {
         return;
       }
 
-      if (!targetSlot.sheetId) {
-        logAssignmentDecision("MOVE", "Target slot missing sheetId", {
+      const targetSlot = findSlotForDate(newStart);
+      const resolvedSheetId =
+        (targetSlot && targetSlot.sheetId) || daySheetMap.get(targetDateKey);
+      if (!resolvedSheetId) {
+        logAssignmentDecision("MOVE", "Target sheetId not found for day", {
           assignmentId: assignment.id,
           slotId: assignment.slotId,
-          targetSlotId: targetSlot.id,
+          targetSlotId: targetSlot ? targetSlot.id : null,
           start: newStart.toISOString(),
           end: newEnd.toISOString(),
           taskId: assignment.taskId,
-          sheetId: targetSlot.sheetId,
-        });
-        info.revert();
-        return;
-      }
-
-      const targetSlotStart = new Date(targetSlot.start);
-      const targetSlotEnd = new Date(targetSlot.end);
-      if (newStart < targetSlotStart || newEnd > targetSlotEnd) {
-        logAssignmentDecision("MOVE", "Move outside target slot bounds", {
-          assignmentId: assignment.id,
-          slotId: assignment.slotId,
-          targetSlotId: targetSlot.id,
-          start: newStart.toISOString(),
-          end: newEnd.toISOString(),
-          taskId: assignment.taskId,
-          slotStart: targetSlot.start,
-          slotEnd: targetSlot.end,
-          sheetId: targetSlot.sheetId,
-        });
-        info.revert();
-        return;
-      }
-
-      const targetDateKey = newStart.toISOString().slice(0, 10);
-      if (!isSameDay(newEnd, targetDateKey)) {
-        logAssignmentDecision("MOVE", "Move crosses calendar day", {
-          assignmentId: assignment.id,
-          slotId: assignment.slotId,
-          targetSlotId: targetSlot.id,
-          start: newStart.toISOString(),
-          end: newEnd.toISOString(),
-          taskId: assignment.taskId,
-          sheetId: targetSlot.sheetId,
+          sheetId: assignment.sheetId || null,
         });
         info.revert();
         return;
@@ -583,11 +577,13 @@ document.addEventListener("DOMContentLoaded", function () {
 
       assignment.start = newStart.toISOString();
       assignment.end = newEnd.toISOString();
-      assignment.slotId = targetSlot.id;
-      assignment.sheetId = targetSlot.sheetId;
+      if (targetSlot) {
+        assignment.slotId = targetSlot.id;
+      }
+      assignment.sheetId = resolvedSheetId;
 
       try {
-        await JVGHApi.updateTask(targetSlot.sheetId, assignment.taskId, {
+        await JVGHApi.updateTask(resolvedSheetId, assignment.taskId, {
           date: dateStr,
           time: timeStr,
         });
@@ -599,11 +595,11 @@ document.addEventListener("DOMContentLoaded", function () {
         logAssignmentDecision("MOVE", "Backend update failed", {
           assignmentId: assignment.id,
           slotId: previousAssignment.slotId,
-          targetSlotId: targetSlot.id,
+          targetSlotId: targetSlot ? targetSlot.id : null,
           start: assignment.start,
           end: assignment.end,
           taskId: assignment.taskId,
-          sheetId: targetSlot.sheetId,
+          sheetId: resolvedSheetId,
           error: err,
         });
         console.error("[JVGH] Failed to update task for drag move:", err);
@@ -643,9 +639,8 @@ document.addEventListener("DOMContentLoaded", function () {
         return;
       }
 
-      const slot = findSlotById(assignment.slotId);
-      if (!slot) {
-        logAssignmentDecision("RESIZE", "Slot not found for assignment", {
+      if (!assignment.taskId) {
+        logAssignmentDecision("RESIZE", "Assignment missing taskId", {
           assignmentId: assignment.id,
           slotId: assignment.slotId,
           start: event.start,
@@ -672,18 +667,12 @@ document.addEventListener("DOMContentLoaded", function () {
         return;
       }
 
-      const slotStart = new Date(slot.start);
-      const slotEnd = new Date(slot.end);
-      const clampedStart = newStart < slotStart ? slotStart : newStart;
-      const clampedEnd = newEnd > slotEnd ? slotEnd : newEnd;
-      if (clampedEnd <= clampedStart) {
+      if (newEnd <= newStart) {
         logAssignmentDecision("RESIZE", "Resize resulted in invalid duration", {
           assignmentId: assignment.id,
           slotId: assignment.slotId,
           start: newStart.toISOString(),
           end: newEnd.toISOString(),
-          slotStart: slot.start,
-          slotEnd: slot.end,
           taskId: assignment.taskId || null,
           sheetId: assignment.sheetId || null,
         });
@@ -691,15 +680,21 @@ document.addEventListener("DOMContentLoaded", function () {
         return;
       }
 
-      const needsClamp =
-        clampedStart.getTime() !== newStart.getTime() ||
-        clampedEnd.getTime() !== newEnd.getTime();
+      assignment.start = newStart.toISOString();
+      assignment.end = newEnd.toISOString();
 
-      assignment.start = clampedStart.toISOString();
-      assignment.end = clampedEnd.toISOString();
-
-      if (needsClamp) {
-        renderAll();
+      const durationMinutes = Math.round(
+        (newEnd.getTime() - newStart.getTime()) / 60000
+      );
+      if (durationMinutes >= 60) {
+        console.log("Using task.qty as duration (JVGH custom)", {
+          qty: durationMinutes,
+        });
+        JVGHApi.updateTask(assignment.sheetId, assignment.taskId, {
+          qty: durationMinutes,
+        }).catch((err) => {
+          console.error("[JVGH] Failed to update task duration:", err);
+        });
       }
     },
   });
@@ -1033,7 +1028,8 @@ document.addEventListener("DOMContentLoaded", function () {
 
               const slotStartDate = new Date(year, month - 1, day, hour, minute, 0);
               const slotEndDate = new Date(
-                slotStartDate.getTime() + 240 * 60 * 1000
+                slotStartDate.getTime() +
+                  DEFAULT_ASSIGNMENT_DURATION_MINUTES * 60 * 1000
               ); // default 4u
 
               slot = {
@@ -1060,6 +1056,9 @@ document.addEventListener("DOMContentLoaded", function () {
           // remember linkage on the slot
           slot.sheetId = sheetId;
           slot.taskId = task.id;
+          if (task.qty !== undefined && task.qty !== null) {
+            slot.required = getTaskCapacity(task.qty);
+          }
 
           let signupsResp;
           try {
@@ -1077,6 +1076,26 @@ document.addEventListener("DOMContentLoaded", function () {
             ? signupsResp.signups
             : signupsResp || [];
           if (!signupsArr.length) continue;
+
+          const startYear = parseInt(dateStr.slice(0, 4), 10);
+          const startMonth = parseInt(dateStr.slice(5, 7), 10);
+          const startDay = parseInt(dateStr.slice(8, 10), 10);
+          const startHour = parseInt(timeStr.slice(0, 2), 10) || 0;
+          const startMinute = parseInt(timeStr.slice(3, 5), 10) || 0;
+          const assignmentStartDate = new Date(
+            startYear,
+            startMonth - 1,
+            startDay,
+            startHour,
+            startMinute,
+            0
+          );
+          const durationMinutes = getTaskDurationMinutes(task.qty);
+          const assignmentEndDate = new Date(
+            assignmentStartDate.getTime() + durationMinutes * 60 * 1000
+          );
+          const assignmentStartIso = assignmentStartDate.toISOString();
+          const assignmentEndIso = assignmentEndDate.toISOString();
 
           signupsArr.forEach((su) => {
             const firstName =
@@ -1108,6 +1127,8 @@ document.addEventListener("DOMContentLoaded", function () {
               signupId: su.id,
               userId,
               role,
+              start: assignmentStartIso,
+              end: assignmentEndIso,
             });
           });
         }
@@ -1175,7 +1196,8 @@ document.addEventListener("DOMContentLoaded", function () {
       const date = new Date(pos.date);
 
       // Calculate assignment start/end based on drop time (flexible, even inside shifts)
-      const durationMinutes = Number(data.duration) || 240; // default 4u
+      const durationMinutes =
+        Number(data.duration) || DEFAULT_ASSIGNMENT_DURATION_MINUTES; // default 4u
       const assignmentStartDate = new Date(date);
       const assignmentEndDate = new Date(
         assignmentStartDate.getTime() + durationMinutes * 60 * 1000
