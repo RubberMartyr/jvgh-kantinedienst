@@ -36,6 +36,13 @@ document.getElementById("print-button").addEventListener("click", () => {
   window.print();
 });
 
+function logAssignmentDecision(action, reason, details = {}) {
+  console.groupCollapsed(`[JVGH][${action}] ${reason}`);
+  console.log(details);
+  console.trace();
+  console.groupEnd();
+}
+
 
 
 document.addEventListener("DOMContentLoaded", function () {
@@ -447,93 +454,41 @@ document.addEventListener("DOMContentLoaded", function () {
       const ext = event.extendedProps || {};
 
       if (ext.type !== "assignment") {
-        info.revert();
-        return;
-      }
-
-      const assignment = assignments.find((a) => a.id === event.id);
-      if (!assignment) {
-        info.revert();
-        return;
-      }
-
-      const slot = findSlotById(assignment.slotId);
-      if (!slot) {
-        info.revert();
-        return;
-      }
-
-      const newStart = event.start ? new Date(event.start) : null;
-      const fallbackEnd = assignment.end ? new Date(assignment.end) : null;
-      const originalStart = assignment.start ? new Date(assignment.start) : null;
-      const durationMs =
-        originalStart && fallbackEnd ? fallbackEnd.getTime() - originalStart.getTime() : 0;
-      const newEnd = event.end
-        ? new Date(event.end)
-        : newStart && durationMs
-          ? new Date(newStart.getTime() + durationMs)
-          : null;
-      if (!newStart || !newEnd || isNaN(newStart) || isNaN(newEnd)) {
-        info.revert();
-        return;
-      }
-
-      const slotStart = new Date(slot.start);
-      const slotEnd = new Date(slot.end);
-      if (newStart < slotStart || newEnd > slotEnd) {
-        info.revert();
-        return;
-      }
-
-      const originalDateKey = (assignment.start || slot.start).slice(0, 10);
-      if (!isSameDay(newStart, originalDateKey) || !isSameDay(newEnd, originalDateKey)) {
-        info.revert();
-        return;
-      }
-
-      const pad = (n) => String(n).padStart(2, "0");
-      const dateStr = newStart.toISOString().slice(0, 10);
-      const timeStr = `${pad(newStart.getHours())}:${pad(newStart.getMinutes())}`;
-
-      const sheetId = assignment.sheetId || slot.sheetId;
-      if (!sheetId || !assignment.taskId) {
-        info.revert();
-        return;
-      }
-
-      try {
-        await JVGHApi.updateTask(sheetId, assignment.taskId, {
-          date: dateStr,
-          time: timeStr,
+        logAssignmentDecision("MOVE", "Non-assignment event", {
+          assignmentId: event.id,
+          slotId: null,
+          start: event.start,
+          end: event.end,
+          taskId: null,
+          sheetId: null,
         });
-      } catch (err) {
-        console.error("[JVGH] Failed to update task for drag move:", err);
-        info.revert();
-        return;
-      }
-
-      assignment.sheetId = sheetId;
-      assignment.start = newStart.toISOString();
-      assignment.end = newEnd.toISOString();
-    },
-
-    eventResize: (info) => {
-      const event = info.event;
-      const ext = event.extendedProps || {};
-
-      if (ext.type !== "assignment") {
         info.revert();
         return;
       }
 
       const assignment = assignments.find((a) => a.id === event.id);
       if (!assignment) {
+        logAssignmentDecision("MOVE", "Assignment not found", {
+          assignmentId: event.id,
+          slotId: null,
+          start: event.start,
+          end: event.end,
+          taskId: null,
+          sheetId: null,
+        });
         info.revert();
         return;
       }
 
-      const slot = findSlotById(assignment.slotId);
-      if (!slot) {
+      if (!assignment.taskId) {
+        logAssignmentDecision("MOVE", "Assignment missing taskId", {
+          assignmentId: assignment.id,
+          slotId: assignment.slotId,
+          start: event.start,
+          end: event.end,
+          taskId: assignment.taskId,
+          sheetId: assignment.sheetId || null,
+        });
         info.revert();
         return;
       }
@@ -541,19 +496,210 @@ document.addEventListener("DOMContentLoaded", function () {
       const newStart = event.start ? new Date(event.start) : null;
       const newEnd = event.end ? new Date(event.end) : null;
       if (!newStart || !newEnd || isNaN(newStart) || isNaN(newEnd)) {
+        logAssignmentDecision("MOVE", "Missing start/end on event", {
+          assignmentId: assignment.id,
+          slotId: assignment.slotId,
+          start: event.start,
+          end: event.end,
+          taskId: assignment.taskId,
+          sheetId: assignment.sheetId || null,
+        });
+        info.revert();
+        return;
+      }
+
+      const targetSlot = findSlotForDate(newStart);
+      if (!targetSlot) {
+        logAssignmentDecision("MOVE", "Target slot not found for start time", {
+          assignmentId: assignment.id,
+          slotId: assignment.slotId,
+          targetSlotId: null,
+          start: newStart.toISOString(),
+          end: newEnd.toISOString(),
+          taskId: assignment.taskId,
+          sheetId: assignment.sheetId || null,
+        });
+        info.revert();
+        return;
+      }
+
+      if (!targetSlot.sheetId) {
+        logAssignmentDecision("MOVE", "Target slot missing sheetId", {
+          assignmentId: assignment.id,
+          slotId: assignment.slotId,
+          targetSlotId: targetSlot.id,
+          start: newStart.toISOString(),
+          end: newEnd.toISOString(),
+          taskId: assignment.taskId,
+          sheetId: targetSlot.sheetId,
+        });
+        info.revert();
+        return;
+      }
+
+      const targetSlotStart = new Date(targetSlot.start);
+      const targetSlotEnd = new Date(targetSlot.end);
+      if (newStart < targetSlotStart || newEnd > targetSlotEnd) {
+        logAssignmentDecision("MOVE", "Move outside target slot bounds", {
+          assignmentId: assignment.id,
+          slotId: assignment.slotId,
+          targetSlotId: targetSlot.id,
+          start: newStart.toISOString(),
+          end: newEnd.toISOString(),
+          taskId: assignment.taskId,
+          slotStart: targetSlot.start,
+          slotEnd: targetSlot.end,
+          sheetId: targetSlot.sheetId,
+        });
+        info.revert();
+        return;
+      }
+
+      const targetDateKey = newStart.toISOString().slice(0, 10);
+      if (!isSameDay(newEnd, targetDateKey)) {
+        logAssignmentDecision("MOVE", "Move crosses calendar day", {
+          assignmentId: assignment.id,
+          slotId: assignment.slotId,
+          targetSlotId: targetSlot.id,
+          start: newStart.toISOString(),
+          end: newEnd.toISOString(),
+          taskId: assignment.taskId,
+          sheetId: targetSlot.sheetId,
+        });
+        info.revert();
+        return;
+      }
+
+      const pad = (n) => String(n).padStart(2, "0");
+      const dateStr = targetDateKey;
+      const timeStr = `${pad(newStart.getHours())}:${pad(newStart.getMinutes())}`;
+
+      const previousAssignment = {
+        start: assignment.start,
+        end: assignment.end,
+        slotId: assignment.slotId,
+        sheetId: assignment.sheetId,
+      };
+
+      assignment.start = newStart.toISOString();
+      assignment.end = newEnd.toISOString();
+      assignment.slotId = targetSlot.id;
+      assignment.sheetId = targetSlot.sheetId;
+
+      try {
+        await JVGHApi.updateTask(targetSlot.sheetId, assignment.taskId, {
+          date: dateStr,
+          time: timeStr,
+        });
+      } catch (err) {
+        assignment.start = previousAssignment.start;
+        assignment.end = previousAssignment.end;
+        assignment.slotId = previousAssignment.slotId;
+        assignment.sheetId = previousAssignment.sheetId;
+        logAssignmentDecision("MOVE", "Backend update failed", {
+          assignmentId: assignment.id,
+          slotId: previousAssignment.slotId,
+          targetSlotId: targetSlot.id,
+          start: assignment.start,
+          end: assignment.end,
+          taskId: assignment.taskId,
+          sheetId: targetSlot.sheetId,
+          error: err,
+        });
+        console.error("[JVGH] Failed to update task for drag move:", err);
+        info.revert();
+        return;
+      }
+    },
+
+    eventResize: (info) => {
+      const event = info.event;
+      const ext = event.extendedProps || {};
+
+      if (ext.type !== "assignment") {
+        logAssignmentDecision("RESIZE", "Non-assignment event", {
+          assignmentId: event.id,
+          slotId: null,
+          start: event.start,
+          end: event.end,
+          taskId: null,
+          sheetId: null,
+        });
+        info.revert();
+        return;
+      }
+
+      const assignment = assignments.find((a) => a.id === event.id);
+      if (!assignment) {
+        logAssignmentDecision("RESIZE", "Assignment not found", {
+          assignmentId: event.id,
+          slotId: null,
+          start: event.start,
+          end: event.end,
+          taskId: null,
+          sheetId: null,
+        });
+        info.revert();
+        return;
+      }
+
+      const slot = findSlotById(assignment.slotId);
+      if (!slot) {
+        logAssignmentDecision("RESIZE", "Slot not found for assignment", {
+          assignmentId: assignment.id,
+          slotId: assignment.slotId,
+          start: event.start,
+          end: event.end,
+          taskId: assignment.taskId || null,
+          sheetId: assignment.sheetId || null,
+        });
+        info.revert();
+        return;
+      }
+
+      const newStart = event.start ? new Date(event.start) : null;
+      const newEnd = event.end ? new Date(event.end) : null;
+      if (!newStart || !newEnd || isNaN(newStart) || isNaN(newEnd)) {
+        logAssignmentDecision("RESIZE", "Missing start/end on event", {
+          assignmentId: assignment.id,
+          slotId: assignment.slotId,
+          start: event.start,
+          end: event.end,
+          taskId: assignment.taskId || null,
+          sheetId: assignment.sheetId || null,
+        });
         info.revert();
         return;
       }
 
       const slotStart = new Date(slot.start);
       const slotEnd = new Date(slot.end);
-      if (newStart < slotStart || newEnd > slotEnd) {
+      const clampedStart = newStart < slotStart ? slotStart : newStart;
+      const clampedEnd = newEnd > slotEnd ? slotEnd : newEnd;
+      if (clampedEnd <= clampedStart) {
+        logAssignmentDecision("RESIZE", "Resize resulted in invalid duration", {
+          assignmentId: assignment.id,
+          slotId: assignment.slotId,
+          start: newStart.toISOString(),
+          end: newEnd.toISOString(),
+          slotStart: slot.start,
+          slotEnd: slot.end,
+          taskId: assignment.taskId || null,
+          sheetId: assignment.sheetId || null,
+        });
         info.revert();
         return;
       }
 
-      assignment.start = newStart.toISOString();
-      assignment.end = newEnd.toISOString();
+      if (clampedStart.getTime() !== newStart.getTime()) {
+        event.setStart(clampedStart);
+      }
+      if (clampedEnd.getTime() !== newEnd.getTime()) {
+        event.setEnd(clampedEnd);
+      }
+
+      assignment.start = clampedStart.toISOString();
+      assignment.end = clampedEnd.toISOString();
     },
   });
 
