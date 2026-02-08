@@ -42,6 +42,39 @@ document.getElementById("print-button").addEventListener("click", () => {
 
 const DEFAULT_ASSIGNMENT_DURATION_MINUTES = 240;
 
+function jvghDayKeyFromDate(d) {
+  if (!d) return null;
+  try {
+    return d.toISOString().slice(0, 10);
+  } catch {
+    return null;
+  }
+}
+
+function jvghPad2(n) {
+  return String(n).padStart(2, "0");
+}
+
+async function jvghResolveSheetIdForDay(dayKey, loadExistingSchedulesOnce, daySheetMap) {
+  if (!dayKey) return null;
+
+  if (daySheetMap.has(dayKey)) {
+    return daySheetMap.get(dayKey);
+  }
+
+  if (typeof loadExistingSchedulesOnce === "function") {
+    try {
+      await loadExistingSchedulesOnce();
+    } catch {}
+  }
+
+  if (daySheetMap.has(dayKey)) {
+    return daySheetMap.get(dayKey);
+  }
+
+  return null;
+}
+
 function logAssignmentDecision(action, reason, details = {}) {
   console.groupCollapsed(`[JVGH][${action}] ${reason}`);
   console.log(details);
@@ -148,9 +181,9 @@ document.addEventListener("DOMContentLoaded", function () {
     const tasksArr = Array.isArray(resp.tasks) ? resp.tasks : resp || [];
 
     const startDate = new Date(slot.start);
-    const pad = (n) => String(n).padStart(2, "0");
     const dateStr = slot.start.slice(0, 10);
-    const timeStr = pad(startDate.getHours()) + ":" + pad(startDate.getMinutes());
+    const timeStr =
+      jvghPad2(startDate.getHours()) + ":" + jvghPad2(startDate.getMinutes());
 
     // probeer bestaande taak te vinden
     let existingTask = tasksArr.find((t) => {
@@ -532,7 +565,7 @@ document.addEventListener("DOMContentLoaded", function () {
         return;
       }
 
-      const targetDateKey = newStart.toISOString().slice(0, 10);
+      const targetDateKey = jvghDayKeyFromDate(newStart);
       if (!isSameDay(newEnd, targetDateKey)) {
         logAssignmentDecision("MOVE", "Move crosses calendar day", {
           assignmentId: assignment.id,
@@ -548,9 +581,12 @@ document.addEventListener("DOMContentLoaded", function () {
       }
 
       const targetSlot = findSlotForDate(newStart);
-      const resolvedSheetId =
-        (targetSlot && targetSlot.sheetId) || daySheetMap.get(targetDateKey);
-      if (!resolvedSheetId) {
+      const resolvedSheetId = await jvghResolveSheetIdForDay(
+        targetDateKey,
+        loadExistingSchedulesOnce,
+        daySheetMap
+      );
+      if (!Number.isFinite(Number(resolvedSheetId))) {
         logAssignmentDecision("MOVE", "Target sheetId not found for day", {
           assignmentId: assignment.id,
           slotId: assignment.slotId,
@@ -564,9 +600,8 @@ document.addEventListener("DOMContentLoaded", function () {
         return;
       }
 
-      const pad = (n) => String(n).padStart(2, "0");
       const dateStr = targetDateKey;
-      const timeStr = `${pad(newStart.getHours())}:${pad(newStart.getMinutes())}`;
+      const timeStr = `${jvghPad2(newStart.getHours())}:${jvghPad2(newStart.getMinutes())}`;
 
       const previousAssignment = {
         start: assignment.start,
@@ -580,10 +615,10 @@ document.addEventListener("DOMContentLoaded", function () {
       if (targetSlot) {
         assignment.slotId = targetSlot.id;
       }
-      assignment.sheetId = resolvedSheetId;
+      assignment.sheetId = Number(resolvedSheetId);
 
       try {
-        await JVGHApi.updateTask(resolvedSheetId, assignment.taskId, {
+        await JVGHApi.updateTask(Number(resolvedSheetId), assignment.taskId, {
           date: dateStr,
           time: timeStr,
         });
@@ -608,7 +643,7 @@ document.addEventListener("DOMContentLoaded", function () {
       }
     },
 
-    eventResize: (info) => {
+    eventResize: async (info) => {
       const event = info.event;
       const ext = event.extendedProps || {};
 
@@ -680,21 +715,89 @@ document.addEventListener("DOMContentLoaded", function () {
         return;
       }
 
-      assignment.start = newStart.toISOString();
-      assignment.end = newEnd.toISOString();
+      const targetDateKey = jvghDayKeyFromDate(newStart);
+      if (!isSameDay(newEnd, targetDateKey)) {
+        logAssignmentDecision("RESIZE", "Resize crosses calendar day", {
+          assignmentId: assignment.id,
+          slotId: assignment.slotId,
+          start: newStart.toISOString(),
+          end: newEnd.toISOString(),
+          taskId: assignment.taskId || null,
+          sheetId: assignment.sheetId || null,
+        });
+        info.revert();
+        return;
+      }
+
+      const resolvedSheetId = await jvghResolveSheetIdForDay(
+        targetDateKey,
+        loadExistingSchedulesOnce,
+        daySheetMap
+      );
+      if (!Number.isFinite(Number(resolvedSheetId))) {
+        logAssignmentDecision("RESIZE", "Target sheetId not found for day", {
+          assignmentId: assignment.id,
+          slotId: assignment.slotId,
+          start: newStart.toISOString(),
+          end: newEnd.toISOString(),
+          taskId: assignment.taskId || null,
+          sheetId: assignment.sheetId || null,
+        });
+        info.revert();
+        return;
+      }
 
       const durationMinutes = Math.round(
         (newEnd.getTime() - newStart.getTime()) / 60000
       );
-      if (durationMinutes >= 60) {
-        console.log("Using task.qty as duration (JVGH custom)", {
+      if (durationMinutes < 60) {
+        logAssignmentDecision("RESIZE", "Duration below JVGH qty threshold", {
+          assignmentId: assignment.id,
+          slotId: assignment.slotId,
+          start: newStart.toISOString(),
+          end: newEnd.toISOString(),
+          durationMinutes,
+          taskId: assignment.taskId || null,
+          sheetId: Number(resolvedSheetId),
+        });
+        info.revert();
+        return;
+      }
+
+      const previousAssignment = {
+        start: assignment.start,
+        end: assignment.end,
+        sheetId: assignment.sheetId,
+      };
+
+      assignment.start = newStart.toISOString();
+      assignment.end = newEnd.toISOString();
+      assignment.sheetId = Number(resolvedSheetId);
+
+      console.log("Using task.qty as duration (JVGH custom)", {
+        qty: durationMinutes,
+      });
+
+      try {
+        await JVGHApi.updateTask(Number(resolvedSheetId), assignment.taskId, {
           qty: durationMinutes,
         });
-        JVGHApi.updateTask(assignment.sheetId, assignment.taskId, {
-          qty: durationMinutes,
-        }).catch((err) => {
-          console.error("[JVGH] Failed to update task duration:", err);
+      } catch (err) {
+        assignment.start = previousAssignment.start;
+        assignment.end = previousAssignment.end;
+        assignment.sheetId = previousAssignment.sheetId;
+        logAssignmentDecision("RESIZE", "Backend update failed", {
+          assignmentId: assignment.id,
+          slotId: assignment.slotId,
+          start: assignment.start,
+          end: assignment.end,
+          durationMinutes,
+          taskId: assignment.taskId || null,
+          sheetId: Number(resolvedSheetId),
+          error: err,
         });
+        console.error("[JVGH] Failed to update task duration:", err);
+        info.revert();
       }
     },
   });
