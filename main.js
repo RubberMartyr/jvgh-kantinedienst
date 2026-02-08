@@ -55,6 +55,39 @@ function jvghPad2(n) {
   return String(n).padStart(2, "0");
 }
 
+function jvghMonthKey(d) {
+  if (!d) return null;
+  try {
+    return d.toISOString().slice(0, 7);
+  } catch {
+    return null;
+  }
+}
+
+// Return array of month keys (YYYY-MM) that intersect [start, end)
+function jvghMonthsInRange(start, end) {
+  const out = [];
+  if (!start || !end) return out;
+
+  const s = new Date(start);
+  const e = new Date(end);
+  if (isNaN(s) || isNaN(e)) return out;
+
+  const cur = new Date(s.getTime());
+  cur.setDate(1);
+  cur.setHours(0, 0, 0, 0);
+
+  if (cur > e) return out;
+
+  while (cur < e) {
+    const key = cur.toISOString().slice(0, 7);
+    out.push(key);
+    cur.setMonth(cur.getMonth() + 1);
+  }
+
+  return Array.from(new Set(out));
+}
+
 async function jvghResolveSheetIdForDay(dayKey, loadExistingSchedulesOnce, daySheetMap) {
   if (!dayKey) return null;
 
@@ -121,6 +154,9 @@ document.addEventListener("DOMContentLoaded", function () {
 
   // 🔹 Cache: one signup sheet per day
   const daySheetMap = new Map(); // "YYYY-MM-DD" -> sheetId
+  const loadedMonths = new Set(); // e.g. "2026-02"
+  const loadedTaskIds = new Set(); // avoid refetching signups repeatedly for same taskId
+  const loadingMonths = new Set(); // prevent double concurrent loads
   let schedulesLoaded = false;
 
   async function loadExistingSchedulesOnce() {
@@ -352,9 +388,9 @@ document.addEventListener("DOMContentLoaded", function () {
       setIcalStatus("Geladen (" + externalEvents.length + " events).");
       renderAll();
 
-      // 🔹 After slots are rebuilt, load existing signups once
-      if (typeof JVGH_loadExistingSignupsOnce === "function") {
-        JVGH_loadExistingSignupsOnce();
+      // 🔹 After slots are rebuilt, ensure visible months are loaded
+      if (typeof JVGH_ensureVisibleMonthsLoaded === "function") {
+        JVGH_ensureVisibleMonthsLoaded();
       }
     } catch (err) {
       console.error("ICS load error:", err);
@@ -392,6 +428,11 @@ document.addEventListener("DOMContentLoaded", function () {
     selectable: false,
     height: "auto",
     nowIndicator: true,
+    datesSet() {
+      if (typeof JVGH_ensureVisibleMonthsLoaded === "function") {
+        JVGH_ensureVisibleMonthsLoaded();
+      }
+    },
 
     // 🔹 custom renderer: always show time + title
     eventContent(info) {
@@ -810,6 +851,22 @@ document.addEventListener("DOMContentLoaded", function () {
     ec.setOption("date", info.date);
   });
 
+  function attachCalendarNavMonthLoader() {
+    const root = document.getElementById("ec") || document;
+    root.addEventListener("click", (e) => {
+      const btn = e.target && e.target.closest
+        ? e.target.closest(".ec-prev, .ec-next, .ec-today, .ec-button")
+        : null;
+      if (!btn) return;
+      setTimeout(() => {
+        if (typeof JVGH_ensureVisibleMonthsLoaded === "function") {
+          JVGH_ensureVisibleMonthsLoaded();
+        }
+      }, 0);
+    });
+  }
+  attachCalendarNavMonthLoader();
+
   // Dubbelklik op een vrijwilliger → inschrijving verwijderen
   let lastEventClick = { id: null, time: 0 };
 
@@ -1024,66 +1081,52 @@ document.addEventListener("DOMContentLoaded", function () {
     loadingOverlay.classList.remove("jvgh-loading-visible");
   }
 
-  // 🔹 Load all existing signups from JVGH API and map them onto slots
-  let jvghSignupsLoadedOnce = false;
+  // 🔹 Load existing tasks/signups month-by-month from JVGH API and map them onto slots
+  async function JVGH_loadMonthTasksAndSignups(monthKey) {
+    if (!monthKey) return;
 
-  async function JVGH_loadExistingSignupsOnce() {
-    // Only relevant when shifts are enabled and we actually have slots
     if (!shiftsEnabled) {
-      console.log("[JVGH] Shifts not enabled, skip loading signups.");
+      console.log("[JVGH] Shifts not enabled, skip month load", monthKey);
       return;
     }
     if (!slots || !slots.length) {
-      console.log("[JVGH] No slots yet, skip loading signups for now.");
+      console.log("[JVGH] No slots yet, skip month load for now", monthKey);
       return;
     }
     if (!window.JVGHApi || typeof JVGHApi.getSchedules !== "function") {
       console.warn("[JVGH] JVGHApi not available, cannot load signups.");
       return;
     }
-    if (jvghSignupsLoadedOnce) {
-      console.log("[JVGH] Signups already loaded once, skipping.");
+    if (loadedMonths.has(monthKey) || loadingMonths.has(monthKey)) {
       return;
     }
 
-    jvghSignupsLoadedOnce = true;
-    console.log("[JVGH] Loading existing signups for all slots…");
-
-    showLoading("Aanwezigheden worden geladen…");
-
-    const pad = (n) => String(n).padStart(2, "0");
+    loadingMonths.add(monthKey);
+    showLoading("Aanwezigheden laden…");
 
     try {
-      const resp = await JVGHApi.getSchedules();
-      const schedules = Array.isArray(resp?.schedules)
-        ? resp.schedules
-        : resp || [];
-      console.log("[JVGH] Schedules loaded:", schedules);
+      await loadExistingSchedulesOnce();
 
-      if (!schedules.length) {
-        console.log("[JVGH] No schedules returned from API.");
-        return;
+      const sheetIds = new Set();
+      for (const [dayKey, sheetId] of daySheetMap.entries()) {
+        if (dayKey.startsWith(monthKey + "-")) sheetIds.add(sheetId);
       }
 
-      // Update daySheetMap from schedules
-      schedules.forEach((sch) => {
-        const start = sch.start || "";
-        const key = String(start).slice(0, 10); // "YYYY-MM-DD"
-        if (key && !daySheetMap.has(key)) {
-          daySheetMap.set(key, sch.id);
-        }
-      });
+      console.log("[JVGH] Loading month", monthKey, "sheets", sheetIds.size);
 
-      // Map "YYYY-MM-DD HH:MM" -> slot
       const slotByKey = new Map();
+      const slotByTaskId = new Map();
       slots.forEach((slot) => {
         try {
           const d = new Date(slot.start);
           if (!d || isNaN(d)) return;
-          const dateStr = slot.start.slice(0, 10);
-          const timeStr = pad(d.getHours()) + ":" + pad(d.getMinutes());
+          const dateStr = String(slot.start || "").slice(0, 10);
+          const timeStr = jvghPad2(d.getHours()) + ":" + jvghPad2(d.getMinutes());
           const key = dateStr + " " + timeStr;
-          slotByKey.set(key, slot);
+          if (!slotByKey.has(key)) slotByKey.set(key, slot);
+          if (slot.taskId !== undefined && slot.taskId !== null) {
+            slotByTaskId.set(String(slot.taskId), slot);
+          }
         } catch (e) {
           console.warn("[JVGH] Could not build key for slot", slot, e);
         }
@@ -1091,36 +1134,34 @@ document.addEventListener("DOMContentLoaded", function () {
 
       const newAssignments = [];
 
-      // For each schedule → tasks → signups
-      for (const sch of schedules) {
-        const sheetId = sch.id;
+      for (const sheetId of sheetIds) {
         let tasksResp;
         try {
           tasksResp = await JVGHApi.getTasks(sheetId);
         } catch (err) {
-          console.warn(
-            "[JVGH] Could not load tasks for sheet",
-            sheetId,
-            err
-          );
+          console.warn("[JVGH] Could not load tasks for sheet", sheetId, err);
           continue;
         }
 
-        const tasksArr = Array.isArray(tasksResp?.tasks)
-          ? tasksResp.tasks
-          : tasksResp || [];
+        const tasksArr = Array.isArray(tasksResp?.tasks) ? tasksResp.tasks : tasksResp || [];
         if (!tasksArr.length) continue;
 
         for (const task of tasksArr) {
-          const dateStr = (task.date || "").slice(0, 10);
-          const timeStr = (task.time || "").slice(0, 5);
+          const dateStr = String(task?.date || "").slice(0, 10);
+          const timeStr = String(task?.time || "").slice(0, 5);
           if (!dateStr || !timeStr) continue;
+          if (!dateStr.startsWith(monthKey)) continue;
 
           const taskKey = dateStr + " " + timeStr;
-          let slot = slotByKey.get(taskKey);
+          let slot = slotByTaskId.get(String(task.id)) || slotByKey.get(taskKey);
 
-          // If no matching slot exists (e.g. signup created outside of current shift bands),
-          // create a manual slot so the signup still appears after reload.
+          if (!slot) {
+            const existingManualSlot = slots.find((s) => s.id === "shift-task-" + String(task.id));
+            if (existingManualSlot) {
+              slot = existingManualSlot;
+            }
+          }
+
           if (!slot) {
             try {
               const year = parseInt(dateStr.slice(0, 4), 10);
@@ -1130,10 +1171,9 @@ document.addEventListener("DOMContentLoaded", function () {
               const minute = parseInt(timeStr.slice(3, 5), 10) || 0;
 
               const slotStartDate = new Date(year, month - 1, day, hour, minute, 0);
-              const slotEndDate = new Date(
-                slotStartDate.getTime() +
-                  DEFAULT_ASSIGNMENT_DURATION_MINUTES * 60 * 1000
-              ); // default 4u
+              const qty = Number(task.qty) || 1;
+              const durationMinutes = qty >= 60 ? qty : DEFAULT_ASSIGNMENT_DURATION_MINUTES;
+              const slotEndDate = new Date(slotStartDate.getTime() + durationMinutes * 60 * 1000);
 
               slot = {
                 id: "shift-task-" + String(task.id),
@@ -1145,39 +1185,35 @@ document.addEventListener("DOMContentLoaded", function () {
               };
 
               slots.push(slot);
-              slotByKey.set(taskKey, slot);
             } catch (e) {
-              console.warn(
-                "[JVGH] Could not create manual slot for task",
-                task,
-                e
-              );
+              console.warn("[JVGH] Could not create manual slot for task", task, e);
               continue;
             }
           }
 
-          // remember linkage on the slot
+          slotByKey.set(taskKey, slot);
+          slotByTaskId.set(String(task.id), slot);
+
           slot.sheetId = sheetId;
           slot.taskId = task.id;
           if (task.qty !== undefined && task.qty !== null) {
             slot.required = getTaskCapacity(task.qty);
           }
 
+          const taskIdKey = String(task.id);
+          if (loadedTaskIds.has(taskIdKey)) continue;
+          loadedTaskIds.add(taskIdKey);
+
           let signupsResp;
           try {
             signupsResp = await JVGHApi.getSignups(task.id);
           } catch (err) {
-            console.warn(
-              "[JVGH] Could not load signups for task",
-              task.id,
-              err
-            );
+            loadedTaskIds.delete(taskIdKey);
+            console.warn("[JVGH] Could not load signups for task", task.id, err);
             continue;
           }
 
-          const signupsArr = Array.isArray(signupsResp?.signups)
-            ? signupsResp.signups
-            : signupsResp || [];
+          const signupsArr = Array.isArray(signupsResp?.signups) ? signupsResp.signups : signupsResp || [];
           if (!signupsArr.length) continue;
 
           const startYear = parseInt(dateStr.slice(0, 4), 10);
@@ -1185,41 +1221,32 @@ document.addEventListener("DOMContentLoaded", function () {
           const startDay = parseInt(dateStr.slice(8, 10), 10);
           const startHour = parseInt(timeStr.slice(0, 2), 10) || 0;
           const startMinute = parseInt(timeStr.slice(3, 5), 10) || 0;
-          const assignmentStartDate = new Date(
-            startYear,
-            startMonth - 1,
-            startDay,
-            startHour,
-            startMinute,
-            0
-          );
+          const assignmentStartDate = new Date(startYear, startMonth - 1, startDay, startHour, startMinute, 0);
           const durationMinutes = getTaskDurationMinutes(task.qty);
-          const assignmentEndDate = new Date(
-            assignmentStartDate.getTime() + durationMinutes * 60 * 1000
-          );
+          const assignmentEndDate = new Date(assignmentStartDate.getTime() + durationMinutes * 60 * 1000);
           const assignmentStartIso = assignmentStartDate.toISOString();
           const assignmentEndIso = assignmentEndDate.toISOString();
 
           signupsArr.forEach((su) => {
-            const firstName =
-              su.firstName || su.firstname || su.first_name || "";
-            const lastName =
-              su.lastName || su.lastname || su.last_name || "";
-            const name =
-              (firstName + " " + lastName).trim() || "Vrijwilliger";
+            const firstName = su.firstName || su.firstname || su.first_name || "";
+            const lastName = su.lastName || su.lastname || su.last_name || "";
+            const name = (firstName + " " + lastName).trim() || "Vrijwilliger";
 
-            // Skip if we already have this signup mapped for this slot
-            const already = assignments.find(
-              (a) => a.slotId === slot.id && a.signupId === su.id
+            const already = assignments.some((a) =>
+              (a.taskId === task.id && a.signupId === su.id) ||
+              (a.slotId === slot.id && a.signupId === su.id)
+            ) || newAssignments.some((a) =>
+              (a.taskId === task.id && a.signupId === su.id) ||
+              (a.slotId === slot.id && a.signupId === su.id)
             );
             if (already) return;
 
             const userId = su.userId || su.user_id || null;
             let role = "vrijwilliger";
-            if (userId !== null && userId !== undefined) {
-              if (bestuurUserIds.has(Number(userId))) {
-                role = "bestuur";
-              }
+            if (userId !== null && userId !== undefined && bestuurUserIds.has(Number(userId))) {
+              role = "bestuur";
+            } else if (name && bestuurNames.has(name)) {
+              role = "bestuur";
             }
 
             newAssignments.push({
@@ -1237,31 +1264,46 @@ document.addEventListener("DOMContentLoaded", function () {
         }
       }
 
-      if (newAssignments.length) {
-        console.log(
-          "[JVGH] New assignments loaded from existing signups:",
-          newAssignments
-        );
-        assignments = assignments.concat(newAssignments);
-        // Ensure bestuur roles are applied for any already-known bestuur users
-        const changed = retagBestuurAssignments();
-        if (changed) {
-          renderAll();
-        } else {
-          renderAll();
-        }
-      } else {
-        console.log("[JVGH] No existing signups matched any slots.");
-      }
+      assignments = assignments.concat(newAssignments);
+      retagBestuurAssignments();
+      renderAll();
+
+      loadedMonths.add(monthKey);
+      console.log("[JVGH] Loaded month", monthKey, "newAssignments", newAssignments.length);
     } catch (err) {
-      console.error("[JVGH] Error while loading existing signups:", err);
+      console.error("[JVGH] Error while loading month", monthKey, err);
     } finally {
+      loadingMonths.delete(monthKey);
       hideLoading();
     }
   }
 
+  async function JVGH_ensureVisibleMonthsLoaded() {
+    const view = ec.view || (typeof ec.getView === "function" ? ec.getView() : null);
+    const start = view?.activeStart || view?.start || view?.currentStart || null;
+    const end = view?.activeEnd || view?.end || view?.currentEnd || null;
+    const dateFallback = typeof ec.getDate === "function" ? ec.getDate() : null;
+
+    let months = [];
+    if (start && end) {
+      months = jvghMonthsInRange(start, end);
+    } else if (dateFallback) {
+      months = [jvghMonthKey(dateFallback)].filter(Boolean);
+    }
+
+    for (const m of months) {
+      if (!loadedMonths.has(m)) {
+        await JVGH_loadMonthTasksAndSignups(m);
+      }
+    }
+
+    renderAll();
+  }
+
   // make it callable from other scripts if needed
-  window.JVGH_loadExistingSignupsOnce = JVGH_loadExistingSignupsOnce;
+  window.JVGH_loadMonthTasksAndSignups = JVGH_loadMonthTasksAndSignups;
+  window.JVGH_ensureVisibleMonthsLoaded = JVGH_ensureVisibleMonthsLoaded;
+
 
   // initial empty render
   renderAll();
@@ -1612,9 +1654,9 @@ document.addEventListener("DOMContentLoaded", function () {
       renderAll();
     }
 
-    // 🔹 Whenever shifts are ON, try to load existing signups once
-    if (shiftsEnabled && typeof JVGH_loadExistingSignupsOnce === "function") {
-      JVGH_loadExistingSignupsOnce();
+    // 🔹 Whenever shifts are ON, ensure visible months are loaded
+    if (shiftsEnabled && typeof JVGH_ensureVisibleMonthsLoaded === "function") {
+      JVGH_ensureVisibleMonthsLoaded();
     }
 
     try {
@@ -1651,6 +1693,9 @@ document.addEventListener("DOMContentLoaded", function () {
 
   // Initial render with current flags
   renderAll();
+  if (typeof JVGH_ensureVisibleMonthsLoaded === "function") {
+    JVGH_ensureVisibleMonthsLoaded();
+  }
 
   // Month corner triangles
   initMonthTriangles();
