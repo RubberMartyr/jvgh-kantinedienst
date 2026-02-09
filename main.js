@@ -64,6 +64,21 @@ function jvghMonthKey(d) {
   }
 }
 
+function jvghFormatMonthLabel(monthKey) {
+  if (!monthKey) return "";
+
+  try {
+    const [y, m] = monthKey.split("-");
+    const d = new Date(Number(y), Number(m) - 1, 1);
+    return d.toLocaleDateString("nl-BE", {
+      month: "long",
+      year: "numeric",
+    });
+  } catch {
+    return monthKey;
+  }
+}
+
 // Return array of month keys (YYYY-MM) that intersect [start, end)
 function jvghMonthsInRange(start, end) {
   const out = [];
@@ -1097,12 +1112,16 @@ document.addEventListener("DOMContentLoaded", function () {
       console.warn("[JVGH] JVGHApi not available, cannot load signups.");
       return;
     }
+
+    const monthLabel = jvghFormatMonthLabel(monthKey);
+
     if (loadedMonths.has(monthKey) || loadingMonths.has(monthKey)) {
       return;
     }
 
     loadingMonths.add(monthKey);
-    showLoading("Aanwezigheden laden…");
+    showLoading(`Laden ${monthLabel}…`);
+    console.log("[JVGH] Loading month", monthKey, "(", monthLabel, ")");
 
     try {
       await loadExistingSchedulesOnce();
@@ -1112,7 +1131,7 @@ document.addEventListener("DOMContentLoaded", function () {
         if (dayKey.startsWith(monthKey + "-")) sheetIds.add(sheetId);
       }
 
-      console.log("[JVGH] Loading month", monthKey, "sheets", sheetIds.size);
+      console.log("[JVGH] Month sheets", monthKey, sheetIds.size);
 
       const slotByKey = new Map();
       const slotByTaskId = new Map();
