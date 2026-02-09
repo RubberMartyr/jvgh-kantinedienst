@@ -443,9 +443,9 @@ document.addEventListener("DOMContentLoaded", function () {
     selectable: false,
     height: "auto",
     nowIndicator: true,
-    datesSet() {
+    datesSet(info) {
       if (typeof JVGH_ensureVisibleMonthsLoaded === "function") {
-        JVGH_ensureVisibleMonthsLoaded();
+        JVGH_ensureVisibleMonthsLoaded(info);
       }
     },
 
@@ -1297,15 +1297,19 @@ document.addEventListener("DOMContentLoaded", function () {
     }
   }
 
-  async function JVGH_ensureVisibleMonthsLoaded() {
+  async function JVGH_ensureVisibleMonthsLoaded(info) {
     const view = ec.view || (typeof ec.getView === "function" ? ec.getView() : null);
-    const start = view?.activeStart || view?.start || view?.currentStart || null;
-    const end = view?.activeEnd || view?.end || view?.currentEnd || null;
+    const start =
+      info?.start || view?.activeStart || view?.start || view?.currentStart || null;
+    const endExclusive =
+      info?.end || view?.activeEnd || view?.end || view?.currentEnd || null;
     const dateFallback = typeof ec.getDate === "function" ? ec.getDate() : null;
 
     let months = [];
-    if (start && end) {
-      months = jvghMonthsInRange(start, end);
+    if (start && endExclusive) {
+      const endInclusive = new Date(endExclusive.getTime() - 1);
+      months = jvghMonthsInRange(start, endInclusive);
+      console.log("[JVGH] Loading visible months:", months.join(", "));
     } else if (dateFallback) {
       months = [jvghMonthKey(dateFallback)].filter(Boolean);
     }
