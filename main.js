@@ -402,11 +402,6 @@ document.addEventListener("DOMContentLoaded", function () {
       externalEvents = parseICS(text);
       setIcalStatus("Geladen (" + externalEvents.length + " events).");
       renderAll();
-
-      // 🔹 After slots are rebuilt, ensure visible months are loaded
-      if (typeof JVGH_ensureVisibleMonthsLoaded === "function") {
-        JVGH_ensureVisibleMonthsLoaded();
-      }
     } catch (err) {
       console.error("ICS load error:", err);
       setIcalStatus(
@@ -866,22 +861,6 @@ document.addEventListener("DOMContentLoaded", function () {
     ec.setOption("date", info.date);
   });
 
-  function attachCalendarNavMonthLoader() {
-    const root = document.getElementById("ec") || document;
-    root.addEventListener("click", (e) => {
-      const btn = e.target && e.target.closest
-        ? e.target.closest(".ec-prev, .ec-next, .ec-today, .ec-button")
-        : null;
-      if (!btn) return;
-      setTimeout(() => {
-        if (typeof JVGH_ensureVisibleMonthsLoaded === "function") {
-          JVGH_ensureVisibleMonthsLoaded();
-        }
-      }, 0);
-    });
-  }
-  attachCalendarNavMonthLoader();
-
   // Dubbelklik op een vrijwilliger → inschrijving verwijderen
   let lastEventClick = { id: null, time: 0 };
 
@@ -1298,21 +1277,15 @@ document.addEventListener("DOMContentLoaded", function () {
   }
 
   async function JVGH_ensureVisibleMonthsLoaded(info) {
-    const view = ec.view || (typeof ec.getView === "function" ? ec.getView() : null);
-    const start =
-      info?.start || view?.activeStart || view?.start || view?.currentStart || null;
-    const endExclusive =
-      info?.end || view?.activeEnd || view?.end || view?.currentEnd || null;
-    const dateFallback = typeof ec.getDate === "function" ? ec.getDate() : null;
-
-    let months = [];
-    if (start && endExclusive) {
-      const endInclusive = new Date(endExclusive.getTime() - 1);
-      months = jvghMonthsInRange(start, endInclusive);
-      console.log("[JVGH] Loading visible months:", months.join(", "));
-    } else if (dateFallback) {
-      months = [jvghMonthKey(dateFallback)].filter(Boolean);
+    if (!info || !info.start || !info.end) {
+      console.warn("[JVGH] ensureVisibleMonthsLoaded called without valid info — ignoring");
+      return;
     }
+
+    const start = info.start;
+    const endInclusive = new Date(info.end.getTime() - 1);
+    const months = jvghMonthsInRange(start, endInclusive);
+    console.log("[JVGH] Visible months from info:", months.join(", "));
 
     for (const m of months) {
       if (!loadedMonths.has(m)) {
@@ -1677,11 +1650,6 @@ document.addEventListener("DOMContentLoaded", function () {
       renderAll();
     }
 
-    // 🔹 Whenever shifts are ON, ensure visible months are loaded
-    if (shiftsEnabled && typeof JVGH_ensureVisibleMonthsLoaded === "function") {
-      JVGH_ensureVisibleMonthsLoaded();
-    }
-
     try {
       localStorage.setItem("jvgh-shifts-enabled", String(shiftsEnabled));
     } catch (e) {
@@ -1716,9 +1684,6 @@ document.addEventListener("DOMContentLoaded", function () {
 
   // Initial render with current flags
   renderAll();
-  if (typeof JVGH_ensureVisibleMonthsLoaded === "function") {
-    JVGH_ensureVisibleMonthsLoaded();
-  }
 
   // Month corner triangles
   initMonthTriangles();
