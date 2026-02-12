@@ -269,6 +269,7 @@ document.addEventListener("DOMContentLoaded", function () {
   let icalEnabled = false;
   let externalEvents = []; // parsed VEVENTs from ICS
   let shiftsEnabled = false;
+  let lastDatesSetInfo = null;
 
   function setIcalStatus(msg) {
     if (icalStatusEl) {
@@ -399,6 +400,9 @@ document.addEventListener("DOMContentLoaded", function () {
       externalEvents = parseICS(text);
       setIcalStatus("Geladen (" + externalEvents.length + " events).");
       renderAll();
+      if (lastDatesSetInfo && typeof JVGH_ensureVisibleMonthsLoaded === "function") {
+        JVGH_ensureVisibleMonthsLoaded(lastDatesSetInfo);
+      }
     } catch (err) {
       console.error("ICS load error:", err);
       setIcalStatus(
@@ -436,6 +440,7 @@ document.addEventListener("DOMContentLoaded", function () {
     height: "auto",
     nowIndicator: true,
     datesSet(info) {
+      lastDatesSetInfo = info;
       if (typeof JVGH_ensureVisibleMonthsLoaded === "function") {
         JVGH_ensureVisibleMonthsLoaded(info);
       }
@@ -1075,15 +1080,6 @@ document.addEventListener("DOMContentLoaded", function () {
   // 🔹 Load existing tasks/signups month-by-month from JVGH API and map them onto slots
   async function JVGH_loadMonthTasksAndSignups(monthKey) {
     if (!monthKey) return;
-
-    if (!shiftsEnabled) {
-      console.log("[JVGH] Shifts not enabled, skip month load", monthKey);
-      return;
-    }
-    if (!slots || !slots.length) {
-      console.log("[JVGH] No slots yet, skip month load for now", monthKey);
-      return;
-    }
     if (!window.JVGHApi || typeof JVGHApi.getSchedules !== "function") {
       console.warn("[JVGH] JVGHApi not available, cannot load signups.");
       return;
@@ -1642,9 +1638,16 @@ document.addEventListener("DOMContentLoaded", function () {
     updateShiftToggleUI();
     if (shiftsEnabled && externalEvents.length === 0) {
       // if we haven't loaded iCal yet, load it now
-      loadICal();
+      loadICal().finally(() => {
+        if (lastDatesSetInfo && typeof JVGH_ensureVisibleMonthsLoaded === "function") {
+          JVGH_ensureVisibleMonthsLoaded(lastDatesSetInfo);
+        }
+      });
     } else {
       renderAll();
+      if (lastDatesSetInfo && typeof JVGH_ensureVisibleMonthsLoaded === "function") {
+        JVGH_ensureVisibleMonthsLoaded(lastDatesSetInfo);
+      }
     }
 
     try {
