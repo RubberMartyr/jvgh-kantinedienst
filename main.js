@@ -179,8 +179,12 @@ document.addEventListener("DOMContentLoaded", function () {
       const resp = await JVGHApi.getSchedules();
       const arr = Array.isArray(resp.schedules) ? resp.schedules : resp;
       (arr || []).forEach((sch) => {
-        const start = sch.start || "";
-        const key = String(start).slice(0, 10);
+        const startRaw = sch.start;
+        let key = null;
+        if (startRaw) {
+          const d = new Date(startRaw);
+          if (!isNaN(d)) key = jvghDayKeyFromDate(d);
+        }
         if (key && !daySheetMap.has(key)) {
           daySheetMap.set(key, sch.id);
         }
@@ -442,6 +446,12 @@ document.addEventListener("DOMContentLoaded", function () {
     nowIndicator: true,
     datesSet(info) {
       lastDatesSetInfo = info;
+      console.log(
+        "[JVGH] datesSet",
+        info.view?.type,
+        "start", jvghDayKeyFromDate(new Date(info.start)),
+        "endExcl", jvghDayKeyFromDate(new Date(info.end))
+      );
       if (typeof JVGH_ensureVisibleMonthsLoaded === "function") {
         JVGH_ensureVisibleMonthsLoaded(info);
       }
@@ -1098,6 +1108,8 @@ document.addEventListener("DOMContentLoaded", function () {
 
     try {
       await loadExistingSchedulesOnce();
+      let sheetsProcessed = 0;
+      let tasksProcessed = 0;
 
       const sheetIds = new Set();
       for (const [dayKey, sheetId] of daySheetMap.entries()) {
@@ -1127,6 +1139,7 @@ document.addEventListener("DOMContentLoaded", function () {
       const newAssignments = [];
 
       for (const sheetId of sheetIds) {
+        sheetsProcessed += 1;
         let tasksResp;
         try {
           tasksResp = await JVGHApi.getTasks(sheetId);
@@ -1143,6 +1156,7 @@ document.addEventListener("DOMContentLoaded", function () {
           const timeStr = String(task?.time || "").slice(0, 5);
           if (!dateStr || !timeStr) continue;
           if (!dateStr.startsWith(monthKey)) continue;
+          tasksProcessed += 1;
 
           const taskKey = dateStr + " " + timeStr;
           let slot = slotByTaskId.get(String(task.id)) || slotByKey.get(taskKey);
@@ -1260,7 +1274,11 @@ document.addEventListener("DOMContentLoaded", function () {
       retagBestuurAssignments();
       renderAll();
 
-      loadedMonths.add(monthKey);
+      if (sheetsProcessed > 0) {
+        loadedMonths.add(monthKey);
+      } else {
+        console.warn("[JVGH] Month had no schedules in daySheetMap; not marking loaded:", monthKey);
+      }
       console.log("[JVGH] Loaded month", monthKey, "newAssignments", newAssignments.length);
     } catch (err) {
       console.error("[JVGH] Error while loading month", monthKey, err);
