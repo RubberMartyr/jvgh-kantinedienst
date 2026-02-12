@@ -91,7 +91,7 @@ function jvghMonthsInRange(start, end) {
 
   if (cur > e) return out;
 
-  while (cur < e) {
+  while (cur <= e) {
     const key = jvghMonthKey(cur);
     out.push(key);
     cur.setMonth(cur.getMonth() + 1);
