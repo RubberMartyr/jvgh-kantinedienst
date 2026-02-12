@@ -1112,7 +1112,7 @@ document.addEventListener("DOMContentLoaded", function () {
         try {
           const d = new Date(slot.start);
           if (!d || isNaN(d)) return;
-          const dateStr = String(slot.start || "").slice(0, 10);
+          const dateStr = jvghDayKeyFromDate(d);
           const timeStr = jvghPad2(d.getHours()) + ":" + jvghPad2(d.getMinutes());
           const key = dateStr + " " + timeStr;
           if (!slotByKey.has(key)) slotByKey.set(key, slot);
@@ -1276,11 +1276,25 @@ document.addEventListener("DOMContentLoaded", function () {
       return;
     }
 
-    const start = info.start;
-    const endInclusive = new Date(info.end.getTime() - 1);
-    const months = jvghMonthsInRange(start, endInclusive);
+    // EventCalendar provides view type on info.view?.type
+    const viewType = info.view?.type || "";
 
-    console.log("[JVGH] Visible months from info:", months.join(", "));
+    let months = [];
+
+    if (viewType === "dayGridMonth") {
+      // Month view: only load the focused month shown in the title.
+      // Use currentStart if available; fallback to info.start.
+      const focusedDate = info.view?.currentStart || info.start;
+      const focusedMonth = jvghMonthKey(new Date(focusedDate));
+      if (focusedMonth) months = [focusedMonth];
+    } else {
+      // Week/day/list/resource views: load months intersecting the visible range.
+      // info.end is exclusive → subtract 1ms to make it inclusive for month detection.
+      const endInclusive = new Date(info.end.getTime() - 1);
+      months = jvghMonthsInRange(info.start, endInclusive);
+    }
+
+    console.log("[JVGH] Visible months from info:", months.join(", "), "view:", viewType);
 
     for (const m of months) {
       if (!loadedMonths.has(m) && !loadingMonths.has(m)) {
