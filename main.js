@@ -1282,18 +1282,8 @@ document.addEventListener("DOMContentLoaded", function () {
 
     console.log("[JVGH] Visible months from info:", months.join(", "));
 
-    const monthsToLoad = [];
-
     for (const m of months) {
-      if (!lastVisibleMonths.has(m)) {
-        monthsToLoad.push(m);
-      }
-    }
-
-    lastVisibleMonths = new Set(months);
-
-    for (const m of monthsToLoad) {
-      if (!loadingMonths.has(m)) {
+      if (!loadedMonths.has(m) && !loadingMonths.has(m)) {
         await JVGH_loadMonthTasksAndSignups(m);
       }
     }
