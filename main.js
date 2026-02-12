@@ -44,11 +44,10 @@ const DEFAULT_ASSIGNMENT_DURATION_MINUTES = 240;
 
 function jvghDayKeyFromDate(d) {
   if (!d) return null;
-  try {
-    return d.toISOString().slice(0, 10);
-  } catch {
-    return null;
-  }
+  const y = d.getFullYear();
+  const m = jvghPad2(d.getMonth() + 1);
+  const day = jvghPad2(d.getDate());
+  return `${y}-${m}-${day}`;
 }
 
 function jvghPad2(n) {
@@ -57,11 +56,9 @@ function jvghPad2(n) {
 
 function jvghMonthKey(d) {
   if (!d) return null;
-  try {
-    return d.toISOString().slice(0, 7);
-  } catch {
-    return null;
-  }
+  const y = d.getFullYear();
+  const m = jvghPad2(d.getMonth() + 1);
+  return `${y}-${m}`;
 }
 
 function jvghFormatMonthLabel(monthKey) {
@@ -95,7 +92,7 @@ function jvghMonthsInRange(start, end) {
   if (cur > e) return out;
 
   while (cur < e) {
-    const key = cur.toISOString().slice(0, 7);
+    const key = jvghMonthKey(cur);
     out.push(key);
     cur.setMonth(cur.getMonth() + 1);
   }
@@ -425,7 +422,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
   function isSameDay(date, dayKey) {
     if (!date) return false;
-    return date.toISOString().slice(0, 10) === dayKey;
+    return jvghDayKeyFromDate(date) === dayKey;
   }
 
   const ec = EventCalendar.create(el, {
@@ -545,7 +542,7 @@ document.addEventListener("DOMContentLoaded", function () {
       const viewType = info.view.type || "";
       if (!viewType.toLowerCase().includes("daygridmonth")) return;
 
-      const dateStr = info.date.toISOString().slice(0, 10);
+      const dateStr = jvghDayKeyFromDate(info.date);
       // if (openShiftDays.has(dateStr)) {
       //  info.el.classList.add("jvgh-open-day");
 
@@ -1773,7 +1770,7 @@ function initMonthTriangles() {
 
         const d = new Date(ev.start);
         d.setHours(0, 0, 0, 0);
-        const key = d.toISOString().slice(0, 10);
+        const key = jvghDayKeyFromDate(d);
 
         const prev = statusByDay.get(key);
         if (!prev || priority[status] > priority[prev]) {
@@ -1798,7 +1795,7 @@ function initMonthTriangles() {
       footCells.forEach((foot, idx) => {
         const d = new Date(visibleStart);
         d.setDate(visibleStart.getDate() + idx);
-        const key = d.toISOString().slice(0, 10);
+        const key = jvghDayKeyFromDate(d);
         const status = statusByDay.get(key);
         if (!status) return;
 
