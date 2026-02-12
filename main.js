@@ -167,6 +167,7 @@ document.addEventListener("DOMContentLoaded", function () {
   // 🔹 Cache: one signup sheet per day
   const daySheetMap = new Map(); // "YYYY-MM-DD" -> sheetId
   const loadedMonths = new Set(); // e.g. "2026-02"
+  let lastVisibleMonths = new Set();
   const loadedTaskIds = new Set(); // avoid refetching signups repeatedly for same taskId
   const loadingMonths = new Set(); // prevent double concurrent loads
   let schedulesLoaded = false;
@@ -1278,10 +1279,21 @@ document.addEventListener("DOMContentLoaded", function () {
     const start = info.start;
     const endInclusive = new Date(info.end.getTime() - 1);
     const months = jvghMonthsInRange(start, endInclusive);
+
     console.log("[JVGH] Visible months from info:", months.join(", "));
 
+    const monthsToLoad = [];
+
     for (const m of months) {
-      if (!loadedMonths.has(m)) {
+      if (!lastVisibleMonths.has(m)) {
+        monthsToLoad.push(m);
+      }
+    }
+
+    lastVisibleMonths = new Set(months);
+
+    for (const m of monthsToLoad) {
+      if (!loadingMonths.has(m)) {
         await JVGH_loadMonthTasksAndSignups(m);
       }
     }
