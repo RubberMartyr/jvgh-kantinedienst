@@ -551,3 +551,24 @@ body {
   overflow-wrap: break-word;
 }
  
+/* ===== JVGH FINAL SIDEBAR OVERRIDE ===== */
+
+.jvgh-sidebar .bestuur-col,
+.jvgh-sidebar .vrijwilligers-col {
+  background: transparent !important;
+  padding: 0 !important;
+  border-radius: 0 !important;
+  margin-bottom: 12px !important;
+}
+
+.jvgh-sidebar .resource-list {
+  margin-top: 4px !important;
+  gap: 8px !important;
+}
+
+.jvgh-sidebar .jvgh-sidebar-title {
+  margin-top: 6px !important;
+  margin-bottom: 6px !important;
+}
+
+/* ======================================= */
