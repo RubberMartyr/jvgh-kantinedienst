@@ -696,3 +696,36 @@ body {
     display: none !important;
   }
 }
+
+/* ===== JVGH SIDEBAR LAYOUT RESET (FINAL) ===== */
+
+.jvgh-sidebar .people-columns {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 12px !important;
+}
+
+.jvgh-sidebar .people-col {
+  all: unset;
+  display: block !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+.jvgh-sidebar .people-col .jvgh-sidebar-title {
+  font-weight: 600;
+  margin: 10px 0 6px 0 !important;
+}
+
+.jvgh-sidebar .resource-list {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 8px !important;
+  margin: 0 !important;
+}
+
+.jvgh-sidebar .resource-list > * {
+  width: 100% !important;
+}
+
+/* ============================================ */
