@@ -172,8 +172,8 @@ body {
 
 .people-columns {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 20px;
+  grid-template-columns: 260px 1fr;
+  gap: 22px;
   align-items: start;
 }
 
@@ -181,12 +181,25 @@ body {
   min-width: 0;
 }
 
-.people-columns > * {
-  width: 100%;
-}
-
 .people-col h3 {
   margin-bottom: 10px;
+}
+
+.bestuur-col #bestuurList {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.vrijwilligers-col #vrijwilligersList {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+#bestuurList > *,
+#vrijwilligersList > * {
+  width: 100%;
 }
 
 .people-col .person,
@@ -484,6 +497,10 @@ body {
   }
 
   .people-columns {
+    grid-template-columns: 1fr;
+  }
+
+  .vrijwilligers-col #vrijwilligersList {
     grid-template-columns: 1fr;
   }
 
