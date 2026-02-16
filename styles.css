@@ -165,9 +165,10 @@ body {
 }
 
 .resource-list {
+  margin-top: 4px;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
   max-height: none;
   overflow-y: visible;
   padding-right: 0;
@@ -210,16 +211,15 @@ body {
 .bestuur-col,
 .vrijwilligers-col {
   width: 100%;
-  margin-bottom: 18px;
-  background: transparent;
+  margin-bottom: 12px;
   padding: 0;
+  background: transparent;
   border-radius: 0;
 }
 
-.bestuur-col .jvgh-sidebar-title,
-.vrijwilligers-col .jvgh-sidebar-title {
-  margin-top: 16px;
-  margin-bottom: 10px;
+.people-col .jvgh-sidebar-title {
+  margin-top: 6px;
+  margin-bottom: 6px;
 }
 
 .bestuur-col .jvgh-sidebar-title:first-child {
