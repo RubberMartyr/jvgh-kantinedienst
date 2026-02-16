@@ -729,3 +729,15 @@ body {
 }
 
 /* ============================================ */
+
+/* ===== JVGH DEBUG TEST ===== */
+
+.jvgh-sidebar {
+  outline: 6px solid red !important;
+}
+
+.jvgh-sidebar * {
+  outline: 1px solid rgba(255,0,0,0.25) !important;
+}
+
+/* =========================== */
