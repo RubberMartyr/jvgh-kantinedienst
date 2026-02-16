@@ -127,8 +127,6 @@ body {
   border-radius: var(--jvgh-card-radius);
   box-shadow: var(--jvgh-shadow);
   padding: 14px 14px 10px;
-  width: 100%;
-  max-width: 720px;
   border-top: 4px solid var(--jvgh-blue);
   display: flex;
   flex-direction: column;
@@ -140,6 +138,15 @@ body {
   align-self: start;
   max-height: calc(100vh - 48px); /* prevents overflow on very long pages */
   overflow-y: auto;
+}
+
+.sidebar,
+.people-panel,
+.volunteer-panel,
+#peoplePanel,
+.jvgh-sidebar {
+  max-width: 760px;
+  width: 100%;
 }
 
 .jvgh-sidebar-title {
@@ -165,13 +172,17 @@ body {
 
 .people-columns {
   display: grid;
-  grid-template-columns: 260px 1fr;
-  gap: 22px;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
   align-items: start;
 }
 
 .people-col {
   min-width: 0;
+}
+
+.people-columns > * {
+  width: 100%;
 }
 
 .people-col h3 {
