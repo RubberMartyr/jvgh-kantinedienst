@@ -868,6 +868,42 @@ document.addEventListener("DOMContentLoaded", function () {
 
   window.ec = ec;
 
+  function jvghTriggerVisibleLoadSoon() {
+    if (!lastDatesSetInfo || typeof JVGH_ensureVisibleMonthsLoaded !== "function") return;
+    // Wait for the calendar to finish applying the navigation change
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        JVGH_ensureVisibleMonthsLoaded(lastDatesSetInfo);
+      });
+    });
+  }
+
+  const ecRoot = document.getElementById("ec");
+  if (ecRoot) {
+    ecRoot.addEventListener("click", (e) => {
+      const btn = e.target.closest("button");
+      if (!btn) return;
+
+      // Match navigation + view buttons by class names used by EventCalendar
+      const cls = btn.className || "";
+      const isNav =
+        cls.includes("ec-prev") ||
+        cls.includes("ec-next") ||
+        cls.includes("ec-today") ||
+        cls.includes("ec-dayGridMonth") ||
+        cls.includes("ec-timeGridWeek") ||
+        cls.includes("ec-timeGridDay") ||
+        cls.includes("ec-listWeek") ||
+        cls.includes("ec-resourceTimeGridDay") ||
+        cls.includes("ec-resourceTimelineDay");
+
+      if (!isNav) return;
+
+      // Trigger after click so forward transitions also load correctly
+      jvghTriggerVisibleLoadSoon();
+    }, true);
+  }
+
   // Click on a day in month/week → open that day
   ec.setOption("dateClick", function (info) {
     ec.setOption("view", "timeGridDay");
@@ -1307,9 +1343,12 @@ document.addEventListener("DOMContentLoaded", function () {
       if (focusedMonth) months = [focusedMonth];
     } else {
       // Week/day/list/resource views: load months intersecting the visible range.
-      // info.end is exclusive → subtract 1ms to make it inclusive for month detection.
-      const endInclusive = new Date(info.end.getTime() - 1);
-      months = jvghMonthsInRange(info.start, endInclusive);
+      // Use actual focused view range first; fallback to info start/end.
+      // end is exclusive → subtract 1ms to make it inclusive for month detection.
+      const startSrc = info.view?.currentStart || info.start;
+      const endSrcExcl = info.view?.currentEnd || info.end;
+      const endInclusive = new Date(new Date(endSrcExcl).getTime() - 1);
+      months = jvghMonthsInRange(startSrc, endInclusive);
     }
 
     console.log("[JVGH] Visible months from info:", months.join(", "), "view:", viewType);
