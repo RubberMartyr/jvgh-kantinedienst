@@ -149,7 +149,7 @@ body {
 
 .volunteer-panel,
 .jvgh-sidebar {
-  max-width: 760px;
+  max-width: 420px;
   width: 100%;
 }
 
@@ -168,10 +168,14 @@ body {
   margin-top: 8px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
   max-height: none;
   overflow-y: visible;
   padding-right: 0;
+}
+
+.resource-list > * {
+  width: 100%;
 }
 
 .people-columns {
@@ -180,6 +184,7 @@ body {
 
 .people-col {
   min-width: 0;
+  margin-bottom: 18px;
 }
 
 .people-col h3 {
@@ -207,6 +212,14 @@ body {
 .vrijwilligers-col {
   width: 100%;
   margin-bottom: 18px;
+  background: #f4f6f8;
+  border-radius: 12px;
+  padding: 12px;
+}
+
+.bestuur-col .jvgh-sidebar-title,
+.vrijwilligers-col .jvgh-sidebar-title {
+  margin-bottom: 10px;
 }
 
 .resource-card {
