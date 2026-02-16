@@ -161,6 +161,25 @@ body {
   padding-right: 0;
 }
 
+.people-columns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+  align-items: start;
+}
+
+.people-col {
+  min-width: 0;
+}
+
+.bestuur-col {
+  padding-right: 10px;
+}
+
+.vrijwilligers-col {
+  padding-left: 10px;
+}
+
 .resource-card {
   border-radius: 10px;
   border: 1px solid #d4ddf0;
@@ -440,6 +459,16 @@ body {
   }
   .jvgh-content {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  .people-columns {
+    grid-template-columns: 1fr;
+  }
+
+  .bestuur-col,
+  .vrijwilligers-col {
+    padding-left: 0;
+    padding-right: 0;
   }
 }
 
