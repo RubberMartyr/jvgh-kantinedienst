@@ -165,7 +165,6 @@ body {
 }
 
 .resource-list {
-  margin-top: 8px;
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -212,14 +211,24 @@ body {
 .vrijwilligers-col {
   width: 100%;
   margin-bottom: 18px;
-  background: #f4f6f8;
-  border-radius: 12px;
-  padding: 12px;
+  background: transparent;
+  padding: 0;
+  border-radius: 0;
 }
 
 .bestuur-col .jvgh-sidebar-title,
 .vrijwilligers-col .jvgh-sidebar-title {
+  margin-top: 16px;
   margin-bottom: 10px;
+}
+
+.bestuur-col .jvgh-sidebar-title:first-child {
+  margin-top: 0;
+}
+
+.vrijwilligers-col {
+  padding-top: 14px;
+  border-top: 1px solid rgba(0, 0, 0, 0.06);
 }
 
 .resource-card {
