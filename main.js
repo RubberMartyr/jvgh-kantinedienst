@@ -1373,8 +1373,8 @@ document.addEventListener("DOMContentLoaded", function () {
   // --- External drag & drop from sidebar into calendar ---
 
   const calendarEl = document.getElementById("ec");
-  const volunteerListEl = document.getElementById("resource-list");
-  const bestuurListEl = document.getElementById("resource-list-bestuur");
+  const volunteerListEl = document.getElementById("vrijwilligers-list");
+  const bestuurListEl = document.getElementById("bestuur-list");
 
   if (calendarEl) {
     calendarEl.addEventListener("dragover", (e) => {
