@@ -755,3 +755,42 @@ body {
 }
 
 /* ========================================== */
+
+/* =========================================
+   JVGH PEOPLE LAYOUT — FINAL VERSION
+========================================= */
+
+.people-wrapper {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 18px;
+    width: 100%;
+}
+
+.people-column {
+    min-width: 0;
+}
+
+.people-column h3 {
+    margin-bottom: 10px;
+}
+
+/* make cards fill column width */
+.people-column .person-card {
+    width: 100%;
+    box-sizing: border-box;
+}
+
+/* prevent sidebar from shrinking */
+.jvgh-sidebar,
+.sidebar,
+.sidebar-card {
+    min-width: 420px;
+}
+
+/* Responsive fallback */
+@media (max-width: 900px) {
+    .people-wrapper {
+        grid-template-columns: 1fr;
+    }
+}
