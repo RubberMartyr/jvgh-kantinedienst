@@ -1563,7 +1563,7 @@ document.addEventListener("DOMContentLoaded", function () {
   async function JVGH_loadYouthTeams() {
     if (!parentsTeamSelectEl) return;
 
-    const url = `${window.location.origin}/wp-json/jvgh/v1/teams`;
+    const url = '/wp-json/jvgh/v1/teams';
     console.log("[JVGH][TEAMS] loading…", url);
 
     if (parentsTeamsStatusEl) parentsTeamsStatusEl.textContent = "";
