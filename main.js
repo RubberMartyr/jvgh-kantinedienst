@@ -1375,6 +1375,10 @@ document.addEventListener("DOMContentLoaded", function () {
   const calendarEl = document.getElementById("ec");
   const volunteerListEl = document.getElementById("vrijwilligers-list");
   const bestuurListEl = document.getElementById("bestuur-list");
+  const bestuurTitle = document.querySelector(".people-column.bestuur h3");
+  const vrijwilligersTitle = document.querySelector(
+    ".people-column.vrijwilligers h3"
+  );
 
   if (calendarEl) {
     calendarEl.addEventListener("dragover", (e) => {
@@ -1542,6 +1546,17 @@ document.addEventListener("DOMContentLoaded", function () {
 
   // --- Volunteers / Bestuur: load from WP REST API ---
   const baseVolunteersUrl = `https://jeugdherk.be/wp-json/jvgh/v1/volunteers`;
+  const roleDurationMinutes = {
+    bestuur: 270,
+    vrijwilliger: 240,
+  };
+
+  function formatHoursLabel(minutes) {
+    const hours = Number(minutes) / 60;
+    return Number.isInteger(hours)
+      ? `${hours}u`
+      : `${String(hours).replace(".", ",")}u`;
+  }
 
   function createUserCard(user, role) {
     const card = document.createElement("div");
@@ -1553,19 +1568,16 @@ document.addEventListener("DOMContentLoaded", function () {
     card.draggable = true;
     card.dataset.title = user.name;
     // Bestuur standaard 4,5u (270 min), anderen 4u (240 min)
-    card.dataset.duration = role === "bestuur" ? "270" : "240";
+    card.dataset.duration = String(roleDurationMinutes[role] ?? 240);
     card.dataset.role = role;
     if (user.id != null) {
       card.dataset.userId = String(user.id); // used to link signup to WP user
     }
 
-    const metaText =
-      role === "bestuur" ? "Bestuur · 4,5u" : "Kantinedienst · 4u";
 
     card.innerHTML = `
       <div class="resource-line">
         <span class="resource-name">${user.name}</span>
-        <span class="resource-meta-inline">${metaText}</span>
       </div>
     `;
     return card;
@@ -1644,6 +1656,17 @@ document.addEventListener("DOMContentLoaded", function () {
             }
           }
         });
+
+        if (role === "bestuur" && bestuurTitle) {
+          bestuurTitle.textContent = `Bestuur · ${formatHoursLabel(
+            roleDurationMinutes.bestuur
+          )}`;
+        }
+        if (role === "vrijwilliger" && vrijwilligersTitle) {
+          vrijwilligersTitle.textContent = `Vrijwilligers · ${formatHoursLabel(
+            roleDurationMinutes.vrijwilliger
+          )}`;
+        }
 
         // Ensure bestuur members are not duplicated in volunteers list
         if (role === "bestuur") {
