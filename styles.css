@@ -164,6 +164,22 @@ body {
   color: #4c5774;
 }
 
+.jvgh-select {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 12px;
+  background: #fff;
+  font: inherit;
+  margin: 6px 0 8px 0;
+}
+
+.jvgh-muted {
+  font-size: 12px;
+  opacity: 0.75;
+  margin: 0 0 8px 0;
+}
+
 .resource-list {
   margin-top: 4px;
   display: flex;
@@ -215,6 +231,10 @@ body {
   padding: 0;
   background: transparent;
   border-radius: 0;
+}
+
+.parents-col #parentsList .resource-card {
+  width: 100%;
 }
 
 .people-col .jvgh-sidebar-title {

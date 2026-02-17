@@ -1375,10 +1375,15 @@ document.addEventListener("DOMContentLoaded", function () {
   const calendarEl = document.getElementById("ec");
   const volunteerListEl = document.getElementById("vrijwilligers-list");
   const bestuurListEl = document.getElementById("bestuur-list");
+  const parentsTeamSelectEl = document.getElementById("parentsTeamSelect");
+  const parentsListEl = document.getElementById("parentsList");
+  const parentsTeamsStatusEl = document.getElementById("parentsTeamsStatus");
   const bestuurTitle = document.querySelector(".people-column.bestuur h3");
   const vrijwilligersTitle = document.querySelector(
     ".people-column.vrijwilligers h3"
   );
+  let youthTeams = [];
+  const youthTeamsById = new Map();
 
   if (calendarEl) {
     calendarEl.addEventListener("dragover", (e) => {
@@ -1461,10 +1466,19 @@ document.addEventListener("DOMContentLoaded", function () {
         signupId: null,
         userId: data.userId || null,
         role: data.role || "vrijwilliger",
+        teamId: data.teamId || null,
+        teamTitle: data.teamTitle || null,
         pending: true,
         start: assignmentStartIso,
         end: assignmentEndIso,
       };
+      if (assignment.role === "parents") {
+        console.log("[JVGH][DROP] parents resource dropped", {
+          slotId: slot.id,
+          teamId: assignment.teamId,
+          teamTitle: assignment.teamTitle,
+        });
+      }
       assignments.push(assignment);
       renderAll();
 
@@ -1518,7 +1532,126 @@ document.addEventListener("DOMContentLoaded", function () {
     });
   }
 
-  // Dragstart via event delegation on both lists
+  function JVGH_makeResourceDraggable(card, payload) {
+    if (!card || !payload) return;
+    card.draggable = true;
+    card.dataset.title = payload.title || "Kantinedienst";
+    card.dataset.duration = String(
+      Number(payload.duration) || DEFAULT_ASSIGNMENT_DURATION_MINUTES
+    );
+    card.dataset.role = payload.role || "vrijwilliger";
+
+    if (payload.userId !== null && payload.userId !== undefined) {
+      card.dataset.userId = String(payload.userId);
+    } else {
+      delete card.dataset.userId;
+    }
+
+    if (payload.teamId !== null && payload.teamId !== undefined) {
+      card.dataset.teamId = String(payload.teamId);
+    } else {
+      delete card.dataset.teamId;
+    }
+
+    if (payload.teamTitle) {
+      card.dataset.teamTitle = payload.teamTitle;
+    } else {
+      delete card.dataset.teamTitle;
+    }
+  }
+
+  async function JVGH_loadYouthTeams() {
+    if (!parentsTeamSelectEl) return;
+
+    const url = `${window.location.origin}/wp-json/jvgh/v1/teams`;
+    console.log("[JVGH][TEAMS] loading…", url);
+
+    if (parentsTeamsStatusEl) parentsTeamsStatusEl.textContent = "";
+    parentsTeamSelectEl.innerHTML = '<option value="">Kies een team…</option>';
+    youthTeams = [];
+    youthTeamsById.clear();
+
+    try {
+      const res = await fetch(url, { credentials: "same-origin" });
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}`);
+      }
+
+      const data = await res.json();
+      if (!Array.isArray(data)) {
+        console.warn("[JVGH][TEAMS] unexpected response", data);
+        if (parentsTeamsStatusEl) parentsTeamsStatusEl.textContent = "Geen jeugdteams gevonden.";
+        return;
+      }
+
+      youthTeams = data;
+      console.log("[JVGH][TEAMS] loaded", youthTeams.length);
+
+      youthTeams.forEach((team) => {
+        const teamId = String(team.id ?? "");
+        if (!teamId) return;
+        youthTeamsById.set(teamId, team);
+
+        const option = document.createElement("option");
+        option.value = teamId;
+        option.textContent = team.title || `Team ${teamId}`;
+        parentsTeamSelectEl.appendChild(option);
+      });
+
+      if (!youthTeams.length) {
+        if (parentsTeamsStatusEl) parentsTeamsStatusEl.textContent = "Geen jeugdteams gevonden.";
+      }
+    } catch (err) {
+      console.error("[JVGH][TEAMS] failed", err);
+      if (parentsTeamsStatusEl) parentsTeamsStatusEl.textContent = "Teams konden niet geladen worden.";
+    }
+  }
+
+  function JVGH_renderParentsResourceForTeam(team) {
+    if (!parentsListEl) return;
+
+    parentsListEl.innerHTML = "";
+
+    if (!team) {
+      return;
+    }
+
+    const resource = {
+      id: `parents-team-${team.id}`,
+      teamId: team.id,
+      teamTitle: team.title || `Team ${team.id}`,
+      type: "parents",
+      displayName: team.title || `Team ${team.id}`,
+      calendarTitle: `Ouders - ${team.title || `Team ${team.id}`}`,
+      durationMinutes: DEFAULT_ASSIGNMENT_DURATION_MINUTES,
+    };
+
+    console.log("[JVGH][PARENTS] selected team", team.id, resource.teamTitle);
+
+    const payload = {
+      title: resource.calendarTitle,
+      duration: resource.durationMinutes,
+      userId: 0,
+      role: resource.type,
+      teamId: resource.teamId,
+      teamTitle: resource.teamTitle,
+    };
+    console.log("[JVGH][PARENTS] drag payload", payload);
+
+    const card = document.createElement("div");
+    card.className = "resource-card";
+    card.id = resource.id;
+    card.innerHTML = `
+      <div class="resource-line">
+        <span class="resource-name">${resource.displayName}</span>
+      </div>
+    `;
+
+    JVGH_makeResourceDraggable(card, payload);
+    parentsListEl.appendChild(card);
+  }
+
+  // Dragstart via event delegation on sidebar lists
   function handleDragStart(e) {
     const card = e.target.closest(".resource-card");
     if (!card) return;
@@ -1530,6 +1663,10 @@ document.addEventListener("DOMContentLoaded", function () {
         ? parseInt(card.dataset.userId, 10)
         : null,
       role: card.dataset.role || "vrijwilliger",
+      teamId: card.dataset.teamId
+        ? parseInt(card.dataset.teamId, 10)
+        : null,
+      teamTitle: card.dataset.teamTitle || null,
     };
     if (e.dataTransfer) {
       e.dataTransfer.setData("text/plain", JSON.stringify(payload));
@@ -1543,6 +1680,18 @@ document.addEventListener("DOMContentLoaded", function () {
   if (bestuurListEl) {
     bestuurListEl.addEventListener("dragstart", handleDragStart);
   }
+  if (parentsListEl) {
+    parentsListEl.addEventListener("dragstart", handleDragStart);
+  }
+  if (parentsTeamSelectEl) {
+    parentsTeamSelectEl.addEventListener("change", (e) => {
+      const teamId = e.target.value;
+      const team = teamId ? youthTeamsById.get(String(teamId)) || null : null;
+      JVGH_renderParentsResourceForTeam(team);
+    });
+  }
+
+  JVGH_loadYouthTeams();
 
   // --- Volunteers / Bestuur: load from WP REST API ---
   const baseVolunteersUrl = `https://jeugdherk.be/wp-json/jvgh/v1/volunteers`;
@@ -1565,15 +1714,13 @@ document.addEventListener("DOMContentLoaded", function () {
         ? "resource-card resource-card-bestuur"
         : "resource-card";
 
-    card.draggable = true;
-    card.dataset.title = user.name;
     // Bestuur standaard 4,5u (270 min), anderen 4u (240 min)
-    card.dataset.duration = String(roleDurationMinutes[role] ?? 240);
-    card.dataset.role = role;
-    if (user.id != null) {
-      card.dataset.userId = String(user.id); // used to link signup to WP user
-    }
-
+    JVGH_makeResourceDraggable(card, {
+      title: user.name,
+      duration: roleDurationMinutes[role] ?? 240,
+      role,
+      userId: user.id != null ? user.id : null,
+    });
 
     card.innerHTML = `
       <div class="resource-line">
