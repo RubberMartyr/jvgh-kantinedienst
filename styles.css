@@ -873,3 +873,26 @@ body {
     align-items: center;
     gap: 8px;
 }
+
+/* Align Ouders pills with dropdown rows */
+.ouders-right-pills {
+    display: grid;
+    grid-template-rows: auto auto;
+    gap: 10px;
+}
+
+/* match dropdown height visually */
+.ouders-right-pills .resource-card {
+    min-height: 34px;
+    display: flex;
+    align-items: center;
+}
+
+/* ensure left & right columns stay visually synced */
+.people-columns {
+    align-items: start;
+}
+
+.ouders-row {
+    min-height: 42px;
+}
