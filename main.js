@@ -1375,8 +1375,12 @@ document.addEventListener("DOMContentLoaded", function () {
   const calendarEl = document.getElementById("ec");
   const volunteerListEl = document.getElementById("vrijwilligers-list");
   const bestuurListEl = document.getElementById("bestuur-list");
-  const parentsTeamSelectEl = document.getElementById("parentsTeamSelect");
-  const parentsListEl = document.getElementById("parentsList");
+  const parentsTeamSelectEl =
+    document.getElementById("jvgh-team-select") ||
+    document.getElementById("parentsTeamSelect");
+  const parentsListEl =
+    document.getElementById("jvgh-parents-options") ||
+    document.getElementById("parentsList");
   const parentsTeamsStatusEl = document.getElementById("parentsTeamsStatus");
   const bestuurTitle = document.querySelector(".people-column.bestuur h3");
   const vrijwilligersTitle = document.querySelector(
@@ -1628,50 +1632,54 @@ document.addEventListener("DOMContentLoaded", function () {
   }
 
   function JVGH_renderParentsOptions(players) {
-    const container =
-      document.querySelector('#jvgh-parents-options') || parentsListEl;
 
-    if (!container) {
-      console.warn('[JVGH] parents container missing');
-      return;
+    const select = document.querySelector('#jvgh-player-select');
+
+    if (!select) {
+        console.warn('[JVGH] player dropdown missing');
+        return;
     }
+
+    select.innerHTML = '';
+
+    const placeholder = document.createElement('option');
+    placeholder.value = '';
+    placeholder.textContent = 'Selecteer speler...';
+    select.appendChild(placeholder);
+
+    players.forEach(player => {
+
+        const opt = document.createElement('option');
+        opt.value = player.id;
+        opt.textContent = player.name;
+
+        select.appendChild(opt);
+    });
+}
+
+  function JVGH_renderTeamPill(team) {
+
+    const container = document.querySelector('#jvgh-ouders-team-pill');
+
+    if (!container) return;
 
     container.innerHTML = '';
 
-    const selectedTeamId =
-      (parentsTeamSelectEl && parentsTeamSelectEl.value) || '';
-    const team = selectedTeamId
-      ? youthTeamsById.get(String(selectedTeamId)) || null
-      : null;
-    const teamTitle = team?.title || `Team ${selectedTeamId}`;
+    const el = document.createElement('div');
 
-    players.forEach((player) => {
-      const el = document.createElement('div');
+    el.className = 'jvgh-option-pill jvgh-draggable';
+    el.textContent = team.title;
 
-      // reuse SAME draggable class your other pills use
-      el.className = 'jvgh-option-pill jvgh-draggable resource-card';
+    el.dataset.type = 'parent-team';
+    el.dataset.teamId = team.id;
+    el.dataset.title = team.title;
 
-      el.textContent = player.name;
+    container.appendChild(el);
 
-      // store data so existing drag system works
-      el.dataset.type = 'parent';
-      el.dataset.playerId = player.id;
-      el.dataset.title = player.name;
-      el.dataset.duration = String(DEFAULT_ASSIGNMENT_DURATION_MINUTES);
-      el.dataset.role = 'parents';
-      el.dataset.teamId = String(selectedTeamId);
-      el.dataset.teamTitle = teamTitle;
-      el.draggable = true;
-
-      container.appendChild(el);
-    });
-
-    // IMPORTANT:
-    // rebind drag behaviour using your existing function
     if (typeof JVGH_bindDraggables === 'function') {
-      JVGH_bindDraggables(container);
+        JVGH_bindDraggables(container);
     }
-  }
+}
 
   // Dragstart via event delegation on sidebar lists
   function handleDragStart(e) {
@@ -1709,17 +1717,56 @@ document.addEventListener("DOMContentLoaded", function () {
 
   if (teamSelect) {
     teamSelect.addEventListener('change', async (e) => {
-      const teamId = e.target.value;
 
-      if (!teamId) return;
+    const teamId = e.target.value;
+    if (!teamId) return;
 
-      console.log('[JVGH] Team selected', teamId);
+    const team = youthTeams.find(t => String(t.id) === String(teamId));
 
-      const players = await JVGH_loadPlayersForTeam(teamId);
+    console.log('[JVGH] Team selected', teamId);
 
-      JVGH_renderParentsOptions(players);
-    });
+    // 1) Show FULL TEAM draggable pill
+    JVGH_renderTeamPill(team);
+
+    // 2) Load players
+    const players = await JVGH_loadPlayersForTeam(teamId);
+
+    // 3) Fill dropdown
+    JVGH_renderParentsOptions(players);
+});
   }
+
+  const playerSelect = document.querySelector('#jvgh-player-select');
+
+if (playerSelect) {
+
+    playerSelect.addEventListener('change', (e) => {
+
+        const playerId = e.target.value;
+        const name = e.target.options[e.target.selectedIndex].text;
+
+        if (!playerId) return;
+
+        const container = document.querySelector('#jvgh-parents-options');
+
+        container.innerHTML = '';
+
+        const el = document.createElement('div');
+
+        el.className = 'jvgh-option-pill jvgh-draggable';
+        el.textContent = name;
+
+        el.dataset.type = 'parent-player';
+        el.dataset.playerId = playerId;
+        el.dataset.title = name;
+
+        container.appendChild(el);
+
+        if (typeof JVGH_bindDraggables === 'function') {
+            JVGH_bindDraggables(container);
+        }
+    });
+}
 
   JVGH_loadYouthTeams();
 
