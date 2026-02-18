@@ -1396,6 +1396,7 @@ document.addEventListener("DOMContentLoaded", function () {
     row.className = "ouders-row";
     parentsTeamSelectEl.parentNode.insertBefore(row, parentsTeamSelectEl);
     row.appendChild(parentsTeamSelectEl);
+    parentsTeamSelectEl.classList.add("jvgh-select");
     row.appendChild(oudersTeamPillHostEl);
     oudersTeamPillHostEl.classList.add("ouders-pillhost");
     oudersTeamPillHostEl.id = "ouders-team-pillhost";
@@ -1407,6 +1408,7 @@ document.addEventListener("DOMContentLoaded", function () {
     row.className = "ouders-row";
     playerSelectEl.parentNode.insertBefore(row, playerSelectEl);
     row.appendChild(playerSelectEl);
+    playerSelectEl.classList.add("jvgh-select");
     row.appendChild(oudersPlayerPillHostEl);
     oudersPlayerPillHostEl.classList.add("ouders-pillhost");
     oudersPlayerPillHostEl.id = "ouders-player-pillhost";
@@ -1690,7 +1692,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
   function JVGH_renderTeamPill(team) {
 
-    const container = document.querySelector('#ouders-team-pillhost, #jvgh-ouders-team-pill');
+    const container = document.querySelector('#resource-list');
     if (!container) return;
 
     container.innerHTML = '';
@@ -1781,7 +1783,7 @@ if (playerSelect) {
 
         if (!playerId) return;
 
-        const container = document.querySelector('#ouders-player-pillhost, #jvgh-parents-options');
+        const container = document.querySelector('#resource-list');
         container.innerHTML = '';
 
         const el = document.createElement('div');
