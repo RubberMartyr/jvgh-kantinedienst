@@ -406,7 +406,8 @@ body {
 
 
 /* Bestuur assignments in calendar (blue instead of green) */
-.ec .ec-event.bestuur-assignment {
+.ec .ec-event.bestuur-assignment,
+.ec-event.event-bestuur {
   background-color: var(--jvgh-blue-light);
   border-color: #05305f;
   color: #ffffff;
@@ -1026,3 +1027,18 @@ body {
 .people-wrapper .resource-card[data-role="parents"]:hover{
   background:#dce7fb !important;
 }
+
+/* ===========================
+   Calendar event colors
+   =========================== */
+
+.ec-event.event-ouders{
+  background:#e8eef9 !important;
+  border-color:#2f5fb3 !important;
+  color:#1b3a75 !important;
+}
+
+.ec-event.event-ouders .jvgh-assignment-name{
+  color:#1b3a75 !important;
+}
+
