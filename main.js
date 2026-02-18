@@ -1692,28 +1692,36 @@ document.addEventListener("DOMContentLoaded", function () {
 
   function JVGH_renderTeamPill(team) {
 
-    const container = document.querySelector('#resource-list');
-    if (!container) return;
+    const host = document.getElementById("ouders-team-pillhost");
+    if (!host) {
+        console.warn("[JVGH] ouders-team-pillhost not found");
+        return;
+    }
 
-    container.innerHTML = '';
+    host.innerHTML = '';
 
     const el = document.createElement('div');
-
     el.className = 'resource-card';
     el.draggable = true;
     el.textContent = team.title;
 
-    el.dataset.type = 'parent-team';
-    el.dataset.teamId = team.id;
+    // ⭐ REQUIRED DATA FOR DROP ENGINE
     el.dataset.title = team.title;
-
-    // ⭐ REQUIRED FOR DRAG ENGINE
     el.dataset.role = 'parents';
     el.dataset.duration = '240';
+    el.dataset.teamId = team.id;
+    el.dataset.teamTitle = team.title;
 
-    container.appendChild(el);
+    host.appendChild(el);
 
-    JVGH_makeDraggable(el);
+    // IMPORTANT: enable drag behaviour
+    JVGH_makeResourceDraggable(el, {
+        title: team.title,
+        role: 'parents',
+        duration: 240,
+        teamId: team.id,
+        teamTitle: team.title
+    });
 }
 
   // Dragstart via event delegation on sidebar lists
@@ -1753,10 +1761,6 @@ document.addEventListener("DOMContentLoaded", function () {
   if (parentsListEl) {
     parentsListEl.addEventListener("dragstart", handleDragStart);
   }
-  const resourceListEl = document.getElementById("resource-list");
-  if (resourceListEl) {
-    resourceListEl.addEventListener("dragstart", handleDragStart);
-  }
   const teamSelect = document.querySelector('#jvgh-team-select') || parentsTeamSelectEl;
 
   if (teamSelect) {
@@ -1786,32 +1790,37 @@ if (playerSelect) {
 
     playerSelect.addEventListener('change', (e) => {
 
-        const playerId = e.target.value;
-        const name = e.target.options[e.target.selectedIndex].text;
+    const playerId = e.target.value;
+    const name = e.target.options[e.target.selectedIndex].text;
 
-        if (!playerId) return;
+    if (!playerId) return;
 
-        const container = document.querySelector('#resource-list');
-        container.innerHTML = '';
+    const host = document.getElementById("ouders-player-pillhost");
+    if (!host) {
+        console.warn("[JVGH] ouders-player-pillhost missing");
+        return;
+    }
 
-        const el = document.createElement('div');
+    host.innerHTML = '';
 
-        el.className = 'resource-card';
-        el.draggable = true;
-        el.textContent = name;
+    const el = document.createElement('div');
+    el.className = 'resource-card';
+    el.draggable = true;
+    el.textContent = name;
 
-        el.dataset.type = 'parent-player';
-        el.dataset.playerId = playerId;
-        el.dataset.title = name;
+    el.dataset.title = name;
+    el.dataset.role = 'parents';
+    el.dataset.duration = '240';
+    el.dataset.playerId = playerId;
 
-        // ⭐ REQUIRED
-        el.dataset.role = 'parents';
-        el.dataset.duration = '240';
+    host.appendChild(el);
 
-        container.appendChild(el);
-
-        JVGH_makeDraggable(el);
+    JVGH_makeResourceDraggable(el, {
+        title: name,
+        role: 'parents',
+        duration: 240
     });
+});
 }
 
   JVGH_loadYouthTeams();
