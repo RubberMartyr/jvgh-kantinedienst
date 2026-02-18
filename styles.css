@@ -814,6 +814,17 @@ body {
     flex: 1;
 }
 
+.ouders-right-pills{
+    margin-top: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.ouders-right-pills .resource-card{
+    width: 100%;
+}
+
 
 /* REMOVE DEBUG RED OUTLINES */
 * {
