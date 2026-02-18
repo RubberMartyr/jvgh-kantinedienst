@@ -1057,7 +1057,12 @@ document.addEventListener("DOMContentLoaded", function () {
 
       // Foreground events = individual assignments (deduped)
       uniqueAssignments.forEach((a) => {
-        const role = a.role || "vrijwilliger";
+        const role =
+          a.role ||
+          a.data_role ||
+          (a.team_id ? "parents" : null) ||
+          (a.player_id ? "parents" : null) ||
+          "vrijwilliger";
 
         const eventStart = a.start || slot.start;
         const eventEnd = a.end || slot.end;
@@ -1295,7 +1300,15 @@ document.addEventListener("DOMContentLoaded", function () {
             if (already) return;
 
             const userId = su.userId || su.user_id || null;
-            let role = "vrijwilliger";
+            const dataRole = su.data_role || su.dataRole || null;
+            const teamId = su.team_id || su.teamId || null;
+            const playerId = su.player_id || su.playerId || null;
+            let role =
+              su.role ||
+              dataRole ||
+              (teamId ? "parents" : null) ||
+              (playerId ? "parents" : null) ||
+              "vrijwilliger";
             if (userId !== null && userId !== undefined && bestuurUserIds.has(Number(userId))) {
               role = "bestuur";
             } else if (name && bestuurNames.has(name)) {
@@ -1310,6 +1323,9 @@ document.addEventListener("DOMContentLoaded", function () {
               signupId: su.id,
               userId,
               role,
+              data_role: dataRole,
+              team_id: teamId,
+              player_id: playerId,
               start: assignmentStartIso,
               end: assignmentEndIso,
             });
