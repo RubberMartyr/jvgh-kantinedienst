@@ -769,9 +769,6 @@ body {
 ========================================= */
 
 .people-wrapper {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 18px;
     width: 100%;
 }
 
@@ -794,13 +791,6 @@ body {
 .sidebar,
 .sidebar-card {
     min-width: 420px;
-}
-
-/* Responsive fallback */
-@media (max-width: 900px) {
-    .people-wrapper {
-        grid-template-columns: 1fr;
-    }
 }
 
 /* Ouders dropdown + pill on same row */
@@ -909,13 +899,6 @@ body {
   margin-bottom: 10px;
 }
 
-.people-wrapper{
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 16px;
-  align-items: start;
-}
-
 .ouders-left{
   margin-top: 18px;
 }
@@ -939,4 +922,34 @@ body {
 .ouders-right-pills .resource-card{
   width: 100%;
   box-sizing: border-box;
+}
+
+/* Ensure vrijwilligers column stacks content naturally */
+.people-column.vrijwilligers{
+  display:flex;
+  flex-direction:column;
+  gap:12px;
+}
+
+/* Ouders pills should visually belong to vrijwilligers column */
+.ouders-right-pills{
+  display:flex;
+  flex-direction:column;
+  gap:10px;
+  margin-top:0;          /* remove spacing pushing it down */
+}
+
+/* Match card width with vrijwilligers cards */
+.ouders-right-pills .resource-card{
+  width:100%;
+}
+
+/* Prevent dropdown height pushing pills lower */
+.people-column.bestuur .ouders-left{
+  margin-top:12px;
+}
+
+/* Keep splitter intact */
+.people-wrapper{
+  display:flex;          /* restore original behavior */
 }
