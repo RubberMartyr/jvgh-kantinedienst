@@ -1382,12 +1382,35 @@ document.addEventListener("DOMContentLoaded", function () {
     document.getElementById("jvgh-parents-options") ||
     document.getElementById("parentsList");
   const parentsTeamsStatusEl = document.getElementById("parentsTeamsStatus");
+  const oudersTeamPillHostEl = document.getElementById("jvgh-ouders-team-pill");
+  const oudersPlayerPillHostEl = document.getElementById("jvgh-parents-options");
   const bestuurTitle = document.querySelector(".people-column.bestuur h3");
   const vrijwilligersTitle = document.querySelector(
     ".people-column.vrijwilligers h3"
   );
   let youthTeams = [];
   const youthTeamsById = new Map();
+
+  if (parentsTeamSelectEl && oudersTeamPillHostEl) {
+    const row = document.createElement("div");
+    row.className = "ouders-row";
+    parentsTeamSelectEl.parentNode.insertBefore(row, parentsTeamSelectEl);
+    row.appendChild(parentsTeamSelectEl);
+    row.appendChild(oudersTeamPillHostEl);
+    oudersTeamPillHostEl.classList.add("ouders-pillhost");
+    oudersTeamPillHostEl.id = "ouders-team-pillhost";
+  }
+
+  const playerSelectEl = document.querySelector('#jvgh-player-select');
+  if (playerSelectEl && oudersPlayerPillHostEl) {
+    const row = document.createElement("div");
+    row.className = "ouders-row";
+    playerSelectEl.parentNode.insertBefore(row, playerSelectEl);
+    row.appendChild(playerSelectEl);
+    row.appendChild(oudersPlayerPillHostEl);
+    oudersPlayerPillHostEl.classList.add("ouders-pillhost");
+    oudersPlayerPillHostEl.id = "ouders-player-pillhost";
+  }
 
   if (calendarEl) {
     calendarEl.addEventListener("dragover", (e) => {
@@ -1667,14 +1690,15 @@ document.addEventListener("DOMContentLoaded", function () {
 
   function JVGH_renderTeamPill(team) {
 
-    const container = document.querySelector('#jvgh-ouders-team-pill');
+    const container = document.querySelector('#ouders-team-pillhost, #jvgh-ouders-team-pill');
     if (!container) return;
 
     container.innerHTML = '';
 
     const el = document.createElement('div');
 
-    el.className = 'jvgh-option-pill jvgh-draggable';
+    el.className = 'resource-card';
+    el.draggable = true;
     el.textContent = team.title;
 
     el.dataset.type = 'parent-team';
@@ -1715,6 +1739,11 @@ document.addEventListener("DOMContentLoaded", function () {
   if (bestuurListEl) {
     bestuurListEl.addEventListener("dragstart", handleDragStart);
   }
+  const oudersTeamHost = document.getElementById("ouders-team-pillhost");
+  const oudersPlayerHost = document.getElementById("ouders-player-pillhost");
+
+  if (oudersTeamHost) oudersTeamHost.addEventListener("dragstart", handleDragStart);
+  if (oudersPlayerHost) oudersPlayerHost.addEventListener("dragstart", handleDragStart);
   if (parentsListEl) {
     parentsListEl.addEventListener("dragstart", handleDragStart);
   }
@@ -1752,12 +1781,13 @@ if (playerSelect) {
 
         if (!playerId) return;
 
-        const container = document.querySelector('#jvgh-parents-options');
+        const container = document.querySelector('#ouders-player-pillhost, #jvgh-parents-options');
         container.innerHTML = '';
 
         const el = document.createElement('div');
 
-        el.className = 'jvgh-option-pill jvgh-draggable';
+        el.className = 'resource-card';
+        el.draggable = true;
         el.textContent = name;
 
         el.dataset.type = 'parent-player';
