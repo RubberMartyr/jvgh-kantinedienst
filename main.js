@@ -1707,6 +1707,10 @@ document.addEventListener("DOMContentLoaded", function () {
     el.dataset.teamId = team.id;
     el.dataset.title = team.title;
 
+    // ⭐ REQUIRED FOR DRAG ENGINE
+    el.dataset.role = 'parents';
+    el.dataset.duration = '240';
+
     container.appendChild(el);
 
     JVGH_makeDraggable(el);
@@ -1799,6 +1803,10 @@ if (playerSelect) {
         el.dataset.type = 'parent-player';
         el.dataset.playerId = playerId;
         el.dataset.title = name;
+
+        // ⭐ REQUIRED
+        el.dataset.role = 'parents';
+        el.dataset.duration = '240';
 
         container.appendChild(el);
 
