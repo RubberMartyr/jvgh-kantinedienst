@@ -901,31 +901,11 @@ body {
     min-height: 42px;
 }
 
-.ouders-left {
-  margin-top: 18px;
-}
-
-.ouders-left .jvgh-section-title{
-  margin: 0 0 10px;
-}
-
-.ouders-left .ouders-row{
-  margin-bottom: 10px;
-}
-
 .people-wrapper{
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 16px;
   align-items: start;
-}
-
-.ouders-left{
-  margin-top: 18px;
-}
-
-.ouders-left .jvgh-section-title{
-  margin: 0 0 10px;
 }
 
 .ouders-row{
@@ -945,56 +925,47 @@ body {
   box-sizing: border-box;
 }
 
-.ouders-grid{
-  display:grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 16px;
-  align-items:start;
-  margin-top: 14px;
-}
-
-.ouders-right{
-  display:flex;
-  flex-direction:column;
-  gap:10px;
-  padding-top: 34px; /* aligns with "Ouders" title height on left */
-}
-
 .ouders-pillhost .resource-card{
   width:100%;
   box-sizing:border-box;
 }
 
-/* Make Ouders rows align perfectly */
+/* --- Ouders: pixel-perfect alignment --- */
 .ouders-grid{
-  display:grid;
+  display: grid;
   grid-template-columns: 1fr 1fr;
-  grid-template-rows: auto auto auto; /* title + team + player */
-  align-items:center;
+  grid-template-rows: auto 44px 44px; /* title, team row, player row */
+  column-gap: 16px;
+  row-gap: 10px;
+  align-items: center;
 }
 
-/* Force left + right items to sit on same grid rows */
+/* Left column content sits on grid rows */
 .ouders-left{
-  display:grid;
-  grid-template-rows: auto auto auto;
+  display: contents;
 }
 
+/* Right column content sits on grid rows */
 .ouders-right{
-  display:grid;
-  grid-template-rows: auto auto auto;
+  display: contents;
 }
 
-/* first pill aligns with team dropdown */
-#ouders-team-pillhost{
-  grid-row: 2;
-}
+/* Place elements explicitly */
+.ouders-left .jvgh-section-title{ grid-column: 1; grid-row: 1; }
+.ouders-right .jvgh-section-title{ display:none; } /* safety */
 
-/* second pill aligns with player dropdown */
-#ouders-player-pillhost{
-  grid-row: 3;
-}
+#jvgh-team-select{ grid-column: 1; grid-row: 2; height: 44px; }
+#ouders-team-pillhost{ grid-column: 2; grid-row: 2; height: 44px; display:flex; align-items:center; }
 
-/* remove vertical offset hack if present */
-.ouders-right{
-  padding-top:0 !important;
+#jvgh-player-select{ grid-column: 1; grid-row: 3; height: 44px; }
+#ouders-player-pillhost{ grid-column: 2; grid-row: 3; height: 44px; display:flex; align-items:center; }
+
+/* Make pill fill row nicely */
+#ouders-team-pillhost .resource-card,
+#ouders-player-pillhost .resource-card{
+  width: 100%;
+  height: 44px;
+  display:flex;
+  align-items:center;
+  box-sizing: border-box;
 }
