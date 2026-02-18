@@ -908,3 +908,35 @@ body {
 .ouders-left .ouders-row{
   margin-bottom: 10px;
 }
+
+.people-wrapper{
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  align-items: start;
+}
+
+.ouders-left{
+  margin-top: 18px;
+}
+
+.ouders-left .jvgh-section-title{
+  margin: 0 0 10px;
+}
+
+.ouders-row{
+  margin-bottom: 10px;
+}
+
+/* pills under vrijwilligers */
+.ouders-right-pills{
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.ouders-right-pills .resource-card{
+  width: 100%;
+  box-sizing: border-box;
+}
