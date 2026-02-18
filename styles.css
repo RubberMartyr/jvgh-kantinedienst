@@ -1012,3 +1012,17 @@ body {
 .resource-card[data-role="parents"]:hover{
   background: #dce7fb;
 }
+
+/* ===============================
+   OVERRIDE Parents card color
+   =============================== */
+
+.people-wrapper .resource-card[data-role="parents"]{
+  background:#e8eef9 !important;
+  border:1px solid #2f5fb3 !important;
+  color:#1b3a75 !important;
+}
+
+.people-wrapper .resource-card[data-role="parents"]:hover{
+  background:#dce7fb !important;
+}
