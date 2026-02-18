@@ -896,3 +896,15 @@ body {
 .ouders-row {
     min-height: 42px;
 }
+
+.ouders-left {
+  margin-top: 18px;
+}
+
+.ouders-left .jvgh-section-title{
+  margin: 0 0 10px;
+}
+
+.ouders-left .ouders-row{
+  margin-bottom: 10px;
+}
