@@ -1627,7 +1627,7 @@ document.addEventListener("DOMContentLoaded", function () {
     }
   }
 
-  function JVGH_renderParentsOptions(players, teamId) {
+  function JVGH_renderParentsOptions(players) {
     const container =
       document.querySelector('#jvgh-parents-options') || parentsListEl;
 
@@ -1638,8 +1638,12 @@ document.addEventListener("DOMContentLoaded", function () {
 
     container.innerHTML = '';
 
-    const team = teamId ? youthTeamsById.get(String(teamId)) || null : null;
-    const teamTitle = team?.title || `Team ${teamId}`;
+    const selectedTeamId =
+      (parentsTeamSelectEl && parentsTeamSelectEl.value) || '';
+    const team = selectedTeamId
+      ? youthTeamsById.get(String(selectedTeamId)) || null
+      : null;
+    const teamTitle = team?.title || `Team ${selectedTeamId}`;
 
     players.forEach((player) => {
       const el = document.createElement('div');
@@ -1655,7 +1659,7 @@ document.addEventListener("DOMContentLoaded", function () {
       el.dataset.title = player.name;
       el.dataset.duration = String(DEFAULT_ASSIGNMENT_DURATION_MINUTES);
       el.dataset.role = 'parents';
-      el.dataset.teamId = String(teamId || '');
+      el.dataset.teamId = String(selectedTeamId);
       el.dataset.teamTitle = teamTitle;
       el.draggable = true;
 
@@ -1713,7 +1717,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
       const players = await JVGH_loadPlayersForTeam(teamId);
 
-      JVGH_renderParentsOptions(players, teamId);
+      JVGH_renderParentsOptions(players);
     });
   }
 
