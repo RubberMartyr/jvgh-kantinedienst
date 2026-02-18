@@ -944,3 +944,23 @@ body {
   width: 100%;
   box-sizing: border-box;
 }
+
+.ouders-grid{
+  display:grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  align-items:start;
+  margin-top: 14px;
+}
+
+.ouders-right{
+  display:flex;
+  flex-direction:column;
+  gap:10px;
+  padding-top: 34px; /* aligns with "Ouders" title height on left */
+}
+
+.ouders-pillhost .resource-card{
+  width:100%;
+  box-sizing:border-box;
+}
