@@ -802,3 +802,20 @@ body {
         grid-template-columns: 1fr;
     }
 }
+
+/* Ouders dropdown + pill on same row */
+.ouders-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.ouders-pillhost {
+    flex: 1;
+}
+
+
+/* REMOVE DEBUG RED OUTLINES */
+* {
+    outline: none !important;
+}
