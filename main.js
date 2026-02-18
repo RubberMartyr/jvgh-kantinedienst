@@ -1657,10 +1657,17 @@ document.addEventListener("DOMContentLoaded", function () {
     });
 }
 
+  function JVGH_makeDraggable(el) {
+
+    // Important: reuse existing draggable system
+    if (typeof JVGH_bindDraggables === 'function') {
+        JVGH_bindDraggables(el.parentElement);
+    }
+}
+
   function JVGH_renderTeamPill(team) {
 
     const container = document.querySelector('#jvgh-ouders-team-pill');
-
     if (!container) return;
 
     container.innerHTML = '';
@@ -1676,9 +1683,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
     container.appendChild(el);
 
-    if (typeof JVGH_bindDraggables === 'function') {
-        JVGH_bindDraggables(container);
-    }
+    JVGH_makeDraggable(el);
 }
 
   // Dragstart via event delegation on sidebar lists
@@ -1748,7 +1753,6 @@ if (playerSelect) {
         if (!playerId) return;
 
         const container = document.querySelector('#jvgh-parents-options');
-
         container.innerHTML = '';
 
         const el = document.createElement('div');
@@ -1762,9 +1766,7 @@ if (playerSelect) {
 
         container.appendChild(el);
 
-        if (typeof JVGH_bindDraggables === 'function') {
-            JVGH_bindDraggables(container);
-        }
+        JVGH_makeDraggable(el);
     });
 }
 
