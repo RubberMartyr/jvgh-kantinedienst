@@ -964,3 +964,37 @@ body {
   width:100%;
   box-sizing:border-box;
 }
+
+/* Make Ouders rows align perfectly */
+.ouders-grid{
+  display:grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: auto auto auto; /* title + team + player */
+  align-items:center;
+}
+
+/* Force left + right items to sit on same grid rows */
+.ouders-left{
+  display:grid;
+  grid-template-rows: auto auto auto;
+}
+
+.ouders-right{
+  display:grid;
+  grid-template-rows: auto auto auto;
+}
+
+/* first pill aligns with team dropdown */
+#ouders-team-pillhost{
+  grid-row: 2;
+}
+
+/* second pill aligns with player dropdown */
+#ouders-player-pillhost{
+  grid-row: 3;
+}
+
+/* remove vertical offset hack if present */
+.ouders-right{
+  padding-top:0 !important;
+}
