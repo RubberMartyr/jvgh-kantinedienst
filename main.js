@@ -568,6 +568,19 @@ document.addEventListener("DOMContentLoaded", function () {
       // }
     },
 
+    eventDidMount(info) {
+      const role = info.event?.extendedProps?.role;
+      if (!role) return;
+
+      if (role === "bestuur") {
+        info.el.classList.add("event-bestuur");
+      } else if (role === "parents") {
+        info.el.classList.add("event-ouders");
+      } else {
+        info.el.classList.add("event-vrijwilliger");
+      }
+    },
+
     events: [],
 
     eventDrop: async (info) => {
@@ -1045,7 +1058,6 @@ document.addEventListener("DOMContentLoaded", function () {
       // Foreground events = individual assignments (deduped)
       uniqueAssignments.forEach((a) => {
         const role = a.role || "vrijwilliger";
-        const classNames = role === "bestuur" ? ["bestuur-assignment"] : [];
 
         const eventStart = a.start || slot.start;
         const eventEnd = a.end || slot.end;
@@ -1057,7 +1069,6 @@ document.addEventListener("DOMContentLoaded", function () {
           end: eventEnd,
           resourceId: "kantine",
           extendedProps: { type: "assignment", slotId: slot.id, role },
-          classNames,
         });
       });
     });
