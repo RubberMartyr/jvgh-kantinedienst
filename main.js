@@ -1560,6 +1560,26 @@ document.addEventListener("DOMContentLoaded", function () {
     }
   }
 
+  async function JVGH_loadPlayersForTeam(teamId) {
+    const url =
+      `https://jeugdherk.be/wp-json/jvgh/v1/players-by-team?team_id=${teamId}`;
+
+    console.log('[JVGH][PLAYERS] loading', url);
+
+    const res = await fetch(url);
+
+    if (!res.ok) {
+      console.error('[JVGH][PLAYERS] HTTP error', res.status);
+      return [];
+    }
+
+    const data = await res.json();
+
+    console.log('[JVGH][PLAYERS] loaded', data.length);
+
+    return data;
+  }
+
   async function JVGH_loadYouthTeams() {
     if (!parentsTeamSelectEl) return;
 
@@ -1607,48 +1627,46 @@ document.addEventListener("DOMContentLoaded", function () {
     }
   }
 
-  function JVGH_renderParentsResourceForTeam(team) {
-    if (!parentsListEl) return;
+  function JVGH_renderParentsOptions(players, teamId) {
+    const container =
+      document.querySelector('#jvgh-parents-options') || parentsListEl;
 
-    parentsListEl.innerHTML = "";
-
-    if (!team) {
+    if (!container) {
+      console.warn('[JVGH] parents container missing');
       return;
     }
 
-    const resource = {
-      id: `parents-team-${team.id}`,
-      teamId: team.id,
-      teamTitle: team.title || `Team ${team.id}`,
-      type: "parents",
-      displayName: team.title || `Team ${team.id}`,
-      calendarTitle: `Ouders - ${team.title || `Team ${team.id}`}`,
-      durationMinutes: DEFAULT_ASSIGNMENT_DURATION_MINUTES,
-    };
+    container.innerHTML = '';
 
-    console.log("[JVGH][PARENTS] selected team", team.id, resource.teamTitle);
+    const team = teamId ? youthTeamsById.get(String(teamId)) || null : null;
+    const teamTitle = team?.title || `Team ${teamId}`;
 
-    const payload = {
-      title: resource.calendarTitle,
-      duration: resource.durationMinutes,
-      userId: 0,
-      role: resource.type,
-      teamId: resource.teamId,
-      teamTitle: resource.teamTitle,
-    };
-    console.log("[JVGH][PARENTS] drag payload", payload);
+    players.forEach((player) => {
+      const el = document.createElement('div');
 
-    const card = document.createElement("div");
-    card.className = "resource-card";
-    card.id = resource.id;
-    card.innerHTML = `
-      <div class="resource-line">
-        <span class="resource-name">${resource.displayName}</span>
-      </div>
-    `;
+      // reuse SAME draggable class your other pills use
+      el.className = 'jvgh-option-pill jvgh-draggable resource-card';
 
-    JVGH_makeResourceDraggable(card, payload);
-    parentsListEl.appendChild(card);
+      el.textContent = player.name;
+
+      // store data so existing drag system works
+      el.dataset.type = 'parent';
+      el.dataset.playerId = player.id;
+      el.dataset.title = player.name;
+      el.dataset.duration = String(DEFAULT_ASSIGNMENT_DURATION_MINUTES);
+      el.dataset.role = 'parents';
+      el.dataset.teamId = String(teamId || '');
+      el.dataset.teamTitle = teamTitle;
+      el.draggable = true;
+
+      container.appendChild(el);
+    });
+
+    // IMPORTANT:
+    // rebind drag behaviour using your existing function
+    if (typeof JVGH_bindDraggables === 'function') {
+      JVGH_bindDraggables(container);
+    }
   }
 
   // Dragstart via event delegation on sidebar lists
@@ -1683,11 +1701,19 @@ document.addEventListener("DOMContentLoaded", function () {
   if (parentsListEl) {
     parentsListEl.addEventListener("dragstart", handleDragStart);
   }
-  if (parentsTeamSelectEl) {
-    parentsTeamSelectEl.addEventListener("change", (e) => {
+  const teamSelect = document.querySelector('#jvgh-team-select') || parentsTeamSelectEl;
+
+  if (teamSelect) {
+    teamSelect.addEventListener('change', async (e) => {
       const teamId = e.target.value;
-      const team = teamId ? youthTeamsById.get(String(teamId)) || null : null;
-      JVGH_renderParentsResourceForTeam(team);
+
+      if (!teamId) return;
+
+      console.log('[JVGH] Team selected', teamId);
+
+      const players = await JVGH_loadPlayersForTeam(teamId);
+
+      JVGH_renderParentsOptions(players, teamId);
     });
   }
 
