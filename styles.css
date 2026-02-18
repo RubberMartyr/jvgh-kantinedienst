@@ -998,3 +998,17 @@ body {
 .ouders-right{
   padding-top:0 !important;
 }
+
+/* ===========================
+   Ouders / Parents styling
+   =========================== */
+
+.resource-card[data-role="parents"]{
+  background: #e8eef9;        /* soft blue instead of green */
+  border-color: #2f5fb3;
+  color: #1b3a75;
+}
+
+.resource-card[data-role="parents"]:hover{
+  background: #dce7fb;
+}
