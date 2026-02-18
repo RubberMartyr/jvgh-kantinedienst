@@ -814,6 +814,10 @@ body {
     flex: 1;
 }
 
+.ouders-pillhost{
+   margin-top:8px;
+}
+
 .ouders-right-pills{
     margin-top: 10px;
     display: flex;
