@@ -1749,6 +1749,10 @@ document.addEventListener("DOMContentLoaded", function () {
   if (parentsListEl) {
     parentsListEl.addEventListener("dragstart", handleDragStart);
   }
+  const resourceListEl = document.getElementById("resource-list");
+  if (resourceListEl) {
+    resourceListEl.addEventListener("dragstart", handleDragStart);
+  }
   const teamSelect = document.querySelector('#jvgh-team-select') || parentsTeamSelectEl;
 
   if (teamSelect) {
