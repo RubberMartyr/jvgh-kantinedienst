@@ -434,6 +434,11 @@ document.addEventListener("DOMContentLoaded", function () {
     return jvghDayKeyFromDate(date) === dayKey;
   }
 
+  const DEFAULT_SLOT_MIN_TIME = "08:00:00";
+  const DEFAULT_SLOT_MAX_TIME = "23:00:00";
+  const FULL_SLOT_MIN_TIME = "00:00:00";
+  const FULL_SLOT_MAX_TIME = "24:00:00";
+
   const ec = EventCalendar.create(el, {
     view: "timeGridWeek", // week view is fine for a single resource
     locale: "nl",
@@ -533,8 +538,8 @@ document.addEventListener("DOMContentLoaded", function () {
     `,
       };
     },
-    slotMinTime: "08:00:00",
-    slotMaxTime: "23:00:00",
+    slotMinTime: DEFAULT_SLOT_MIN_TIME,
+    slotMaxTime: DEFAULT_SLOT_MAX_TIME,
 
     headerToolbar: {
       start: "prev,next today",
@@ -880,6 +885,32 @@ document.addEventListener("DOMContentLoaded", function () {
   });
 
   window.ec = ec;
+
+  const toggleHoursButton = document.getElementById("toggle-hours-button");
+  let showAllHours = false;
+
+  function applyHourRange() {
+    if (!ec) return;
+    ec.setOption("slotMinTime", showAllHours ? FULL_SLOT_MIN_TIME : DEFAULT_SLOT_MIN_TIME);
+    ec.setOption("slotMaxTime", showAllHours ? FULL_SLOT_MAX_TIME : DEFAULT_SLOT_MAX_TIME);
+    ec.setOption("scrollTime", showAllHours ? FULL_SLOT_MIN_TIME : DEFAULT_SLOT_MIN_TIME);
+  }
+
+  function updateHourToggleButtonUi() {
+    if (!toggleHoursButton) return;
+    toggleHoursButton.textContent = showAllHours ? "Toon standaarduren" : "Laat alle uren zien";
+    toggleHoursButton.setAttribute("aria-pressed", String(showAllHours));
+  }
+
+  if (toggleHoursButton) {
+    toggleHoursButton.disabled = false;
+    updateHourToggleButtonUi();
+    toggleHoursButton.addEventListener("click", () => {
+      showAllHours = !showAllHours;
+      applyHourRange();
+      updateHourToggleButtonUi();
+    });
+  }
 
   function jvghTriggerVisibleLoadSoon() {
     if (!lastDatesSetInfo || typeof JVGH_ensureVisibleMonthsLoaded !== "function") return;
