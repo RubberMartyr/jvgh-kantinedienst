@@ -10,6 +10,21 @@ function monthLabelFromKey(monthKey) {
   return d.toLocaleDateString("nl-BE", { month: "long", year: "numeric" });
 }
 
+function monthDateFromKey(monthKey) {
+  const [year, month] = monthKey.split("-").map(Number);
+  return new Date(year, month - 1, 1);
+}
+
+function monthKeyFromDate(date) {
+  return `${date.getFullYear()}-${pad2(date.getMonth() + 1)}`;
+}
+
+function addMonths(date, amount) {
+  const next = new Date(date.getTime());
+  next.setMonth(next.getMonth() + amount);
+  return next;
+}
+
 function parseMonthInput(raw) {
   if (!raw) return null;
   const input = String(raw).trim().toLowerCase();
@@ -553,60 +568,94 @@ document.addEventListener("DOMContentLoaded", async () => {
     return;
   }
 
-  try {
-    setStatus("Shifts laden…");
-    const tasks = await loadTasksForMonth(monthKey);
-    const slotShifts = await loadShiftSlotsForMonth(monthKey);
+  let currentMonthDate = monthDateFromKey(monthKey);
+  let currentStateByTask = new Map();
+  let resolvedName = providedName || null;
 
-    const mergedByKey = new Map();
-    slotShifts.forEach((shift) => {
-      mergedByKey.set(`${shift.date} ${shift.time}`, shift);
-    });
-    tasks.forEach((task) => {
-      const key = `${String(task.date || "").slice(0, 10)} ${String(task.time || "").slice(0, 5)}`;
-      const existing = mergedByKey.get(key) || {};
-      mergedByKey.set(key, {
-        ...existing,
-        ...task,
-        date: String(task.date || "").slice(0, 10),
-        time: String(task.time || "").slice(0, 5),
-      });
-    });
-    const allShifts = Array.from(mergedByKey.values()).sort((a, b) =>
-      `${a.date || ""} ${a.time || ""}`.localeCompare(`${b.date || ""} ${b.time || ""}`)
-    );
+  function renderMetaHeader() {
+    const currentMonthKey = monthKeyFromDate(currentMonthDate);
+    const prevMonthDate = addMonths(currentMonthDate, -1);
+    const nextMonthDate = addMonths(currentMonthDate, 1);
+    const prevLabel = prevMonthDate.toLocaleDateString("nl-BE", { month: "long", year: "numeric" });
+    const nextLabel = nextMonthDate.toLocaleDateString("nl-BE", { month: "long", year: "numeric" });
 
-    setStatus("Inschrijvingen laden…");
-    const signupsByTask = await loadSignupsByTask(allShifts.filter((s) => s.id));
-
-    const resolvedName = await resolveUserName({ providedName, userId, signupsByTask });
     metaEl.innerHTML = `
-      <div><strong>Hallo, ${resolvedName} (${userId})</strong></div>
-      <div class="availability-month">${monthLabelFromKey(monthKey)} <small>(${monthKey})</small></div>
+      <div><strong>Hallo, ${resolvedName || "Gebruiker"} (${userId})</strong></div>
+      <div class="availability-month">${monthLabelFromKey(currentMonthKey)}</div>
+      <div class="availability-month-nav">
+        <button type="button" id="availability-prev-month" class="availability-month-btn">${prevLabel}</button>
+        <button type="button" id="availability-next-month" class="availability-month-btn">${nextLabel}</button>
+      </div>
     `;
 
-    const stateByTask = new Map();
-    allShifts.forEach((task) => {
-      const signups = signupsByTask.get(String(task.id)) || [];
-      const userSignup = signups.find((su) => Number(su.userId || su.user_id) === Number(userId)) || null;
-      stateByTask.set(shiftKey(task), {
-        task,
-        signups: [...signups],
-        userSignup,
-        originalChecked: Boolean(userSignup),
-        currentChecked: Boolean(userSignup),
-      });
-    });
-
-    renderList({ tasks: allShifts, stateByTask, userId });
-
-    const saveButton = document.getElementById("availability-save");
-    saveButton.addEventListener("click", () => {
-      saveChanges({ stateByTask, userId, userName: resolvedName });
-    });
-    setSaveDirtyState(false);
-  } catch (err) {
-    console.error(err);
-    setStatus("Fout bij laden van shifts of inschrijvingen.", true);
+    document.getElementById("availability-prev-month").onclick = () => {
+      currentMonthDate = addMonths(currentMonthDate, -1);
+      loadMonth();
+    };
+    document.getElementById("availability-next-month").onclick = () => {
+      currentMonthDate = addMonths(currentMonthDate, 1);
+      loadMonth();
+    };
   }
+
+  async function loadMonth() {
+    const currentMonthKey = monthKeyFromDate(currentMonthDate);
+    try {
+      renderMetaHeader();
+      setStatus("Shifts laden…");
+      const tasks = await loadTasksForMonth(currentMonthKey);
+      const slotShifts = await loadShiftSlotsForMonth(currentMonthKey);
+
+      const mergedByKey = new Map();
+      slotShifts.forEach((shift) => {
+        mergedByKey.set(`${shift.date} ${shift.time}`, shift);
+      });
+      tasks.forEach((task) => {
+        const key = `${String(task.date || "").slice(0, 10)} ${String(task.time || "").slice(0, 5)}`;
+        const existing = mergedByKey.get(key) || {};
+        mergedByKey.set(key, {
+          ...existing,
+          ...task,
+          date: String(task.date || "").slice(0, 10),
+          time: String(task.time || "").slice(0, 5),
+        });
+      });
+      const allShifts = Array.from(mergedByKey.values()).sort((a, b) =>
+        `${a.date || ""} ${a.time || ""}`.localeCompare(`${b.date || ""} ${b.time || ""}`)
+      );
+
+      setStatus("Inschrijvingen laden…");
+      const signupsByTask = await loadSignupsByTask(allShifts.filter((s) => s.id));
+      if (!resolvedName) {
+        resolvedName = await resolveUserName({ providedName, userId, signupsByTask });
+        renderMetaHeader();
+      }
+
+      currentStateByTask = new Map();
+      allShifts.forEach((task) => {
+        const signups = signupsByTask.get(String(task.id)) || [];
+        const userSignup = signups.find((su) => Number(su.userId || su.user_id) === Number(userId)) || null;
+        currentStateByTask.set(shiftKey(task), {
+          task,
+          signups: [...signups],
+          userSignup,
+          originalChecked: Boolean(userSignup),
+          currentChecked: Boolean(userSignup),
+        });
+      });
+
+      renderList({ tasks: allShifts, stateByTask: currentStateByTask, userId });
+      setSaveDirtyState(false);
+    } catch (err) {
+      console.error(err);
+      setStatus("Fout bij laden van shifts of inschrijvingen.", true);
+    }
+  }
+
+  const saveButton = document.getElementById("availability-save");
+  saveButton.onclick = () => {
+    saveChanges({ stateByTask: currentStateByTask, userId, userName: resolvedName || "Gebruiker" });
+  };
+
+  await loadMonth();
 });
