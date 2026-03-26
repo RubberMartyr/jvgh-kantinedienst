@@ -434,6 +434,11 @@ document.addEventListener("DOMContentLoaded", function () {
     return jvghDayKeyFromDate(date) === dayKey;
   }
 
+  const DEFAULT_SLOT_MIN_TIME = "08:00:00";
+  const DEFAULT_SLOT_MAX_TIME = "23:00:00";
+  const FULL_SLOT_MIN_TIME = "00:00:00";
+  const FULL_SLOT_MAX_TIME = "24:00:00";
+
   const ec = EventCalendar.create(el, {
     view: "timeGridWeek", // week view is fine for a single resource
     locale: "nl",
@@ -533,8 +538,8 @@ document.addEventListener("DOMContentLoaded", function () {
     `,
       };
     },
-    slotMinTime: "08:00:00",
-    slotMaxTime: "23:00:00",
+    slotMinTime: DEFAULT_SLOT_MIN_TIME,
+    slotMaxTime: DEFAULT_SLOT_MAX_TIME,
 
     headerToolbar: {
       start: "prev,next today",
@@ -880,6 +885,111 @@ document.addEventListener("DOMContentLoaded", function () {
   });
 
   window.ec = ec;
+
+  const toggleHoursButton = document.getElementById("toggle-hours-button");
+  const refreshMonthButton = document.getElementById("refresh-month-button");
+  let showAllHours = false;
+
+  function applyHourRange() {
+    if (!ec) return;
+    ec.setOption("slotMinTime", showAllHours ? FULL_SLOT_MIN_TIME : DEFAULT_SLOT_MIN_TIME);
+    ec.setOption("slotMaxTime", showAllHours ? FULL_SLOT_MAX_TIME : DEFAULT_SLOT_MAX_TIME);
+    ec.setOption("scrollTime", showAllHours ? FULL_SLOT_MIN_TIME : DEFAULT_SLOT_MIN_TIME);
+  }
+
+  function updateHourToggleButtonUi() {
+    if (!toggleHoursButton) return;
+    toggleHoursButton.textContent = showAllHours ? "Toon standaarduren" : "Laat alle uren zien";
+    toggleHoursButton.setAttribute("aria-pressed", String(showAllHours));
+  }
+
+  if (toggleHoursButton) {
+    toggleHoursButton.disabled = false;
+    updateHourToggleButtonUi();
+    toggleHoursButton.addEventListener("click", () => {
+      showAllHours = !showAllHours;
+      applyHourRange();
+      updateHourToggleButtonUi();
+    });
+  }
+
+  function getCurrentVisibleMonthKey() {
+    const focusedDate =
+      lastDatesSetInfo?.view?.currentStart ||
+      lastDatesSetInfo?.start ||
+      new Date();
+    return jvghMonthKey(new Date(focusedDate));
+  }
+
+  async function refreshCurrentMonthData() {
+    const monthKey = getCurrentVisibleMonthKey();
+    if (!monthKey) return;
+
+    const monthLabel = jvghFormatMonthLabel(monthKey);
+    if (refreshMonthButton) refreshMonthButton.disabled = true;
+
+    try {
+      showLoading(`Verversen ${monthLabel}…`);
+
+      loadedMonths.delete(monthKey);
+      loadingMonths.delete(monthKey);
+      loadedTaskIds.clear();
+      schedulesLoaded = false;
+
+      for (const dayKey of Array.from(daySheetMap.keys())) {
+        if (dayKey.startsWith(monthKey + "-")) {
+          daySheetMap.delete(dayKey);
+        }
+      }
+
+      assignments = assignments.filter((assignment) => {
+        const start = String(assignment.start || "");
+        return !start.startsWith(monthKey);
+      });
+
+      slots = slots.filter((slot) => {
+        const start = String(slot.start || "");
+        const isMonthSlot = start.startsWith(monthKey);
+        const isGeneratedTaskSlot =
+          slot.manual &&
+          String(slot.id || "").startsWith("shift-task-");
+        return !(isMonthSlot && isGeneratedTaskSlot);
+      });
+
+      slots.forEach((slot) => {
+        const start = String(slot.start || "");
+        if (!start.startsWith(monthKey)) return;
+        delete slot.taskId;
+        delete slot.sheetId;
+      });
+
+      renderAll();
+      await JVGH_loadMonthTasksAndSignups(monthKey);
+
+      if (icalEnabled || shiftsEnabled) {
+        await loadICal();
+      }
+
+      if (lastDatesSetInfo && typeof JVGH_ensureVisibleMonthsLoaded === "function") {
+        await JVGH_ensureVisibleMonthsLoaded(lastDatesSetInfo);
+      }
+
+      setIcalStatus(`Huidige maand ververst (${monthLabel}).`);
+    } catch (err) {
+      console.error("[JVGH] Error while refreshing current month", err);
+      setIcalStatus(`Verversen mislukt (${monthLabel}).`);
+    } finally {
+      hideLoading();
+      if (refreshMonthButton) refreshMonthButton.disabled = false;
+    }
+  }
+
+  if (refreshMonthButton) {
+    refreshMonthButton.disabled = false;
+    refreshMonthButton.addEventListener("click", () => {
+      refreshCurrentMonthData();
+    });
+  }
 
   function jvghTriggerVisibleLoadSoon() {
     if (!lastDatesSetInfo || typeof JVGH_ensureVisibleMonthsLoaded !== "function") return;
