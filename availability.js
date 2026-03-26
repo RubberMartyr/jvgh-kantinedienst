@@ -170,10 +170,11 @@ function setStatus(msg, isError = false) {
 }
 
 function setSaveDirtyState(isDirty) {
-  const saveButton = document.getElementById("availability-save");
-  if (!saveButton) return;
-  saveButton.disabled = !isDirty;
-  saveButton.textContent = isDirty ? "Opslaan" : "Alles opgeslagen";
+  const saveButtons = document.querySelectorAll(".availability-save-btn");
+  saveButtons.forEach((saveButton) => {
+    saveButton.disabled = !isDirty;
+    saveButton.textContent = isDirty ? "Opslaan" : "Alles opgeslagen";
+  });
 }
 
 async function loadTasksForMonth(monthKey) {
@@ -478,9 +479,11 @@ function renderList({ tasks, stateByTask, userId }) {
 }
 
 async function saveChanges({ stateByTask, userId, userName }) {
-  const saveButton = document.getElementById("availability-save");
-  saveButton.disabled = true;
-  saveButton.textContent = "Opslaan...";
+  const saveButtons = document.querySelectorAll(".availability-save-btn");
+  saveButtons.forEach((saveButton) => {
+    saveButton.disabled = true;
+    saveButton.textContent = "Opslaan...";
+  });
 
   try {
     const entries = Array.from(stateByTask.values());
@@ -547,8 +550,10 @@ async function saveChanges({ stateByTask, userId, userName }) {
   } catch (err) {
     console.error(err);
     setStatus("Fout bij opslaan van wijzigingen.", true);
-    saveButton.disabled = false;
-    saveButton.textContent = "Opslaan";
+    saveButtons.forEach((saveButton) => {
+      saveButton.disabled = false;
+      saveButton.textContent = "Opslaan";
+    });
   }
 }
 
@@ -668,10 +673,11 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
   }
 
-  const saveButton = document.getElementById("availability-save");
-  saveButton.onclick = () => {
-    saveChanges({ stateByTask: currentStateByTask, userId, userName: resolvedName || "Gebruiker" });
-  };
+  document.querySelectorAll(".availability-save-btn").forEach((saveButton) => {
+    saveButton.onclick = () => {
+      saveChanges({ stateByTask: currentStateByTask, userId, userName: resolvedName || "Gebruiker" });
+    };
+  });
 
   await loadMonth();
 });
