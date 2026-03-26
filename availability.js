@@ -110,6 +110,13 @@ function signupName(signup) {
   return `${firstName} ${lastName}`.trim() || "Vrijwilliger";
 }
 
+function formatHourRange(startIso, endIso) {
+  const s = new Date(startIso);
+  const e = new Date(endIso);
+  if (Number.isNaN(s.getTime()) || Number.isNaN(e.getTime())) return "";
+  return `${pad2(s.getHours())}:${pad2(s.getMinutes())}–${pad2(e.getHours())}:${pad2(e.getMinutes())}`;
+}
+
 function shiftKey(task) {
   const date = String(task?.date || "").slice(0, 10);
   const time = String(task?.time || "").slice(0, 5);
@@ -262,6 +269,11 @@ async function loadShiftSlotsForMonth(monthKey) {
         qty: Math.round((shiftEnd.getTime() - shiftStart.getTime()) / 60000),
         start: shiftStart.toISOString(),
         end: shiftEnd.toISOString(),
+        source: "ics",
+        sourceReason: "iCal voetbalwedstrijd",
+        icsSummary: ev.summary || "",
+        icsStart: ev.start.toISOString(),
+        icsEnd: ev.end.toISOString(),
       };
     })
     .filter((slot) => slot.date.slice(0, 7) === monthKey)
@@ -381,6 +393,40 @@ function renderList({ tasks, stateByTask, userId }) {
 
     textWrap.appendChild(label);
 
+    const expandButton = document.createElement("button");
+    expandButton.type = "button";
+    expandButton.className = "availability-expand-btn";
+    expandButton.textContent = "+";
+    expandButton.title = "Details tonen";
+
+    const details = document.createElement("div");
+    details.className = "availability-details";
+
+    const otherUsers = state.signups.filter((su) => Number(su.userId || su.user_id) !== Number(userId));
+    const otherUsersHtml = otherUsers.length
+      ? `<ul>${otherUsers.map((su) => `<li>${signupName(su)}</li>`).join("")}</ul>`
+      : "<div>Geen andere ingeplande personen op dit moment.</div>";
+
+    let reasonHtml = "<div><strong>Reden:</strong> Handmatige/plannings-taak</div>";
+    if (task.source === "ics" || task.icsSummary) {
+      const matchHours = task.icsStart && task.icsEnd
+        ? ` (${formatHourRange(task.icsStart, task.icsEnd)})`
+        : "";
+      reasonHtml = `<div><strong>Reden:</strong> ${task.sourceReason || "iCal voetbalwedstrijd"}${matchHours}<br>${task.icsSummary || ""}</div>`;
+    }
+
+    details.innerHTML = `
+      ${reasonHtml}
+      <div style="margin-top:6px;"><strong>Andere ingeplande resources:</strong></div>
+      ${otherUsersHtml}
+    `;
+
+    expandButton.addEventListener("click", () => {
+      const open = details.classList.toggle("is-open");
+      expandButton.textContent = open ? "−" : "+";
+      expandButton.title = open ? "Details verbergen" : "Details tonen";
+    });
+
     checkbox.addEventListener("change", () => {
       state.currentChecked = checkbox.checked;
       const dirtyCount = computeDirtyCount(stateByTask);
@@ -390,6 +436,8 @@ function renderList({ tasks, stateByTask, userId }) {
 
     li.appendChild(checkbox);
     li.appendChild(textWrap);
+    li.appendChild(expandButton);
+    li.appendChild(details);
     listEl.appendChild(li);
   });
 

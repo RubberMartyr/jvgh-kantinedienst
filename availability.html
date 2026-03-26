@@ -51,8 +51,8 @@
     }
 
     .availability-item {
-      display: flex;
-      align-items: center;
+      display: grid;
+      grid-template-columns: auto 1fr auto;
       gap: 10px;
       border: 1px solid #f3f4f6;
       border-left: 5px solid #dc2626;
@@ -73,6 +73,38 @@
       gap: 8px;
       align-items: center;
       font-size: 14px;
+    }
+
+    .availability-expand-btn {
+      border: 1px solid #cbd5e1;
+      background: #fff;
+      color: #1e3a8a;
+      border-radius: 999px;
+      width: 26px;
+      height: 26px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    .availability-details {
+      grid-column: 1 / -1;
+      margin-top: 4px;
+      padding: 8px 10px;
+      border-radius: 8px;
+      background: #fff;
+      border: 1px dashed #d1d5db;
+      font-size: 13px;
+      color: #374151;
+      display: none;
+    }
+
+    .availability-details.is-open {
+      display: block;
+    }
+
+    .availability-details ul {
+      margin: 6px 0 0 18px;
+      padding: 0;
     }
 
     .availability-error {
