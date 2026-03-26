@@ -159,8 +159,13 @@ async function loadSignupsByTask(tasks) {
   return signupsByTask;
 }
 
-function resolveUserName({ providedName, userId, signupsByTask }) {
+async function resolveUserName({ providedName, userId, signupsByTask }) {
   if (providedName) return providedName;
+
+  if (window.JVGHApi && typeof JVGHApi.getUserDisplayName === "function") {
+    const apiName = await JVGHApi.getUserDisplayName(userId);
+    if (apiName) return apiName;
+  }
 
   for (const signups of signupsByTask.values()) {
     const match = signups.find((su) => Number(su.userId || su.user_id) === Number(userId));
@@ -316,7 +321,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     setStatus("Inschrijvingen laden…");
     const signupsByTask = await loadSignupsByTask(tasks);
 
-    const resolvedName = resolveUserName({ providedName, userId, signupsByTask });
+    const resolvedName = await resolveUserName({ providedName, userId, signupsByTask });
     metaEl.innerHTML = `
       <div><strong>Hallo, ${resolvedName} (${userId})</strong></div>
       <div><strong>Maand:</strong> ${monthLabelFromKey(monthKey)} (${monthKey})</div>
