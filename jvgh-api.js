@@ -136,9 +136,9 @@ async function getUserDisplayName(userId) {
   };
 
   const endpoints = [
-    `${JVGH_API_BASE}/users/${id}`,
     `${JVGH_API_DOMAIN}/wp-json/wp/v2/users/${id}?context=edit`,
     `${JVGH_API_DOMAIN}/wp-json/wp/v2/users/${id}`,
+    `${JVGH_API_DOMAIN}/wp-json/wp/v2/users?include=${id}&per_page=1`,
   ];
 
   for (const url of endpoints) {
@@ -147,11 +147,12 @@ async function getUserDisplayName(userId) {
       if (!res.ok) continue;
 
       const data = await res.json();
+      const normalized = Array.isArray(data) ? data[0] : data;
       const name =
-        data?.display_name ||
-        data?.displayName ||
-        data?.name ||
-        [data?.first_name, data?.last_name].filter(Boolean).join(' ').trim();
+        normalized?.display_name ||
+        normalized?.displayName ||
+        normalized?.name ||
+        [normalized?.first_name, normalized?.last_name].filter(Boolean).join(' ').trim();
 
       if (name) return name;
     } catch (err) {
