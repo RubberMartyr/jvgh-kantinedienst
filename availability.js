@@ -124,6 +124,14 @@ function shiftKey(task) {
   return `slot-${date}-${time}`;
 }
 
+function findStateForTask(stateByTask, task) {
+  return (
+    stateByTask.get(shiftKey(task)) ||
+    stateByTask.get(`slot-${String(task?.date || "").slice(0, 10)}-${String(task?.time || "").slice(0, 5)}`) ||
+    stateByTask.get(`task-${task?.id}`)
+  );
+}
+
 function getQueryParams() {
   const params = new URLSearchParams(window.location.search);
   const userRaw = params.get("userId") || params.get("user") || params.get("uid") || "";
@@ -375,7 +383,8 @@ function renderList({ tasks, stateByTask, userId }) {
   }
 
   tasks.forEach((task) => {
-    const state = stateByTask.get(shiftKey(task));
+    const state = findStateForTask(stateByTask, task);
+    if (!state) return;
 
     const li = document.createElement("li");
     li.className = "availability-item";
@@ -477,8 +486,14 @@ async function saveChanges({ stateByTask, userId, userName }) {
     });
 
     for (const state of toCreate) {
+      const previousKey = shiftKey(state.task);
       if (!state.task.id) {
         await ensureTaskForShift(state.task, scheduleByDay);
+      }
+      const newKey = shiftKey(state.task);
+      if (previousKey !== newKey && stateByTask.has(previousKey)) {
+        stateByTask.delete(previousKey);
+        stateByTask.set(newKey, state);
       }
       const created = await JVGHApi.createSignup(state.task.id, {
         firstName: userName,
