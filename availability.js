@@ -434,7 +434,7 @@ function renderList({ tasks, stateByTask, userId }) {
 
     details.innerHTML = `
       ${reasonHtml}
-      <div style="margin-top:6px;"><strong>Andere ingeplande volunteers:</strong></div>
+      <div style="margin-top:6px;"><strong>Andere ingeplande vrijwilligers:</strong></div>
       ${otherUsersHtml}
     `;
 
