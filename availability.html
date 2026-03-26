@@ -64,6 +64,31 @@
       font-size: 14px;
     }
 
+    .availability-save-wrap {
+      display: flex;
+      justify-content: center;
+      margin-top: 14px;
+      margin-bottom: 6px;
+    }
+
+    .availability-save-btn {
+      min-width: 280px;
+      min-height: 56px;
+      font-size: 30px;
+      font-weight: 800;
+      border-radius: 12px;
+      border: 0;
+      background: #0f3467;
+      color: #fff;
+      cursor: pointer;
+      padding: 10px 24px;
+    }
+
+    .availability-save-btn:disabled {
+      opacity: 0.65;
+      cursor: not-allowed;
+    }
+
     .availability-list {
       list-style: none;
       margin: 0;
@@ -172,10 +197,10 @@
   <section class="availability-wrap">
     <div class="availability-meta" id="availability-meta"></div>
     <div class="availability-status" id="availability-status">Laden…</div>
-    <div style="margin-bottom: 12px;">
-      <button id="availability-save" class="jvgh-print-btn" disabled>Alles opgeslagen</button>
-    </div>
     <ul id="availability-list" class="availability-list"></ul>
+    <div class="availability-save-wrap">
+      <button id="availability-save" class="availability-save-btn" disabled>Alles opgeslagen</button>
+    </div>
   </section>
 </main>
 
