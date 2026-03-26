@@ -173,7 +173,13 @@ function setSaveDirtyState(isDirty) {
   const saveButtons = document.querySelectorAll(".availability-save-btn");
   saveButtons.forEach((saveButton) => {
     saveButton.disabled = !isDirty;
-    saveButton.textContent = isDirty ? "Opslaan" : "Alles opgeslagen";
+    saveButton.textContent = "Opslaan";
+  });
+}
+
+function setSaveButtonsVisible(visible) {
+  document.querySelectorAll(".availability-save-wrap").forEach((wrap) => {
+    wrap.classList.toggle("hidden", !visible);
   });
 }
 
@@ -578,6 +584,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   let currentStateByTask = new Map();
   let resolvedName = providedName || null;
   let monthLoading = false;
+  setSaveButtonsVisible(false);
 
   function setMonthButtonsDisabled(disabled) {
     const prevBtn = document.getElementById("availability-prev-month");
@@ -618,6 +625,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     monthLoading = true;
     const currentMonthKey = monthKeyFromDate(currentMonthDate);
     try {
+      setSaveButtonsVisible(false);
       renderMetaHeader();
       setMonthButtonsDisabled(true);
       setStatus("Shifts laden…");
@@ -664,6 +672,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
       renderList({ tasks: allShifts, stateByTask: currentStateByTask, userId });
       setSaveDirtyState(false);
+      setSaveButtonsVisible(true);
     } catch (err) {
       console.error(err);
       setStatus("Fout bij laden van shifts of inschrijvingen.", true);

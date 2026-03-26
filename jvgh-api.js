@@ -397,6 +397,45 @@ async function getUserDisplayName(userId) {
   return null;
 }
 
+// === USERS ===================================================
+
+async function getUserDisplayName(userId) {
+  const id = Number(userId);
+  if (!Number.isFinite(id) || id <= 0) return null;
+
+  const authHeaders = {
+    'Authorization': 'Basic ' + JVGH_CREDENTIALS,
+    'Accept': 'application/json',
+  };
+
+  const endpoints = [
+    `${JVGH_API_DOMAIN}/wp-json/wp/v2/users/${id}?context=edit`,
+    `${JVGH_API_DOMAIN}/wp-json/wp/v2/users/${id}`,
+    `${JVGH_API_DOMAIN}/wp-json/wp/v2/users?include=${id}&per_page=1`,
+  ];
+
+  for (const url of endpoints) {
+    try {
+      const res = await fetch(url, { headers: authHeaders });
+      if (!res.ok) continue;
+
+      const data = await res.json();
+      const normalized = Array.isArray(data) ? data[0] : data;
+      const name =
+        normalized?.display_name ||
+        normalized?.displayName ||
+        normalized?.name ||
+        [normalized?.first_name, normalized?.last_name].filter(Boolean).join(' ').trim();
+
+      if (name) return name;
+    } catch (err) {
+      // try the next endpoint
+    }
+  }
+
+  return null;
+}
+
 // === EXPOSE A GLOBAL OBJECT FOR EASY USE =====================
 
 window.JVGHApi = {

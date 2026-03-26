@@ -61,7 +61,8 @@
     .availability-status {
       margin: 10px 0 14px;
       color: #4b5563;
-      font-size: 14px;
+      font-size: 22px;
+      font-weight: 600;
     }
 
     .availability-save-wrap {
@@ -71,21 +72,32 @@
       margin-bottom: 6px;
     }
 
+    .availability-save-wrap.hidden {
+      display: none;
+    }
+
     .availability-save-btn {
       width: 100%;
       min-height: 56px;
-      font-size: 30px;
+      font-size: 28px;
       font-weight: 800;
       border-radius: 12px;
-      border: 0;
+      border: 2px solid #0a2749;
       background: #0f3467;
       color: #fff;
       cursor: pointer;
       padding: 10px 24px;
+      box-shadow: 0 4px 10px rgba(15, 52, 103, 0.35);
+      transition: transform 0.08s ease, box-shadow 0.12s ease;
+    }
+
+    .availability-save-btn:hover:not(:disabled) {
+      transform: translateY(-1px);
+      box-shadow: 0 6px 14px rgba(15, 52, 103, 0.45);
     }
 
     .availability-save-btn:disabled {
-      opacity: 0.65;
+      opacity: 0.45;
       cursor: not-allowed;
     }
 
@@ -197,12 +209,12 @@
   <section class="availability-wrap">
     <div class="availability-meta" id="availability-meta"></div>
     <div class="availability-status" id="availability-status">Laden…</div>
-    <div class="availability-save-wrap">
-      <button id="availability-save-top" class="availability-save-btn" disabled>Alles opgeslagen</button>
+    <div class="availability-save-wrap hidden">
+      <button id="availability-save-top" class="availability-save-btn" disabled>Opslaan</button>
     </div>
     <ul id="availability-list" class="availability-list"></ul>
-    <div class="availability-save-wrap">
-      <button id="availability-save-bottom" class="availability-save-btn" disabled>Alles opgeslagen</button>
+    <div class="availability-save-wrap hidden">
+      <button id="availability-save-bottom" class="availability-save-btn" disabled>Opslaan</button>
     </div>
   </section>
 </main>
