@@ -66,6 +66,22 @@ function getDurationMinutes(taskQty) {
 }
 
 function formatShiftLabel(task) {
+  if (task.start && task.end) {
+    const start = new Date(task.start);
+    const end = new Date(task.end);
+    if (!Number.isNaN(start.getTime()) && !Number.isNaN(end.getTime())) {
+      const dateLabel = start.toLocaleDateString("nl-BE", {
+        weekday: "short",
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+      });
+      const startLabel = `${pad2(start.getHours())}:${pad2(start.getMinutes())}`;
+      const endLabel = `${pad2(end.getHours())}:${pad2(end.getMinutes())}`;
+      return `${dateLabel} · ${startLabel}–${endLabel}`;
+    }
+  }
+
   const dateStr = String(task.date || "").slice(0, 10);
   const timeStr = String(task.time || "").slice(0, 5);
   if (!dateStr || !timeStr) return "Onbekende shift";
@@ -92,6 +108,13 @@ function signupName(signup) {
   const firstName = signup.firstName || signup.firstname || signup.first_name || "";
   const lastName = signup.lastName || signup.lastname || signup.last_name || "";
   return `${firstName} ${lastName}`.trim() || "Vrijwilliger";
+}
+
+function shiftKey(task) {
+  const date = String(task?.date || "").slice(0, 10);
+  const time = String(task?.time || "").slice(0, 5);
+  if (task?.id) return `task-${task.id}`;
+  return `slot-${date}-${time}`;
 }
 
 function getQueryParams() {
@@ -145,6 +168,143 @@ async function loadTasksForMonth(monthKey) {
 
   tasks.sort((a, b) => `${a.date || ""} ${a.time || ""}`.localeCompare(`${b.date || ""} ${b.time || ""}`));
   return tasks;
+}
+
+function parseICalDate(line) {
+  if (!line) return null;
+  const raw = line.split(":").slice(-1)[0].trim();
+
+  if (/^\d{8}$/.test(raw)) {
+    const y = +raw.slice(0, 4);
+    const m = +raw.slice(4, 6);
+    const d = +raw.slice(6, 8);
+    return new Date(y, m - 1, d, 0, 0, 0);
+  }
+  if (/^\d{8}T\d{4}$/.test(raw)) {
+    const y = +raw.slice(0, 4);
+    const m = +raw.slice(4, 6);
+    const d = +raw.slice(6, 8);
+    const H = +raw.slice(9, 11);
+    const M = +raw.slice(11, 13);
+    return new Date(y, m - 1, d, H, M, 0);
+  }
+  if (/^\d{8}T\d{6}$/.test(raw)) {
+    const y = +raw.slice(0, 4);
+    const m = +raw.slice(4, 6);
+    const d = +raw.slice(6, 8);
+    const H = +raw.slice(9, 11);
+    const M = +raw.slice(11, 13);
+    const S = +raw.slice(13, 15);
+    return new Date(y, m - 1, d, H, M, S);
+  }
+  if (/^\d{8}T\d{4}Z$/.test(raw) || /^\d{8}T\d{6}Z$/.test(raw)) {
+    const y = +raw.slice(0, 4);
+    const m = +raw.slice(4, 6);
+    const d = +raw.slice(6, 8);
+    const H = +raw.slice(9, 11);
+    const M = +raw.slice(11, 13);
+    const S = raw.length === 16 ? +raw.slice(13, 15) : 0;
+    return new Date(Date.UTC(y, m - 1, d, H, M, S));
+  }
+  const d = new Date(raw);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
+function parseICS(text) {
+  const unfolded = text.replace(/\r?\n[ \t]/g, "");
+  const events = [];
+  const regex = /BEGIN:VEVENT([\s\S]*?)END:VEVENT/g;
+  let m;
+
+  while ((m = regex.exec(unfolded)) !== null) {
+    const block = m[1];
+    const pick = (name) => {
+      const re = new RegExp(name + "(:|;[^\\n]*:)([^\\n]*)", "i");
+      const mm = block.match(re);
+      return mm ? mm[2].trim() : "";
+    };
+
+    const summary = pick("SUMMARY");
+    const start = parseICalDate(pick("DTSTART"));
+    const endRaw = parseICalDate(pick("DTEND"));
+    if (!start || Number.isNaN(start.getTime())) continue;
+
+    const parts = String(summary || "").split("/");
+    if (!(parts.length >= 2 && parts[0].includes("Herk-De-Stad"))) continue;
+
+    const end = endRaw && !Number.isNaN(endRaw.getTime())
+      ? endRaw
+      : new Date(start.getTime() + 60 * 60 * 1000);
+
+    events.push({ summary, start, end });
+  }
+
+  return events;
+}
+
+async function loadShiftSlotsForMonth(monthKey) {
+  const ICAL_URL = "https://jeugdherk.be/calendar/jvgh-kalender/?feed=sp-ical";
+  const res = await fetch(ICAL_URL, { credentials: "omit" });
+  if (!res.ok) return [];
+  const text = await res.text();
+  const events = parseICS(text);
+
+  return events
+    .map((ev) => {
+      const shiftStart = new Date(ev.start.getTime() - 60 * 60 * 1000);
+      const shiftEnd = new Date(ev.end.getTime() + 2 * 60 * 60 * 1000);
+      const date = `${shiftStart.getFullYear()}-${pad2(shiftStart.getMonth() + 1)}-${pad2(shiftStart.getDate())}`;
+      const time = `${pad2(shiftStart.getHours())}:${pad2(shiftStart.getMinutes())}`;
+      return {
+        id: null,
+        date,
+        time,
+        qty: Math.round((shiftEnd.getTime() - shiftStart.getTime()) / 60000),
+        start: shiftStart.toISOString(),
+        end: shiftEnd.toISOString(),
+      };
+    })
+    .filter((slot) => slot.date.slice(0, 7) === monthKey)
+    .sort((a, b) => `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`));
+}
+
+async function ensureTaskForShift(shift, scheduleByDay) {
+  if (shift.id) return shift.id;
+  const dayKey = shift.date;
+  let scheduleId = scheduleByDay.get(dayKey);
+
+  if (!scheduleId) {
+    const createdSchedule = await JVGHApi.createSchedule({
+      title: `Kantinedienst ${dayKey}`,
+      start: shift.start,
+      end: shift.end,
+    });
+    const sch = createdSchedule?.schedule && createdSchedule.schedule.id
+      ? createdSchedule.schedule
+      : createdSchedule;
+    scheduleId = sch.id;
+    scheduleByDay.set(dayKey, scheduleId);
+  }
+
+  const tasksResp = await JVGHApi.getTasks(scheduleId);
+  const tasksArr = Array.isArray(tasksResp?.tasks) ? tasksResp.tasks : tasksResp || [];
+  let task = tasksArr.find((t) =>
+    String(t.date || "").slice(0, 10) === shift.date &&
+    String(t.time || "").slice(0, 5) === shift.time
+  );
+
+  if (!task) {
+    const createdTask = await JVGHApi.createTask(scheduleId, {
+      title: `Kantinedienst ${shift.time}`,
+      qty: Number(shift.qty) || DEFAULT_ASSIGNMENT_DURATION_MINUTES,
+      date: shift.date,
+      time: shift.time,
+    });
+    task = createdTask?.task && createdTask.task.id ? createdTask.task : createdTask;
+  }
+
+  shift.id = task.id;
+  return task.id;
 }
 
 async function loadSignupsByTask(tasks) {
@@ -203,7 +363,7 @@ function renderList({ tasks, stateByTask, userId }) {
   }
 
   tasks.forEach((task) => {
-    const state = stateByTask.get(String(task.id));
+    const state = stateByTask.get(shiftKey(task));
 
     const li = document.createElement("li");
     li.className = "availability-item";
@@ -257,7 +417,18 @@ async function saveChanges({ stateByTask, userId, userName }) {
       return;
     }
 
+    const schedulesResp = await JVGHApi.getSchedules();
+    const schedules = Array.isArray(schedulesResp?.schedules) ? schedulesResp.schedules : schedulesResp || [];
+    const scheduleByDay = new Map();
+    schedules.forEach((s) => {
+      const day = String(s?.start || "").slice(0, 10);
+      if (day) scheduleByDay.set(day, s.id);
+    });
+
     for (const state of toCreate) {
+      if (!state.task.id) {
+        await ensureTaskForShift(state.task, scheduleByDay);
+      }
       const created = await JVGHApi.createSignup(state.task.id, {
         firstName: userName,
         lastName: "",
@@ -286,8 +457,8 @@ async function saveChanges({ stateByTask, userId, userName }) {
     setStatus("Wijzigingen opgeslagen.");
     setSaveDirtyState(false);
     document.querySelectorAll('#availability-list input[type="checkbox"]').forEach((checkbox, index) => {
-      const task = Array.from(stateByTask.values())[index];
-      checkbox.title = checkboxHoverTitle(task.signups, userId);
+      const state = Array.from(stateByTask.values())[index];
+      checkbox.title = checkboxHoverTitle(state.signups, userId);
     });
   } catch (err) {
     console.error(err);
@@ -317,9 +488,28 @@ document.addEventListener("DOMContentLoaded", async () => {
   try {
     setStatus("Shifts laden…");
     const tasks = await loadTasksForMonth(monthKey);
+    const slotShifts = await loadShiftSlotsForMonth(monthKey);
+
+    const mergedByKey = new Map();
+    slotShifts.forEach((shift) => {
+      mergedByKey.set(`${shift.date} ${shift.time}`, shift);
+    });
+    tasks.forEach((task) => {
+      const key = `${String(task.date || "").slice(0, 10)} ${String(task.time || "").slice(0, 5)}`;
+      const existing = mergedByKey.get(key) || {};
+      mergedByKey.set(key, {
+        ...existing,
+        ...task,
+        date: String(task.date || "").slice(0, 10),
+        time: String(task.time || "").slice(0, 5),
+      });
+    });
+    const allShifts = Array.from(mergedByKey.values()).sort((a, b) =>
+      `${a.date || ""} ${a.time || ""}`.localeCompare(`${b.date || ""} ${b.time || ""}`)
+    );
 
     setStatus("Inschrijvingen laden…");
-    const signupsByTask = await loadSignupsByTask(tasks);
+    const signupsByTask = await loadSignupsByTask(allShifts.filter((s) => s.id));
 
     const resolvedName = await resolveUserName({ providedName, userId, signupsByTask });
     metaEl.innerHTML = `
@@ -328,10 +518,10 @@ document.addEventListener("DOMContentLoaded", async () => {
     `;
 
     const stateByTask = new Map();
-    tasks.forEach((task) => {
+    allShifts.forEach((task) => {
       const signups = signupsByTask.get(String(task.id)) || [];
       const userSignup = signups.find((su) => Number(su.userId || su.user_id) === Number(userId)) || null;
-      stateByTask.set(String(task.id), {
+      stateByTask.set(shiftKey(task), {
         task,
         signups: [...signups],
         userSignup,
@@ -340,7 +530,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       });
     });
 
-    renderList({ tasks, stateByTask, userId });
+    renderList({ tasks: allShifts, stateByTask, userId });
 
     const saveButton = document.getElementById("availability-save");
     saveButton.addEventListener("click", () => {
