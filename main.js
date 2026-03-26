@@ -435,7 +435,7 @@ document.addEventListener("DOMContentLoaded", function () {
   }
 
   const DEFAULT_SLOT_MIN_TIME = "08:00:00";
-  const DEFAULT_SLOT_MAX_TIME = "11:00:00";
+  const DEFAULT_SLOT_MAX_TIME = "23:00:00";
   const FULL_SLOT_MIN_TIME = "00:00:00";
   const FULL_SLOT_MAX_TIME = "24:00:00";
 
