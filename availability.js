@@ -270,7 +270,7 @@ async function loadShiftSlotsForMonth(monthKey) {
         start: shiftStart.toISOString(),
         end: shiftEnd.toISOString(),
         source: "ics",
-        sourceReason: "iCal voetbalwedstrijd",
+        sourceReason: "Voetbalwedstrijd kalender",
         icsSummary: ev.summary || "",
         icsStart: ev.start.toISOString(),
         icsEnd: ev.end.toISOString(),
@@ -379,6 +379,14 @@ function renderList({ tasks, stateByTask, userId }) {
 
     const li = document.createElement("li");
     li.className = "availability-item";
+    const plannedCount = Array.isArray(state.signups) ? state.signups.length : 0;
+    if (plannedCount >= 3) {
+      li.classList.add("availability-item-full");
+    } else if (plannedCount >= 1) {
+      li.classList.add("availability-item-partial");
+    } else {
+      li.classList.add("availability-item-empty");
+    }
 
     const checkbox = document.createElement("input");
     checkbox.type = "checkbox";
@@ -412,12 +420,12 @@ function renderList({ tasks, stateByTask, userId }) {
       const matchHours = task.icsStart && task.icsEnd
         ? ` (${formatHourRange(task.icsStart, task.icsEnd)})`
         : "";
-      reasonHtml = `<div><strong>Reden:</strong> ${task.sourceReason || "iCal voetbalwedstrijd"}${matchHours}<br>${task.icsSummary || ""}</div>`;
+      reasonHtml = `<div><strong>Reden:</strong> ${task.sourceReason || "Voetbalwedstrijd kalender"}${matchHours}<br>${task.icsSummary || ""}</div>`;
     }
 
     details.innerHTML = `
       ${reasonHtml}
-      <div style="margin-top:6px;"><strong>Andere ingeplande resources:</strong></div>
+      <div style="margin-top:6px;"><strong>Andere ingeplande volunteers:</strong></div>
       ${otherUsersHtml}
     `;
 
@@ -499,6 +507,8 @@ async function saveChanges({ stateByTask, userId, userName }) {
 
     setStatus("Wijzigingen opgeslagen.");
     setSaveDirtyState(false);
+    const refreshedTasks = Array.from(stateByTask.values()).map((s) => s.task);
+    renderList({ tasks: refreshedTasks, stateByTask, userId });
     document.querySelectorAll('#availability-list input[type="checkbox"]').forEach((checkbox, index) => {
       const state = Array.from(stateByTask.values())[index];
       checkbox.title = checkboxHoverTitle(state.signups, userId);
