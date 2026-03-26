@@ -379,12 +379,7 @@ function renderList({ tasks, stateByTask, userId }) {
     const label = document.createElement("span");
     label.textContent = formatShiftLabel(task);
 
-    const badge = document.createElement("span");
-    badge.className = "availability-badge";
-    badge.textContent = `Taak #${task.id}`;
-
     textWrap.appendChild(label);
-    textWrap.appendChild(badge);
 
     checkbox.addEventListener("change", () => {
       state.currentChecked = checkbox.checked;
@@ -514,7 +509,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     const resolvedName = await resolveUserName({ providedName, userId, signupsByTask });
     metaEl.innerHTML = `
       <div><strong>Hallo, ${resolvedName} (${userId})</strong></div>
-      <div><strong>Maand:</strong> ${monthLabelFromKey(monthKey)} (${monthKey})</div>
+      <div class="availability-month">${monthLabelFromKey(monthKey)} <small>(${monthKey})</small></div>
     `;
 
     const stateByTask = new Map();
