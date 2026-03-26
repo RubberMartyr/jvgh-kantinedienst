@@ -106,7 +106,7 @@ body {
   padding-inline: 4px;
 }
 
-.jvgh-hours-toggle-btn {
+.jvgh-calendar-control-btn {
   padding: 6px 12px;
   background: var(--jvgh-blue);
   color: #fff;
@@ -116,7 +116,7 @@ body {
   font-weight: 600;
 }
 
-.jvgh-hours-toggle-btn:disabled {
+.jvgh-calendar-control-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }

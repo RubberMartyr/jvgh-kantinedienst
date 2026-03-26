@@ -887,6 +887,7 @@ document.addEventListener("DOMContentLoaded", function () {
   window.ec = ec;
 
   const toggleHoursButton = document.getElementById("toggle-hours-button");
+  const refreshMonthButton = document.getElementById("refresh-month-button");
   let showAllHours = false;
 
   function applyHourRange() {
@@ -909,6 +910,84 @@ document.addEventListener("DOMContentLoaded", function () {
       showAllHours = !showAllHours;
       applyHourRange();
       updateHourToggleButtonUi();
+    });
+  }
+
+  function getCurrentVisibleMonthKey() {
+    const focusedDate =
+      lastDatesSetInfo?.view?.currentStart ||
+      lastDatesSetInfo?.start ||
+      new Date();
+    return jvghMonthKey(new Date(focusedDate));
+  }
+
+  async function refreshCurrentMonthData() {
+    const monthKey = getCurrentVisibleMonthKey();
+    if (!monthKey) return;
+
+    const monthLabel = jvghFormatMonthLabel(monthKey);
+    if (refreshMonthButton) refreshMonthButton.disabled = true;
+
+    try {
+      showLoading(`Verversen ${monthLabel}…`);
+
+      loadedMonths.delete(monthKey);
+      loadingMonths.delete(monthKey);
+      loadedTaskIds.clear();
+      schedulesLoaded = false;
+
+      for (const dayKey of Array.from(daySheetMap.keys())) {
+        if (dayKey.startsWith(monthKey + "-")) {
+          daySheetMap.delete(dayKey);
+        }
+      }
+
+      assignments = assignments.filter((assignment) => {
+        const start = String(assignment.start || "");
+        return !start.startsWith(monthKey);
+      });
+
+      slots = slots.filter((slot) => {
+        const start = String(slot.start || "");
+        const isMonthSlot = start.startsWith(monthKey);
+        const isGeneratedTaskSlot =
+          slot.manual &&
+          String(slot.id || "").startsWith("shift-task-");
+        return !(isMonthSlot && isGeneratedTaskSlot);
+      });
+
+      slots.forEach((slot) => {
+        const start = String(slot.start || "");
+        if (!start.startsWith(monthKey)) return;
+        delete slot.taskId;
+        delete slot.sheetId;
+      });
+
+      renderAll();
+      await JVGH_loadMonthTasksAndSignups(monthKey);
+
+      if (icalEnabled || shiftsEnabled) {
+        await loadICal();
+      }
+
+      if (lastDatesSetInfo && typeof JVGH_ensureVisibleMonthsLoaded === "function") {
+        await JVGH_ensureVisibleMonthsLoaded(lastDatesSetInfo);
+      }
+
+      setIcalStatus(`Huidige maand ververst (${monthLabel}).`);
+    } catch (err) {
+      console.error("[JVGH] Error while refreshing current month", err);
+      setIcalStatus(`Verversen mislukt (${monthLabel}).`);
+    } finally {
+      hideLoading();
+      if (refreshMonthButton) refreshMonthButton.disabled = false;
+    }
+  }
+
+  if (refreshMonthButton) {
+    refreshMonthButton.disabled = false;
+    refreshMonthButton.addEventListener("click", () => {
+      refreshCurrentMonthData();
     });
   }
 
