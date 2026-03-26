@@ -150,7 +150,8 @@ function findStateForTask(stateByTask, task) {
 function getQueryParams() {
   const params = new URLSearchParams(window.location.search);
   const userRaw = params.get("userId") || params.get("user") || params.get("uid") || "";
-  const monthRaw = params.get("month") || "";
+  const defaultNextMonth = monthKeyFromDate(addMonths(new Date(), 1));
+  const monthRaw = params.get("month") || defaultNextMonth;
 
   return {
     userRaw,
@@ -571,6 +572,14 @@ document.addEventListener("DOMContentLoaded", async () => {
   let currentMonthDate = monthDateFromKey(monthKey);
   let currentStateByTask = new Map();
   let resolvedName = providedName || null;
+  let monthLoading = false;
+
+  function setMonthButtonsDisabled(disabled) {
+    const prevBtn = document.getElementById("availability-prev-month");
+    const nextBtn = document.getElementById("availability-next-month");
+    if (prevBtn) prevBtn.disabled = disabled;
+    if (nextBtn) nextBtn.disabled = disabled;
+  }
 
   function renderMetaHeader() {
     const currentMonthKey = monthKeyFromDate(currentMonthDate);
@@ -596,12 +605,16 @@ document.addEventListener("DOMContentLoaded", async () => {
       currentMonthDate = addMonths(currentMonthDate, 1);
       loadMonth();
     };
+    setMonthButtonsDisabled(monthLoading);
   }
 
   async function loadMonth() {
+    if (monthLoading) return;
+    monthLoading = true;
     const currentMonthKey = monthKeyFromDate(currentMonthDate);
     try {
       renderMetaHeader();
+      setMonthButtonsDisabled(true);
       setStatus("Shifts laden…");
       const tasks = await loadTasksForMonth(currentMonthKey);
       const slotShifts = await loadShiftSlotsForMonth(currentMonthKey);
@@ -649,6 +662,9 @@ document.addEventListener("DOMContentLoaded", async () => {
     } catch (err) {
       console.error(err);
       setStatus("Fout bij laden van shifts of inschrijvingen.", true);
+    } finally {
+      monthLoading = false;
+      setMonthButtonsDisabled(false);
     }
   }
 
