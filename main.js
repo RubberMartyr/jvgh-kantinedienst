@@ -1512,6 +1512,9 @@ document.addEventListener("DOMContentLoaded", function () {
   const calendarEl = document.getElementById("ec");
   const volunteerListEl = document.getElementById("vrijwilligers-list");
   const bestuurListEl = document.getElementById("bestuur-list");
+  const sendAvailabilityMailsButton = document.getElementById(
+    "send-availability-mails-button"
+  );
   const parentsTeamSelectEl =
     document.getElementById("jvgh-team-select") ||
     document.getElementById("parentsTeamSelect");
@@ -2001,6 +2004,89 @@ if (playerSelect) {
 
   const bestuurNames = new Set();
   const bestuurUserIds = new Set();
+  const usersByRole = {
+    bestuur: [],
+    vrijwilliger: [],
+  };
+
+  function getUserEmail(user) {
+    if (!user || typeof user !== "object") return "";
+    return String(user.email || user.user_email || user.mail || "").trim();
+  }
+
+  function getAvailabilityLinkForUser(userId) {
+    const url = new URL("availability.html", window.location.href);
+    url.searchParams.set("userId", String(userId));
+    return url.toString();
+  }
+
+  function updateAvailabilityMailButtonState() {
+    if (!sendAvailabilityMailsButton) return;
+
+    const allUsers = [...usersByRole.bestuur, ...usersByRole.vrijwilliger];
+    const uniqueUsersById = new Map();
+    allUsers.forEach((user) => {
+      const uid = Number(user?.id);
+      if (!Number.isFinite(uid) || uid <= 0) return;
+      const email = getUserEmail(user);
+      if (!email) return;
+      uniqueUsersById.set(uid, user);
+    });
+
+    sendAvailabilityMailsButton.disabled = uniqueUsersById.size === 0;
+    sendAvailabilityMailsButton.title =
+      uniqueUsersById.size === 0
+        ? "Geen gebruikers met e-mailadres geladen."
+        : "";
+  }
+
+  function sendAvailabilityReminderMails() {
+    const allUsers = [...usersByRole.bestuur, ...usersByRole.vrijwilliger];
+    const uniqueUsersById = new Map();
+
+    allUsers.forEach((user) => {
+      const uid = Number(user?.id);
+      if (!Number.isFinite(uid) || uid <= 0) return;
+      const email = getUserEmail(user);
+      if (!email) return;
+      uniqueUsersById.set(uid, user);
+    });
+
+    const recipients = Array.from(uniqueUsersById.values());
+    if (recipients.length === 0) {
+      alert("Geen gebruikers met e-mailadres gevonden in Bestuur of Vrijwilligers.");
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Voor ${recipients.length} gebruikers een individuele e-mail openen?`
+    );
+    if (!confirmed) return;
+
+    let openedCount = 0;
+
+    recipients.forEach((user) => {
+      const uid = Number(user.id);
+      const email = getUserEmail(user);
+      const availabilityLink = getAvailabilityLinkForUser(uid);
+      const subject = "Vul uw beschikbaarheid in";
+      const body = `Beste ${user.name || ""},
+
+Vul uw beschikbaarheid in via onderstaande link:
+${availabilityLink}`;
+      const mailtoUrl = `mailto:${email}?subject=${encodeURIComponent(
+        subject
+      )}&body=${encodeURIComponent(body)}`;
+      const openedWindow = window.open(mailtoUrl, "_blank", "noopener");
+      if (openedWindow) openedCount += 1;
+    });
+
+    if (openedCount < recipients.length) {
+      alert(
+        "Niet alle e-mails konden automatisch geopend worden. Controleer of pop-ups toegelaten zijn."
+      );
+    }
+  }
 
   function retagBestuurAssignments() {
     if (!assignments || !assignments.length) return false;
@@ -2052,6 +2138,8 @@ if (playerSelect) {
         return res.json();
       })
       .then((users) => {
+        usersByRole[role] = Array.isArray(users) ? users : [];
+        updateAvailabilityMailButtonState();
         containerEl.innerHTML = "";
 
         if (!Array.isArray(users) || users.length === 0) {
@@ -2099,6 +2187,8 @@ if (playerSelect) {
       })
       .catch((err) => {
         console.error(`Error loading ${role}:`, err);
+        usersByRole[role] = [];
+        updateAvailabilityMailButtonState();
         containerEl.insertAdjacentHTML(
           "beforeend",
           `<p style="margin:6px 0;color:#dc3545;">Kon ${role} niet laden (${err.message}).</p>`
@@ -2109,6 +2199,11 @@ if (playerSelect) {
   // Load bestuur first (top list), then vrijwilligers (bottom list)
   loadUsersForRole("bestuur", bestuurListEl);
   loadUsersForRole("vrijwilliger", volunteerListEl);
+
+  if (sendAvailabilityMailsButton) {
+    sendAvailabilityMailsButton.disabled = true;
+    sendAvailabilityMailsButton.addEventListener("click", sendAvailabilityReminderMails);
+  }
 
   // --- iCal toggle behavior ---
   function updateIcalToggleUI() {
