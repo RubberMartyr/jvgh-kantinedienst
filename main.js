@@ -1999,6 +1999,30 @@ if (playerSelect) {
         <span class="resource-name">${user.name}</span>
       </div>
     `;
+
+    const email = getUserEmail(user);
+    const userId = Number(user?.id);
+    if (email && Number.isFinite(userId) && userId > 0) {
+      const mailButton = document.createElement("button");
+      mailButton.type = "button";
+      mailButton.className = "jvgh-calendar-control-btn";
+      mailButton.style.marginTop = "6px";
+      mailButton.textContent = "Mail beschikbaarheid";
+      mailButton.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const subject = "Vul uw beschikbaarheid in";
+        const body = `Beste ${user.name || ""},
+
+Vul uw beschikbaarheid in via onderstaande link:
+${getAvailabilityLinkForUser(userId)}`;
+        const mailtoUrl = `mailto:${email}?subject=${encodeURIComponent(
+          subject
+        )}&body=${encodeURIComponent(body)}`;
+        window.location.href = mailtoUrl;
+      });
+      card.appendChild(mailButton);
+    }
+
     return card;
   }
 
@@ -2086,6 +2110,17 @@ ${availabilityLink}`;
         "Niet alle e-mails konden automatisch geopend worden. Controleer of pop-ups toegelaten zijn."
       );
     }
+  }
+
+  function getUserEmail(user) {
+    if (!user || typeof user !== "object") return "";
+    return String(user.email || user.user_email || user.mail || "").trim();
+  }
+
+  function getAvailabilityLinkForUser(userId) {
+    const url = new URL("availability.html", window.location.href);
+    url.searchParams.set("userId", String(userId));
+    return url.toString();
   }
 
   function retagBestuurAssignments() {
