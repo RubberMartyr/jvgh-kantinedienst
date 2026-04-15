@@ -183,6 +183,86 @@ function setSaveButtonsVisible(visible) {
   });
 }
 
+function setCalendarButtonVisible(visible) {
+  const wrap = document.querySelector(".availability-actions-wrap");
+  if (!wrap) return;
+  wrap.classList.toggle("hidden", !visible);
+}
+
+function escapeICSText(value) {
+  return String(value || "")
+    .replace(/\\/g, "\\\\")
+    .replace(/\n/g, "\\n")
+    .replace(/,/g, "\\,")
+    .replace(/;/g, "\\;");
+}
+
+function formatICSDateUTC(date) {
+  return (
+    `${date.getUTCFullYear()}${pad2(date.getUTCMonth() + 1)}${pad2(date.getUTCDate())}` +
+    `T${pad2(date.getUTCHours())}${pad2(date.getUTCMinutes())}${pad2(date.getUTCSeconds())}Z`
+  );
+}
+
+function getShiftStartAndEnd(task) {
+  if (task.start && task.end) {
+    const startFromIso = new Date(task.start);
+    const endFromIso = new Date(task.end);
+    if (!Number.isNaN(startFromIso.getTime()) && !Number.isNaN(endFromIso.getTime())) {
+      return { start: startFromIso, end: endFromIso };
+    }
+  }
+
+  const dateStr = String(task.date || "").slice(0, 10);
+  const timeStr = String(task.time || "").slice(0, 5);
+  if (!dateStr || !timeStr) return null;
+
+  const [y, m, d] = dateStr.split("-").map(Number);
+  const [hh, mm] = timeStr.split(":").map(Number);
+  const start = new Date(y, m - 1, d, hh || 0, mm || 0, 0);
+  if (Number.isNaN(start.getTime())) return null;
+
+  const end = new Date(start.getTime() + getDurationMinutes(task.qty) * 60 * 1000);
+  return { start, end };
+}
+
+function buildAvailabilityICS({ stateByTask, userName }) {
+  const nowStamp = formatICSDateUTC(new Date());
+  const selectedStates = Array.from(stateByTask.values()).filter((state) => state.currentChecked);
+  const events = selectedStates
+    .map((state, index) => {
+      const range = getShiftStartAndEnd(state.task);
+      if (!range) return null;
+      const summary = `JVGH Kantinedienst - ${userName || "Vrijwilliger"}`;
+      const description = `Ingeplande kantinedienst (${formatShiftLabel(state.task)})`;
+      const uid = `jvgh-availability-${Date.now()}-${index}@jeugdherk.be`;
+      return [
+        "BEGIN:VEVENT",
+        `UID:${uid}`,
+        `DTSTAMP:${nowStamp}`,
+        `DTSTART:${formatICSDateUTC(range.start)}`,
+        `DTEND:${formatICSDateUTC(range.end)}`,
+        `SUMMARY:${escapeICSText(summary)}`,
+        `DESCRIPTION:${escapeICSText(description)}`,
+        "END:VEVENT",
+      ].join("\r\n");
+    })
+    .filter(Boolean);
+
+  if (!events.length) return "";
+
+  return [
+    "BEGIN:VCALENDAR",
+    "VERSION:2.0",
+    "PRODID:-//JVGH//Availability//NL",
+    "CALSCALE:GREGORIAN",
+    "METHOD:PUBLISH",
+    ...events,
+    "END:VCALENDAR",
+    "",
+  ].join("\r\n");
+}
+
 async function loadTasksForMonth(monthKey) {
   const schedulesResp = await JVGHApi.getSchedules();
   const schedules = Array.isArray(schedulesResp?.schedules)
@@ -585,6 +665,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   let resolvedName = providedName || null;
   let monthLoading = false;
   setSaveButtonsVisible(false);
+  setCalendarButtonVisible(false);
 
   function setMonthButtonsDisabled(disabled) {
     const prevBtn = document.getElementById("availability-prev-month");
@@ -673,6 +754,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       renderList({ tasks: allShifts, stateByTask: currentStateByTask, userId });
       setSaveDirtyState(false);
       setSaveButtonsVisible(true);
+      setCalendarButtonVisible(true);
     } catch (err) {
       console.error(err);
       setStatus("Fout bij laden van shifts of inschrijvingen.", true);
@@ -687,6 +769,42 @@ document.addEventListener("DOMContentLoaded", async () => {
       saveChanges({ stateByTask: currentStateByTask, userId, userName: resolvedName || "Gebruiker" });
     };
   });
+
+  const calendarBtn = document.getElementById("availability-add-calendar");
+  if (calendarBtn) {
+    calendarBtn.onclick = () => {
+      const selectedCount = Array.from(currentStateByTask.values()).filter((state) => state.currentChecked).length;
+      if (!selectedCount) {
+        setStatus("Selecteer minstens één shift om naar je kalender te exporteren.");
+        return;
+      }
+
+      const icsText = buildAvailabilityICS({ stateByTask: currentStateByTask, userName: resolvedName || "Gebruiker" });
+      if (!icsText) {
+        setStatus("Kon geen geldige kalenderitems maken voor de geselecteerde shifts.", true);
+        return;
+      }
+
+      const currentMonthKey = monthKeyFromDate(currentMonthDate);
+      const safeName = String(resolvedName || "gebruiker")
+        .trim()
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/gi, "-")
+        .replace(/(^-|-$)/g, "");
+      const fileName = `jvgh-beschikbaarheid-${currentMonthKey}-${safeName || "gebruiker"}.ics`;
+      const blob = new Blob([icsText], { type: "text/calendar;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+
+      setStatus(`${selectedCount} shift(s) geëxporteerd naar kalenderbestand.`);
+    };
+  }
 
   await loadMonth();
 });

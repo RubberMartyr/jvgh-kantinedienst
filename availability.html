@@ -72,12 +72,47 @@
       margin-bottom: 6px;
     }
 
+    .availability-actions-wrap {
+      display: flex;
+      gap: 10px;
+      margin-top: 14px;
+      margin-bottom: 6px;
+    }
+
+    .availability-actions-wrap.hidden {
+      display: none;
+    }
+
     .availability-save-wrap.hidden {
       display: none;
     }
 
+    .availability-calendar-btn {
+      min-height: 56px;
+      font-size: 20px;
+      font-weight: 800;
+      border-radius: 12px;
+      border: 2px solid #14532d;
+      background: #15803d;
+      color: #fff;
+      cursor: pointer;
+      padding: 10px 20px;
+      box-shadow: 0 4px 10px rgba(21, 128, 61, 0.3);
+      transition: transform 0.08s ease, box-shadow 0.12s ease;
+    }
+
+    .availability-calendar-btn:hover:not(:disabled) {
+      transform: translateY(-1px);
+      box-shadow: 0 6px 14px rgba(21, 128, 61, 0.4);
+    }
+
+    .availability-calendar-btn:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
+
     .availability-save-btn {
-      width: 100%;
+      flex: 1;
       min-height: 56px;
       font-size: 28px;
       font-weight: 800;
@@ -209,6 +244,9 @@
   <section class="availability-wrap">
     <div class="availability-meta" id="availability-meta"></div>
     <div class="availability-status" id="availability-status">Laden…</div>
+    <div class="availability-actions-wrap hidden">
+      <button id="availability-add-calendar" class="availability-calendar-btn">Add to calendar</button>
+    </div>
     <div class="availability-save-wrap hidden">
       <button id="availability-save-top" class="availability-save-btn" disabled>Opslaan</button>
     </div>
