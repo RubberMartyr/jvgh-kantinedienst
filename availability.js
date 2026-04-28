@@ -690,14 +690,22 @@ document.addEventListener("DOMContentLoaded", async () => {
       </div>
     `;
 
-    document.getElementById("availability-prev-month").onclick = () => {
-      currentMonthDate = addMonths(currentMonthDate, -1);
-      loadMonth();
-    };
-    document.getElementById("availability-next-month").onclick = () => {
-      currentMonthDate = addMonths(currentMonthDate, 1);
-      loadMonth();
-    };
+    const prevBtn = document.getElementById("availability-prev-month");
+    const nextBtn = document.getElementById("availability-next-month");
+
+    if (prevBtn) {
+      prevBtn.onclick = () => {
+        currentMonthDate = addMonths(currentMonthDate, -1);
+        loadMonth();
+      };
+    }
+
+    if (nextBtn) {
+      nextBtn.onclick = () => {
+        currentMonthDate = addMonths(currentMonthDate, 1);
+        loadMonth();
+      };
+    }
     setMonthButtonsDisabled(monthLoading);
   }
 
