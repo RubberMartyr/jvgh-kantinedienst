@@ -60,24 +60,24 @@
 
     <!-- RIGHT: volunteers to plan -->
   <aside class="jvgh-sidebar">
-    <div class="people-wrapper">
-  <!-- LEFT COLUMN -->
-  <div class="people-column bestuur">
-    <h3>Bestuur · 4,5u</h3>
-    <div id="bestuur-list"></div>
+    <div class="people-tabs" role="tablist" aria-label="Vrijwilliger groepen">
+    <button class="people-tab is-active" type="button" role="tab" aria-selected="true" data-tab="bestuur">Bestuur · 4,5u</button>
+    <button class="people-tab" type="button" role="tab" aria-selected="false" data-tab="vrijwilligers">Vrijwilligers · 4u</button>
+    <button class="people-tab" type="button" role="tab" aria-selected="false" data-tab="ouders">Ouders</button>
   </div>
 
-  <!-- RIGHT COLUMN -->
-  <div class="people-column vrijwilligers">
-    <h3>Vrijwilligers · 4u</h3>
+  <div class="people-panels">
+    <div class="people-panel is-active" role="tabpanel" data-panel="bestuur">
+      <div id="bestuur-list"></div>
+    </div>
 
-    <div id="vrijwilligers-list"></div>
-  </div>
-</div>
+    <div class="people-panel" role="tabpanel" data-panel="vrijwilligers" hidden>
+      <div id="vrijwilligers-list"></div>
+    </div>
 
-<div class="ouders-grid">
-  <div class="ouders-left">
-    <h3 class="jvgh-section-title">Ouders</h3>
+    <div class="people-panel" role="tabpanel" data-panel="ouders" hidden>
+      <div class="ouders-grid">
+        <div class="ouders-left">
 
     <div class="ouders-row">
       <select id="jvgh-team-select" class="jvgh-select"></select>
@@ -86,13 +86,15 @@
     <div class="ouders-row">
       <select id="jvgh-player-select" class="jvgh-select"></select>
     </div>
-  </div>
+        </div>
 
-  <div class="ouders-right">
-    <div id="ouders-team-pillhost" class="ouders-pillhost"></div>
-    <div id="ouders-player-pillhost" class="ouders-pillhost"></div>
+        <div class="ouders-right">
+          <div id="ouders-team-pillhost" class="ouders-pillhost"></div>
+          <div id="ouders-player-pillhost" class="ouders-pillhost"></div>
+        </div>
+      </div>
+    </div>
   </div>
-</div>
 
       <div class="jvgh-sidebar-title">Externe kalender</div>
       <div class="toggle-row">
