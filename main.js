@@ -1524,10 +1524,8 @@ document.addEventListener("DOMContentLoaded", function () {
   const parentsTeamsStatusEl = document.getElementById("parentsTeamsStatus");
   const oudersTeamPillHostEl = document.getElementById("jvgh-ouders-team-pill");
   const oudersPlayerPillHostEl = document.getElementById("jvgh-parents-options");
-  const bestuurTitle = document.querySelector(".people-column.bestuur h3");
-  const vrijwilligersTitle = document.querySelector(
-    ".people-column.vrijwilligers h3"
-  );
+  const bestuurTabLabel = document.querySelector('.people-tab[data-tab="bestuur"]');
+  const vrijwilligersTabLabel = document.querySelector('.people-tab[data-tab="vrijwilligers"]');
   let youthTeams = [];
   const youthTeamsById = new Map();
 
@@ -1541,6 +1539,29 @@ document.addEventListener("DOMContentLoaded", function () {
     oudersTeamPillHostEl.classList.add("ouders-pillhost");
     oudersTeamPillHostEl.id = "ouders-team-pillhost";
   }
+
+  
+
+  const peopleTabs = Array.from(document.querySelectorAll('.people-tab'));
+  const peoplePanels = Array.from(document.querySelectorAll('.people-panel'));
+
+  function setActivePeopleTab(tabName) {
+    peopleTabs.forEach((tab) => {
+      const isActive = tab.dataset.tab === tabName;
+      tab.classList.toggle('is-active', isActive);
+      tab.setAttribute('aria-selected', String(isActive));
+    });
+
+    peoplePanels.forEach((panel) => {
+      const isActive = panel.dataset.panel === tabName;
+      panel.classList.toggle('is-active', isActive);
+      panel.hidden = !isActive;
+    });
+  }
+
+  peopleTabs.forEach((tab) => {
+    tab.addEventListener('click', () => setActivePeopleTab(tab.dataset.tab));
+  });
 
   const playerSelectEl = document.querySelector('#jvgh-player-select');
   if (playerSelectEl && oudersPlayerPillHostEl) {
@@ -1971,6 +1992,7 @@ if (playerSelect) {
     bestuur: 270,
     vrijwilliger: 240,
   };
+  const showPerUserAvailabilityMailButton = false;
 
   function formatHoursLabel(minutes) {
     const hours = Number(minutes) / 60;
@@ -2002,7 +2024,7 @@ if (playerSelect) {
 
     const email = getUserEmail(user);
     const userId = Number(user?.id);
-    if (email && Number.isFinite(userId) && userId > 0) {
+    if (showPerUserAvailabilityMailButton && email && Number.isFinite(userId) && userId > 0) {
       const mailButton = document.createElement("button");
       mailButton.type = "button";
       mailButton.className = "jvgh-calendar-control-btn";
@@ -2196,15 +2218,11 @@ ${availabilityLink}`;
           }
         });
 
-        if (role === "bestuur" && bestuurTitle) {
-          bestuurTitle.textContent = `Bestuur · ${formatHoursLabel(
-            roleDurationMinutes.bestuur
-          )}`;
+        if (role === "bestuur" && bestuurTabLabel) {
+          bestuurTabLabel.textContent = `Bestuur · ${formatHoursLabel(roleDurationMinutes.bestuur)}`;
         }
-        if (role === "vrijwilliger" && vrijwilligersTitle) {
-          vrijwilligersTitle.textContent = `Vrijwilligers · ${formatHoursLabel(
-            roleDurationMinutes.vrijwilliger
-          )}`;
+        if (role === "vrijwilliger" && vrijwilligersTabLabel) {
+          vrijwilligersTabLabel.textContent = `Vrijwilligers · ${formatHoursLabel(roleDurationMinutes.vrijwilliger)}`;
         }
 
         // Ensure bestuur members are not duplicated in volunteers list

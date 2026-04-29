@@ -1056,3 +1056,30 @@ body {
 .ec-event.event-ouders .jvgh-assignment-name{
   color:#1b3a75 !important;
 }
+
+.people-tabs {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+.people-tab {
+  border: 1px solid #cbd5e1;
+  background: #f8fafc;
+  color: #1e3a8a;
+  border-radius: 999px;
+  padding: 6px 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.people-tab.is-active {
+  background: #1e3a8a;
+  border-color: #1e3a8a;
+  color: #fff;
+}
+
+.people-panel[hidden] {
+  display: none !important;
+}
