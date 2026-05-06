@@ -36,6 +36,74 @@ document.getElementById("share-button").addEventListener("click", async () => {
 // dlssus_qty is overloaded:
 // - qty < 60  → volunteer capacity
 // - qty >= 60 → assignment duration in minutes (JVGH custom)
+
+function ensureAvailabilityOverlay() {
+  let overlay = document.getElementById('jvgh-availability-overlay');
+  if (overlay) return overlay;
+
+  overlay = document.createElement('div');
+  overlay.id = 'jvgh-availability-overlay';
+  overlay.className = 'jvgh-availability-overlay hidden';
+  overlay.innerHTML = `
+    <div class="jvgh-availability-modal">
+      <button type="button" class="jvgh-availability-close" aria-label="Sluiten">×</button>
+      <h2>Beschikbaarheid versturen</h2>
+      <p>Vul de Twilio velden in en klik op <strong>Send</strong>.</p>
+      <label class="jvgh-whatsapp-field">From (whatsapp:+...)
+        <input id="jvgh-whatsapp-from" type="text" value="whatsapp:+10000000000" />
+      </label>
+      <label class="jvgh-whatsapp-field">Content SID
+        <input id="jvgh-whatsapp-content-sid" type="text" value="HXxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" />
+      </label>
+      <label class="jvgh-whatsapp-field">Content Variables (JSON)
+        <textarea id="jvgh-whatsapp-content-variables" rows="3">{"1":"date","2":"time"}</textarea>
+      </label>
+      <label class="jvgh-whatsapp-field">To (whatsapp:+...)
+        <input id="jvgh-whatsapp-to" type="text" value="whatsapp:+10000000001" />
+      </label>
+      <button type="button" id="jvgh-send-whatsapp-button" class="jvgh-print-btn">Send</button>
+      <div id="jvgh-send-whatsapp-status" class="small-muted"></div>
+    </div>
+  `;
+
+  document.body.appendChild(overlay);
+
+  overlay.querySelector('.jvgh-availability-close')?.addEventListener('click', () => {
+    overlay.classList.add('hidden');
+  });
+
+  overlay.addEventListener('click', (event) => {
+    if (event.target === overlay) overlay.classList.add('hidden');
+  });
+
+  overlay.querySelector('#jvgh-send-whatsapp-button')?.addEventListener('click', async () => {
+    const statusEl = overlay.querySelector('#jvgh-send-whatsapp-status');
+    statusEl.textContent = 'Versturen...';
+
+    try {
+      const payload = {
+        from: overlay.querySelector('#jvgh-whatsapp-from')?.value?.trim() || '',
+        contentSid: overlay.querySelector('#jvgh-whatsapp-content-sid')?.value?.trim() || '',
+        contentVariables: overlay.querySelector('#jvgh-whatsapp-content-variables')?.value?.trim() || '',
+        to: overlay.querySelector('#jvgh-whatsapp-to')?.value?.trim() || '',
+      };
+
+      const res = await fetch('/api/send-availability-whatsapp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.ok) throw new Error(data.error || 'Onbekende fout');
+      statusEl.textContent = `Verzonden. SID: ${data.sid}`;
+    } catch (error) {
+      statusEl.textContent = `Verzenden mislukt: ${error.message}`;
+    }
+  });
+
+  return overlay;
+}
+
 document.getElementById("print-button").addEventListener("click", () => {
   window.print();
 });
@@ -2087,51 +2155,10 @@ ${getAvailabilityLinkForUser(userId)}`;
   }
 
   function sendAvailabilityReminderMails() {
-    const allUsers = [...usersByRole.bestuur, ...usersByRole.vrijwilliger];
-    const uniqueUsersById = new Map();
-
-    allUsers.forEach((user) => {
-      const uid = Number(user?.id);
-      if (!Number.isFinite(uid) || uid <= 0) return;
-      const email = getUserEmail(user);
-      if (!email) return;
-      uniqueUsersById.set(uid, user);
-    });
-
-    const recipients = Array.from(uniqueUsersById.values());
-    if (recipients.length === 0) {
-      alert("Geen gebruikers met e-mailadres gevonden in Bestuur of Vrijwilligers.");
-      return;
-    }
-
-    const confirmed = window.confirm(
-      `Voor ${recipients.length} gebruikers een individuele e-mail openen?`
-    );
-    if (!confirmed) return;
-
-    let openedCount = 0;
-
-    recipients.forEach((user) => {
-      const uid = Number(user.id);
-      const email = getUserEmail(user);
-      const availabilityLink = getAvailabilityLinkForUser(uid);
-      const subject = "Vul uw beschikbaarheid in";
-      const body = `Beste ${user.name || ""},
-
-Vul uw beschikbaarheid in via onderstaande link:
-${availabilityLink}`;
-      const mailtoUrl = `mailto:${email}?subject=${encodeURIComponent(
-        subject
-      )}&body=${encodeURIComponent(body)}`;
-      const openedWindow = window.open(mailtoUrl, "_blank", "noopener");
-      if (openedWindow) openedCount += 1;
-    });
-
-    if (openedCount < recipients.length) {
-      alert(
-        "Niet alle e-mails konden automatisch geopend worden. Controleer of pop-ups toegelaten zijn."
-      );
-    }
+    const overlay = ensureAvailabilityOverlay();
+    const statusEl = overlay.querySelector('#jvgh-send-whatsapp-status');
+    if (statusEl) statusEl.textContent = '';
+    overlay.classList.remove('hidden');
   }
 
   function getUserEmail(user) {
