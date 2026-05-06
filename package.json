@@ -1,8 +1,10 @@
 {
   "scripts": {
-    "start": "servor --reload"
+    "start": "node server.js"
   },
   "dependencies": {
-    "servor": "^4.0.2"
+    "servor": "^4.0.2",
+    "express": "^4.21.2",
+    "twilio": "^5.5.3"
   }
 }
