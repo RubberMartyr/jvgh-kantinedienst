@@ -82,12 +82,26 @@ function ensureAvailabilityOverlay() {
     if (event.target === overlay) overlay.classList.add('hidden');
   });
 
-  const accountSidInput = overlay.querySelector('#jvgh-twilio-account-sid');
-  const authTokenInput = overlay.querySelector('#jvgh-twilio-auth-token');
-  const savedAccountSid = localStorage.getItem('jvgh_twilio_account_sid') || '';
-  const savedAuthToken = localStorage.getItem('jvgh_twilio_auth_token') || '';
-  if (accountSidInput) accountSidInput.value = savedAccountSid;
-  if (authTokenInput) authTokenInput.value = savedAuthToken;
+  const twilioFieldStorageMap = {
+    accountSid: { selector: '#jvgh-twilio-account-sid', storageKey: 'jvgh_twilio_account_sid' },
+    authToken: { selector: '#jvgh-twilio-auth-token', storageKey: 'jvgh_twilio_auth_token' },
+    from: { selector: '#jvgh-whatsapp-from', storageKey: 'jvgh_whatsapp_from' },
+    contentSid: { selector: '#jvgh-whatsapp-content-sid', storageKey: 'jvgh_whatsapp_content_sid' },
+    contentVariables: { selector: '#jvgh-whatsapp-content-variables', storageKey: 'jvgh_whatsapp_content_variables' },
+    to: { selector: '#jvgh-whatsapp-to', storageKey: 'jvgh_whatsapp_to' },
+  };
+
+  Object.values(twilioFieldStorageMap).forEach(({ selector, storageKey }) => {
+    const input = overlay.querySelector(selector);
+    if (!input) return;
+
+    const savedValue = localStorage.getItem(storageKey);
+    if (savedValue !== null) input.value = savedValue;
+
+    input.addEventListener('input', () => {
+      localStorage.setItem(storageKey, input.value);
+    });
+  });
 
   overlay.querySelector('#jvgh-send-whatsapp-button')?.addEventListener('click', async () => {
     const statusEl = overlay.querySelector('#jvgh-send-whatsapp-status');
@@ -95,16 +109,16 @@ function ensureAvailabilityOverlay() {
 
     try {
       const payload = {
-        accountSid: accountSidInput?.value?.trim() || '',
-        authToken: authTokenInput?.value?.trim() || '',
-        from: overlay.querySelector('#jvgh-whatsapp-from')?.value?.trim() || '',
-        contentSid: overlay.querySelector('#jvgh-whatsapp-content-sid')?.value?.trim() || '',
-        contentVariables: overlay.querySelector('#jvgh-whatsapp-content-variables')?.value?.trim() || '',
-        to: overlay.querySelector('#jvgh-whatsapp-to')?.value?.trim() || '',
+        accountSid: overlay.querySelector(twilioFieldStorageMap.accountSid.selector)?.value?.trim() || '',
+        authToken: overlay.querySelector(twilioFieldStorageMap.authToken.selector)?.value?.trim() || '',
+        from: overlay.querySelector(twilioFieldStorageMap.from.selector)?.value?.trim() || '',
+        contentSid: overlay.querySelector(twilioFieldStorageMap.contentSid.selector)?.value?.trim() || '',
+        contentVariables: overlay.querySelector(twilioFieldStorageMap.contentVariables.selector)?.value?.trim() || '',
+        to: overlay.querySelector(twilioFieldStorageMap.to.selector)?.value?.trim() || '',
       };
-
-      localStorage.setItem('jvgh_twilio_account_sid', payload.accountSid);
-      localStorage.setItem('jvgh_twilio_auth_token', payload.authToken);
+      Object.entries(twilioFieldStorageMap).forEach(([field, { storageKey }]) => {
+        localStorage.setItem(storageKey, payload[field] || '');
+      });
 
       const res = await fetch('/api/send-availability-whatsapp', {
         method: 'POST',
