@@ -49,6 +49,12 @@ function ensureAvailabilityOverlay() {
       <button type="button" class="jvgh-availability-close" aria-label="Sluiten">×</button>
       <h2>Beschikbaarheid versturen</h2>
       <p>Vul de Twilio velden in en klik op <strong>Send</strong>.</p>
+      <label class="jvgh-whatsapp-field">Twilio Account SID
+        <input id="jvgh-twilio-account-sid" type="text" placeholder="ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" />
+      </label>
+      <label class="jvgh-whatsapp-field">Twilio Auth Token
+        <input id="jvgh-twilio-auth-token" type="password" placeholder="••••••••••••••••" />
+      </label>
       <label class="jvgh-whatsapp-field">From (whatsapp:+...)
         <input id="jvgh-whatsapp-from" type="text" value="whatsapp:+10000000000" />
       </label>
@@ -76,17 +82,29 @@ function ensureAvailabilityOverlay() {
     if (event.target === overlay) overlay.classList.add('hidden');
   });
 
+  const accountSidInput = overlay.querySelector('#jvgh-twilio-account-sid');
+  const authTokenInput = overlay.querySelector('#jvgh-twilio-auth-token');
+  const savedAccountSid = localStorage.getItem('jvgh_twilio_account_sid') || '';
+  const savedAuthToken = localStorage.getItem('jvgh_twilio_auth_token') || '';
+  if (accountSidInput) accountSidInput.value = savedAccountSid;
+  if (authTokenInput) authTokenInput.value = savedAuthToken;
+
   overlay.querySelector('#jvgh-send-whatsapp-button')?.addEventListener('click', async () => {
     const statusEl = overlay.querySelector('#jvgh-send-whatsapp-status');
     statusEl.textContent = 'Versturen...';
 
     try {
       const payload = {
+        accountSid: accountSidInput?.value?.trim() || '',
+        authToken: authTokenInput?.value?.trim() || '',
         from: overlay.querySelector('#jvgh-whatsapp-from')?.value?.trim() || '',
         contentSid: overlay.querySelector('#jvgh-whatsapp-content-sid')?.value?.trim() || '',
         contentVariables: overlay.querySelector('#jvgh-whatsapp-content-variables')?.value?.trim() || '',
         to: overlay.querySelector('#jvgh-whatsapp-to')?.value?.trim() || '',
       };
+
+      localStorage.setItem('jvgh_twilio_account_sid', payload.accountSid);
+      localStorage.setItem('jvgh_twilio_auth_token', payload.authToken);
 
       const res = await fetch('/api/send-availability-whatsapp', {
         method: 'POST',

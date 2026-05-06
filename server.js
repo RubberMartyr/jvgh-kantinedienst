@@ -9,11 +9,11 @@ app.use(express.json());
 app.use(express.static(__dirname));
 
 app.post('/api/send-availability-whatsapp', async (req, res) => {
-  const accountSid = process.env.TWILIO_ACCOUNT_SID;
-  const authToken = process.env.TWILIO_AUTH_TOKEN;
+  const accountSid = String(req.body?.accountSid || process.env.TWILIO_ACCOUNT_SID || '').trim();
+  const authToken = String(req.body?.authToken || process.env.TWILIO_AUTH_TOKEN || '').trim();
 
   if (!accountSid || !authToken) {
-    return res.status(500).json({ ok: false, error: 'Twilio credentials are not configured.' });
+    return res.status(400).json({ ok: false, error: 'Missing Twilio credentials: accountSid and authToken.' });
   }
 
   try {
