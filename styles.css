@@ -678,6 +678,27 @@ body {
   overflow-wrap: break-word;
 }
 
+.jvgh-ical-content {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.05;
+  white-space: normal;
+}
+
+.jvgh-ical-content .ec-event-time {
+  font-size: 9px;
+  margin-bottom: 1px;
+  line-height: 1.05;
+}
+
+.jvgh-ical-title {
+  font-size: 9px;
+  font-weight: 600;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
 @media print {
 
   /* Hide the sidebar completely */
