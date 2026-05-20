@@ -525,11 +525,10 @@ document.addEventListener("DOMContentLoaded", function () {
           ? parseICS(text, { sourceLabel: "JVGH events iCal" })
           : target === "verhuur"
             ? parseICS(text, { sourceLabel: "Verhuur kantine iCal" })
-          ? parseICS(text, { sourceLabel: "JVGH Evenementen" })
-          : parseICS(text, {
-              homeTeamFilter: "Herk-De-Stad",
-              sourceLabel: "JVGH Matches",
-            });
+            : parseICS(text, {
+                homeTeamFilter: "Herk-De-Stad",
+                sourceLabel: "JVGH Matches",
+              });
       if (target === "events") {
         eventsIcalExternalEvents = parsed;
       } else if (target === "verhuur") {
