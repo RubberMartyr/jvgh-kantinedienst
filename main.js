@@ -679,8 +679,9 @@ document.addEventListener("DOMContentLoaded", function () {
 
       return {
         html: `
-      <div class="ec-event-time">
-        ${timeText}${title ? " – " + title : ""}
+      <div class="jvgh-ical-content">
+        <div class="ec-event-time">${timeText}</div>
+        <div class="jvgh-ical-title">${title || ""}</div>
       </div>
     `,
       };
