@@ -354,6 +354,7 @@ document.addEventListener("DOMContentLoaded", function () {
   const icalToggleEl = document.getElementById("ical-toggle");
   const eventsIcalToggleEl = document.getElementById("events-ical-toggle");
   const verhuurIcalToggleEl = document.getElementById("verhuur-ical-toggle");
+  const dagelijksBestuurIcalToggleEl = document.getElementById("dagelijks-bestuur-ical-toggle");
   const shiftToggleEl = document.getElementById("shift-toggle");
   const icalStatusEl = document.getElementById("ical-status");
   const ICAL_URL =
@@ -361,13 +362,17 @@ document.addEventListener("DOMContentLoaded", function () {
   const EVENTS_ICAL_URL = "https://jeugdherk.be/events/lijst/?ical=1";
   const VERHUUR_ICAL_URL =
     "https://outlook.office365.com/owa/calendar/f2d34940b5f74818ac3baf863b3d9c1a@jeugdherk.be/51ee3ee8905543a1b01ab337a8bd734d13775201653858586117/calendar.ics";
+  const DAGELIJKS_BESTUUR_ICAL_URL =
+    "https://outlook.office365.com/owa/calendar/f2d34940b5f74818ac3baf863b3d9c1a@jeugdherk.be/35511a0627d644998a24502f56390cf118238942820750685558/calendar.ics";
 
   let icalEnabled = false;
   let eventsIcalEnabled = false;
   let verhuurIcalEnabled = false;
+  let dagelijksBestuurIcalEnabled = false;
   let externalEvents = []; // JVGH parsed VEVENTs from ICS
   let eventsIcalExternalEvents = []; // events parsed VEVENTs from ICS
   let verhuurIcalExternalEvents = []; // verhuur parsed VEVENTs from ICS
+  let dagelijksBestuurIcalExternalEvents = []; // dagelijks bestuur parsed VEVENTs from ICS
   let shiftsEnabled = false;
   let lastDatesSetInfo = null;
 
@@ -377,13 +382,14 @@ document.addEventListener("DOMContentLoaded", function () {
     }
   }
   function getAllExternalEvents() {
-    return [...externalEvents, ...eventsIcalExternalEvents, ...verhuurIcalExternalEvents];
+    return [...externalEvents, ...eventsIcalExternalEvents, ...verhuurIcalExternalEvents, ...dagelijksBestuurIcalExternalEvents];
   }
   function getEnabledExternalEvents() {
     const enabled = [];
     if (icalEnabled) enabled.push(...externalEvents);
     if (eventsIcalEnabled) enabled.push(...eventsIcalExternalEvents);
     if (verhuurIcalEnabled) enabled.push(...verhuurIcalExternalEvents);
+    if (dagelijksBestuurIcalEnabled) enabled.push(...dagelijksBestuurIcalExternalEvents);
     return enabled;
   }
 
@@ -516,6 +522,8 @@ document.addEventListener("DOMContentLoaded", function () {
           ? EVENTS_ICAL_URL
           : target === "verhuur"
             ? VERHUUR_ICAL_URL
+            : target === "dagelijksBestuur"
+              ? DAGELIJKS_BESTUUR_ICAL_URL
             : ICAL_URL;
       const res = await fetch(url, { credentials: "omit" });
       if (!res.ok) throw new Error("HTTP " + res.status);
@@ -525,6 +533,8 @@ document.addEventListener("DOMContentLoaded", function () {
           ? parseICS(text, { sourceLabel: "JVGH events iCal" })
           : target === "verhuur"
             ? parseICS(text, { sourceLabel: "Verhuur kantine iCal" })
+            : target === "dagelijksBestuur"
+              ? parseICS(text, { sourceLabel: "Dagelijks Bestuur iCal" })
             : parseICS(text, {
                 homeTeamFilter: "Herk-De-Stad",
                 sourceLabel: "JVGH Matches",
@@ -533,6 +543,8 @@ document.addEventListener("DOMContentLoaded", function () {
         eventsIcalExternalEvents = parsed;
       } else if (target === "verhuur") {
         verhuurIcalExternalEvents = parsed;
+      } else if (target === "dagelijksBestuur") {
+        dagelijksBestuurIcalExternalEvents = parsed;
       } else {
         externalEvents = parsed;
       }
@@ -2368,6 +2380,11 @@ ${getAvailabilityLinkForUser(userId)}`;
     verhuurIcalToggleEl.classList.toggle("active", verhuurIcalEnabled);
     verhuurIcalToggleEl.setAttribute("aria-checked", String(verhuurIcalEnabled));
   }
+  function updateDagelijksBestuurIcalToggleUI() {
+    if (!dagelijksBestuurIcalToggleEl) return;
+    dagelijksBestuurIcalToggleEl.classList.toggle("active", dagelijksBestuurIcalEnabled);
+    dagelijksBestuurIcalToggleEl.setAttribute("aria-checked", String(dagelijksBestuurIcalEnabled));
+  }
 
   function toggleIcal() {
     icalEnabled = !icalEnabled;
@@ -2397,6 +2414,15 @@ ${getAvailabilityLinkForUser(userId)}`;
       renderAll();
     }
   }
+  function toggleDagelijksBestuurIcal() {
+    dagelijksBestuurIcalEnabled = !dagelijksBestuurIcalEnabled;
+    updateDagelijksBestuurIcalToggleUI();
+    if (dagelijksBestuurIcalEnabled && dagelijksBestuurIcalExternalEvents.length === 0) {
+      loadICal("dagelijksBestuur");
+    } else {
+      renderAll();
+    }
+  }
 
   if (icalToggleEl) {
     icalToggleEl.addEventListener("click", toggleIcal);
@@ -2422,6 +2448,15 @@ ${getAvailabilityLinkForUser(userId)}`;
       if (e.key === " " || e.key === "Enter") {
         e.preventDefault();
         toggleVerhuurIcal();
+      }
+    });
+  }
+  if (dagelijksBestuurIcalToggleEl) {
+    dagelijksBestuurIcalToggleEl.addEventListener("click", toggleDagelijksBestuurIcal);
+    dagelijksBestuurIcalToggleEl.addEventListener("keydown", (e) => {
+      if (e.key === " " || e.key === "Enter") {
+        e.preventDefault();
+        toggleDagelijksBestuurIcal();
       }
     });
   }
@@ -2474,6 +2509,8 @@ ${getAvailabilityLinkForUser(userId)}`;
   updateEventsIcalToggleUI();
   verhuurIcalEnabled = false;
   updateVerhuurIcalToggleUI();
+  dagelijksBestuurIcalEnabled = false;
+  updateDagelijksBestuurIcalToggleUI();
 
   // Shifts ON by default
   shiftsEnabled = true;
