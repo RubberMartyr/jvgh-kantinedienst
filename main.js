@@ -365,10 +365,10 @@ document.addEventListener("DOMContentLoaded", function () {
   const DAGELIJKS_BESTUUR_ICAL_URL =
     "https://outlook.office365.com/owa/calendar/f2d34940b5f74818ac3baf863b3d9c1a@jeugdherk.be/35511a0627d644998a24502f56390cf118238942820750685558/calendar.ics";
 
-  let icalEnabled = false;
-  let eventsIcalEnabled = false;
-  let verhuurIcalEnabled = false;
-  let dagelijksBestuurIcalEnabled = false;
+  let icalEnabled = true;
+  let eventsIcalEnabled = true;
+  let verhuurIcalEnabled = true;
+  let dagelijksBestuurIcalEnabled = true;
   let externalEvents = []; // JVGH parsed VEVENTs from ICS
   let eventsIcalExternalEvents = []; // events parsed VEVENTs from ICS
   let verhuurIcalExternalEvents = []; // verhuur parsed VEVENTs from ICS
@@ -450,6 +450,7 @@ document.addEventListener("DOMContentLoaded", function () {
     const {
       homeTeamFilter = null, // when set, only keep events where left side of "home/away" contains this token
       sourceLabel = "JVGH Matches",
+      className = "ical-jvgh-matches",
     } = options;
 
     // Unfold lines (join lines that start with a space)
@@ -508,7 +509,7 @@ document.addEventListener("DOMContentLoaded", function () {
           source: sourceLabel,
           location: location || "",
         },
-        classNames: ["ical-event"],
+        classNames: ["ical-event", className],
       });
     }
     return events;
@@ -530,14 +531,15 @@ document.addEventListener("DOMContentLoaded", function () {
       const text = await res.text();
       const parsed =
         target === "events"
-          ? parseICS(text, { sourceLabel: "JVGH events iCal" })
+          ? parseICS(text, { sourceLabel: "JVGH evenementen iCal", className: "ical-jvgh-evenementen" })
           : target === "verhuur"
-            ? parseICS(text, { sourceLabel: "Verhuur kantine iCal" })
+            ? parseICS(text, { sourceLabel: "Verhuur kantine iCal", className: "ical-verhuur-kantine" })
             : target === "dagelijksBestuur"
-              ? parseICS(text, { sourceLabel: "Dagelijks Bestuur iCal" })
+              ? parseICS(text, { sourceLabel: "Dagelijks Bestuur iCal", className: "ical-dagelijks-bestuur" })
             : parseICS(text, {
                 homeTeamFilter: "Herk-De-Stad",
                 sourceLabel: "JVGH Matches",
+                className: "ical-jvgh-matches",
               });
       if (target === "events") {
         eventsIcalExternalEvents = parsed;
@@ -2369,21 +2371,31 @@ ${getAvailabilityLinkForUser(userId)}`;
     if (!icalToggleEl) return;
     icalToggleEl.classList.toggle("active", icalEnabled);
     icalToggleEl.setAttribute("aria-checked", String(icalEnabled));
+    setToggleRowActive(".toggle-row-matches", icalEnabled);
   }
   function updateEventsIcalToggleUI() {
     if (!eventsIcalToggleEl) return;
     eventsIcalToggleEl.classList.toggle("active", eventsIcalEnabled);
     eventsIcalToggleEl.setAttribute("aria-checked", String(eventsIcalEnabled));
+    setToggleRowActive(".toggle-row-events", eventsIcalEnabled);
   }
   function updateVerhuurIcalToggleUI() {
     if (!verhuurIcalToggleEl) return;
     verhuurIcalToggleEl.classList.toggle("active", verhuurIcalEnabled);
     verhuurIcalToggleEl.setAttribute("aria-checked", String(verhuurIcalEnabled));
+    setToggleRowActive(".toggle-row-verhuur", verhuurIcalEnabled);
   }
+  function setToggleRowActive(selector, isActive) {
+    const row = document.querySelector(selector);
+    if (!row) return;
+    row.classList.toggle("is-active", isActive);
+  }
+
   function updateDagelijksBestuurIcalToggleUI() {
     if (!dagelijksBestuurIcalToggleEl) return;
     dagelijksBestuurIcalToggleEl.classList.toggle("active", dagelijksBestuurIcalEnabled);
     dagelijksBestuurIcalToggleEl.setAttribute("aria-checked", String(dagelijksBestuurIcalEnabled));
+    setToggleRowActive(".toggle-row-bestuur", dagelijksBestuurIcalEnabled);
   }
 
   function toggleIcal() {
@@ -2502,14 +2514,14 @@ ${getAvailabilityLinkForUser(userId)}`;
     });
   }
 
-  // Always start with iCal hidden on page load
-  icalEnabled = false;
+  // Start with all external calendars visible by default
+  icalEnabled = true;
   updateIcalToggleUI();
-  eventsIcalEnabled = false;
+  eventsIcalEnabled = true;
   updateEventsIcalToggleUI();
-  verhuurIcalEnabled = false;
+  verhuurIcalEnabled = true;
   updateVerhuurIcalToggleUI();
-  dagelijksBestuurIcalEnabled = false;
+  dagelijksBestuurIcalEnabled = true;
   updateDagelijksBestuurIcalToggleUI();
 
   // Shifts ON by default
@@ -2518,10 +2530,10 @@ ${getAvailabilityLinkForUser(userId)}`;
 
   // No persistence for iCal setting: always off on page load
 
-  // If shifts are enabled but we have no iCal data yet, load it (for slot generation only)
-  if (shiftsEnabled && getAllExternalEvents().length === 0) {
-    loadICal("jvgh");
-  }
+  if (icalEnabled && externalEvents.length === 0) loadICal("jvgh");
+  if (eventsIcalEnabled && eventsIcalExternalEvents.length === 0) loadICal("events");
+  if (verhuurIcalEnabled && verhuurIcalExternalEvents.length === 0) loadICal("verhuur");
+  if (dagelijksBestuurIcalEnabled && dagelijksBestuurIcalExternalEvents.length === 0) loadICal("dagelijksBestuur");
 
   // Initial render with current flags
   renderAll();
