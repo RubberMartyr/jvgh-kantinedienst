@@ -1132,3 +1132,43 @@ body {
   padding: 8px 10px;
   font: inherit;
 }
+
+/* Distinct iCal source colors */
+.ec .ec-event.ical-jvgh-matches,
+.ec .ical-jvgh-matches {
+  background-color: #2563eb !important;
+  border-color: #1d4ed8 !important;
+  color: #ffffff !important;
+}
+
+.ec .ec-event.ical-jvgh-evenementen,
+.ec .ical-jvgh-evenementen {
+  background-color: #7c3aed !important;
+  border-color: #6d28d9 !important;
+  color: #ffffff !important;
+}
+
+.ec .ec-event.ical-verhuur-kantine,
+.ec .ical-verhuur-kantine {
+  background-color: #0f766e !important;
+  border-color: #115e59 !important;
+  color: #ffffff !important;
+}
+
+.ec .ec-event.ical-dagelijks-bestuur,
+.ec .ical-dagelijks-bestuur {
+  background-color: #ea580c !important;
+  border-color: #c2410c !important;
+  color: #ffffff !important;
+}
+
+/* Matching colors for calendar toggle blocks */
+.toggle-row-matches { border-color: #bfdbfe; background: #eff6ff; }
+.toggle-row-events { border-color: #ddd6fe; background: #f5f3ff; }
+.toggle-row-verhuur { border-color: #99f6e4; background: #f0fdfa; }
+.toggle-row-bestuur { border-color: #fed7aa; background: #fff7ed; }
+
+.toggle-row-matches.is-active { box-shadow: inset 0 0 0 1px #1d4ed8; }
+.toggle-row-events.is-active { box-shadow: inset 0 0 0 1px #6d28d9; }
+.toggle-row-verhuur.is-active { box-shadow: inset 0 0 0 1px #115e59; }
+.toggle-row-bestuur.is-active { box-shadow: inset 0 0 0 1px #c2410c; }
