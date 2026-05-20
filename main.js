@@ -352,13 +352,17 @@ document.addEventListener("DOMContentLoaded", function () {
 
   // 🔹 iCal feed management
   const icalToggleEl = document.getElementById("ical-toggle");
+  const eventsIcalToggleEl = document.getElementById("events-ical-toggle");
   const shiftToggleEl = document.getElementById("shift-toggle");
   const icalStatusEl = document.getElementById("ical-status");
   const ICAL_URL =
-    "https://jeugdherk.be/calendar/jvgh-kalender/?feed=sp-ical"; // convert webcal:// → https://
+    "https://jeugdherk.be/calendar/jvgh-kalender/?feed=sp-ical";
+  const EVENTS_ICAL_URL = "https://jeugdherk.be/events/lijst/?ical=1";
 
   let icalEnabled = false;
-  let externalEvents = []; // parsed VEVENTs from ICS
+  let eventsIcalEnabled = false;
+  let externalEvents = []; // JVGH parsed VEVENTs from ICS
+  let eventsIcalExternalEvents = []; // events parsed VEVENTs from ICS
   let shiftsEnabled = false;
   let lastDatesSetInfo = null;
 
@@ -366,6 +370,9 @@ document.addEventListener("DOMContentLoaded", function () {
     if (icalStatusEl) {
       icalStatusEl.textContent = msg || "";
     }
+  }
+  function getAllExternalEvents() {
+    return [...externalEvents, ...eventsIcalExternalEvents];
   }
 
   function parseICalDate(line) {
@@ -482,14 +489,20 @@ document.addEventListener("DOMContentLoaded", function () {
     return events;
   }
 
-  async function loadICal() {
+  async function loadICal(target = "jvgh") {
     try {
       setIcalStatus("Laden…");
-      const res = await fetch(ICAL_URL, { credentials: "omit" });
+      const url = target === "events" ? EVENTS_ICAL_URL : ICAL_URL;
+      const res = await fetch(url, { credentials: "omit" });
       if (!res.ok) throw new Error("HTTP " + res.status);
       const text = await res.text();
-      externalEvents = parseICS(text);
-      setIcalStatus("Geladen (" + externalEvents.length + " events).");
+      const parsed = parseICS(text);
+      if (target === "events") {
+        eventsIcalExternalEvents = parsed;
+      } else {
+        externalEvents = parsed;
+      }
+      setIcalStatus("Geladen (" + getAllExternalEvents().length + " events).");
       renderAll();
       if (lastDatesSetInfo && typeof JVGH_ensureVisibleMonthsLoaded === "function") {
         JVGH_ensureVisibleMonthsLoaded(lastDatesSetInfo);
@@ -1172,8 +1185,9 @@ document.addEventListener("DOMContentLoaded", function () {
 
     // Rebuild slots dynamically from iCal when shifts are enabled
     slots = [];
-    if (shiftsEnabled && externalEvents.length) {
-      externalEvents.forEach((ev, idx) => {
+    const allExternalEvents = getAllExternalEvents();
+    if (shiftsEnabled && allExternalEvents.length) {
+      allExternalEvents.forEach((ev, idx) => {
         try {
           const start = new Date(ev.start);
           const endRaw = new Date(ev.end);
@@ -1275,8 +1289,8 @@ document.addEventListener("DOMContentLoaded", function () {
     });
 
     // Merge iCal events if enabled
-    if (icalEnabled && externalEvents.length) {
-      externalEvents.forEach((ev) => {
+    if ((icalEnabled || eventsIcalEnabled) && allExternalEvents.length) {
+      allExternalEvents.forEach((ev) => {
         // guarantee we have a usable title
         const title =
           ev.title ||
@@ -2309,13 +2323,27 @@ ${getAvailabilityLinkForUser(userId)}`;
     icalToggleEl.classList.toggle("active", icalEnabled);
     icalToggleEl.setAttribute("aria-checked", String(icalEnabled));
   }
+  function updateEventsIcalToggleUI() {
+    if (!eventsIcalToggleEl) return;
+    eventsIcalToggleEl.classList.toggle("active", eventsIcalEnabled);
+    eventsIcalToggleEl.setAttribute("aria-checked", String(eventsIcalEnabled));
+  }
 
   function toggleIcal() {
     icalEnabled = !icalEnabled;
     updateIcalToggleUI();
     if (icalEnabled && externalEvents.length === 0) {
       // first enable → load ICS
-      loadICal();
+      loadICal("jvgh");
+    } else {
+      renderAll();
+    }
+  }
+  function toggleEventsIcal() {
+    eventsIcalEnabled = !eventsIcalEnabled;
+    updateEventsIcalToggleUI();
+    if (eventsIcalEnabled && eventsIcalExternalEvents.length === 0) {
+      loadICal("events");
     } else {
       renderAll();
     }
@@ -2330,6 +2358,15 @@ ${getAvailabilityLinkForUser(userId)}`;
       }
     });
   }
+  if (eventsIcalToggleEl) {
+    eventsIcalToggleEl.addEventListener("click", toggleEventsIcal);
+    eventsIcalToggleEl.addEventListener("keydown", (e) => {
+      if (e.key === " " || e.key === "Enter") {
+        e.preventDefault();
+        toggleEventsIcal();
+      }
+    });
+  }
 
   // --- Shifts toggle behavior ---
   function updateShiftToggleUI() {
@@ -2341,9 +2378,9 @@ ${getAvailabilityLinkForUser(userId)}`;
   function toggleShifts() {
     shiftsEnabled = !shiftsEnabled;
     updateShiftToggleUI();
-    if (shiftsEnabled && externalEvents.length === 0) {
+    if (shiftsEnabled && getAllExternalEvents().length === 0) {
       // if we haven't loaded iCal yet, load it now
-      loadICal().finally(() => {
+      loadICal("jvgh").finally(() => {
         if (lastDatesSetInfo && typeof JVGH_ensureVisibleMonthsLoaded === "function") {
           JVGH_ensureVisibleMonthsLoaded(lastDatesSetInfo);
         }
@@ -2375,6 +2412,8 @@ ${getAvailabilityLinkForUser(userId)}`;
   // Always start with iCal hidden on page load
   icalEnabled = false;
   updateIcalToggleUI();
+  eventsIcalEnabled = false;
+  updateEventsIcalToggleUI();
 
   // Shifts ON by default
   shiftsEnabled = true;
@@ -2383,8 +2422,8 @@ ${getAvailabilityLinkForUser(userId)}`;
   // No persistence for iCal setting: always off on page load
 
   // If shifts are enabled but we have no iCal data yet, load it (for slot generation only)
-  if (shiftsEnabled && externalEvents.length === 0) {
-    loadICal();
+  if (shiftsEnabled && getAllExternalEvents().length === 0) {
+    loadICal("jvgh");
   }
 
   // Initial render with current flags
