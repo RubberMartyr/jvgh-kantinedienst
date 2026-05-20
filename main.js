@@ -443,7 +443,7 @@ document.addEventListener("DOMContentLoaded", function () {
   function parseICS(text, options = {}) {
     const {
       homeTeamFilter = null, // when set, only keep events where left side of "home/away" contains this token
-      sourceLabel = "JVGH iCal",
+      sourceLabel = "JVGH Matches",
     } = options;
 
     // Unfold lines (join lines that start with a space)
@@ -525,9 +525,10 @@ document.addEventListener("DOMContentLoaded", function () {
           ? parseICS(text, { sourceLabel: "JVGH events iCal" })
           : target === "verhuur"
             ? parseICS(text, { sourceLabel: "Verhuur kantine iCal" })
+          ? parseICS(text, { sourceLabel: "JVGH Evenementen" })
           : parseICS(text, {
               homeTeamFilter: "Herk-De-Stad",
-              sourceLabel: "JVGH iCal",
+              sourceLabel: "JVGH Matches",
             });
       if (target === "events") {
         eventsIcalExternalEvents = parsed;
