@@ -353,16 +353,21 @@ document.addEventListener("DOMContentLoaded", function () {
   // 🔹 iCal feed management
   const icalToggleEl = document.getElementById("ical-toggle");
   const eventsIcalToggleEl = document.getElementById("events-ical-toggle");
+  const verhuurIcalToggleEl = document.getElementById("verhuur-ical-toggle");
   const shiftToggleEl = document.getElementById("shift-toggle");
   const icalStatusEl = document.getElementById("ical-status");
   const ICAL_URL =
     "https://jeugdherk.be/calendar/jvgh-kalender/?feed=sp-ical";
   const EVENTS_ICAL_URL = "https://jeugdherk.be/events/lijst/?ical=1";
+  const VERHUUR_ICAL_URL =
+    "https://outlook.office365.com/owa/calendar/f2d34940b5f74818ac3baf863b3d9c1a@jeugdherk.be/51ee3ee8905543a1b01ab337a8bd734d13775201653858586117/calendar.ics";
 
   let icalEnabled = false;
   let eventsIcalEnabled = false;
+  let verhuurIcalEnabled = false;
   let externalEvents = []; // JVGH parsed VEVENTs from ICS
   let eventsIcalExternalEvents = []; // events parsed VEVENTs from ICS
+  let verhuurIcalExternalEvents = []; // verhuur parsed VEVENTs from ICS
   let shiftsEnabled = false;
   let lastDatesSetInfo = null;
 
@@ -372,7 +377,14 @@ document.addEventListener("DOMContentLoaded", function () {
     }
   }
   function getAllExternalEvents() {
-    return [...externalEvents, ...eventsIcalExternalEvents];
+    return [...externalEvents, ...eventsIcalExternalEvents, ...verhuurIcalExternalEvents];
+  }
+  function getEnabledExternalEvents() {
+    const enabled = [];
+    if (icalEnabled) enabled.push(...externalEvents);
+    if (eventsIcalEnabled) enabled.push(...eventsIcalExternalEvents);
+    if (verhuurIcalEnabled) enabled.push(...verhuurIcalExternalEvents);
+    return enabled;
   }
 
   function parseICalDate(line) {
@@ -499,12 +511,20 @@ document.addEventListener("DOMContentLoaded", function () {
   async function loadICal(target = "jvgh") {
     try {
       setIcalStatus("Laden…");
-      const url = target === "events" ? EVENTS_ICAL_URL : ICAL_URL;
+      const url =
+        target === "events"
+          ? EVENTS_ICAL_URL
+          : target === "verhuur"
+            ? VERHUUR_ICAL_URL
+            : ICAL_URL;
       const res = await fetch(url, { credentials: "omit" });
       if (!res.ok) throw new Error("HTTP " + res.status);
       const text = await res.text();
       const parsed =
         target === "events"
+          ? parseICS(text, { sourceLabel: "JVGH events iCal" })
+          : target === "verhuur"
+            ? parseICS(text, { sourceLabel: "Verhuur kantine iCal" })
           ? parseICS(text, { sourceLabel: "JVGH Evenementen" })
           : parseICS(text, {
               homeTeamFilter: "Herk-De-Stad",
@@ -512,6 +532,8 @@ document.addEventListener("DOMContentLoaded", function () {
             });
       if (target === "events") {
         eventsIcalExternalEvents = parsed;
+      } else if (target === "verhuur") {
+        verhuurIcalExternalEvents = parsed;
       } else {
         externalEvents = parsed;
       }
@@ -1302,8 +1324,9 @@ document.addEventListener("DOMContentLoaded", function () {
     });
 
     // Merge iCal events if enabled
-    if ((icalEnabled || eventsIcalEnabled) && allExternalEvents.length) {
-      allExternalEvents.forEach((ev) => {
+    const enabledExternalEvents = getEnabledExternalEvents();
+    if (enabledExternalEvents.length) {
+      enabledExternalEvents.forEach((ev) => {
         // guarantee we have a usable title
         const title =
           ev.title ||
@@ -2341,6 +2364,11 @@ ${getAvailabilityLinkForUser(userId)}`;
     eventsIcalToggleEl.classList.toggle("active", eventsIcalEnabled);
     eventsIcalToggleEl.setAttribute("aria-checked", String(eventsIcalEnabled));
   }
+  function updateVerhuurIcalToggleUI() {
+    if (!verhuurIcalToggleEl) return;
+    verhuurIcalToggleEl.classList.toggle("active", verhuurIcalEnabled);
+    verhuurIcalToggleEl.setAttribute("aria-checked", String(verhuurIcalEnabled));
+  }
 
   function toggleIcal() {
     icalEnabled = !icalEnabled;
@@ -2361,6 +2389,15 @@ ${getAvailabilityLinkForUser(userId)}`;
       renderAll();
     }
   }
+  function toggleVerhuurIcal() {
+    verhuurIcalEnabled = !verhuurIcalEnabled;
+    updateVerhuurIcalToggleUI();
+    if (verhuurIcalEnabled && verhuurIcalExternalEvents.length === 0) {
+      loadICal("verhuur");
+    } else {
+      renderAll();
+    }
+  }
 
   if (icalToggleEl) {
     icalToggleEl.addEventListener("click", toggleIcal);
@@ -2377,6 +2414,15 @@ ${getAvailabilityLinkForUser(userId)}`;
       if (e.key === " " || e.key === "Enter") {
         e.preventDefault();
         toggleEventsIcal();
+      }
+    });
+  }
+  if (verhuurIcalToggleEl) {
+    verhuurIcalToggleEl.addEventListener("click", toggleVerhuurIcal);
+    verhuurIcalToggleEl.addEventListener("keydown", (e) => {
+      if (e.key === " " || e.key === "Enter") {
+        e.preventDefault();
+        toggleVerhuurIcal();
       }
     });
   }
@@ -2427,6 +2473,8 @@ ${getAvailabilityLinkForUser(userId)}`;
   updateIcalToggleUI();
   eventsIcalEnabled = false;
   updateEventsIcalToggleUI();
+  verhuurIcalEnabled = false;
+  updateVerhuurIcalToggleUI();
 
   // Shifts ON by default
   shiftsEnabled = true;
