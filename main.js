@@ -428,7 +428,12 @@ document.addEventListener("DOMContentLoaded", function () {
     return isNaN(d) ? null : d;
   }
 
-  function parseICS(text) {
+  function parseICS(text, options = {}) {
+    const {
+      homeTeamFilter = null, // when set, only keep events where left side of "home/away" contains this token
+      sourceLabel = "JVGH iCal",
+    } = options;
+
     // Unfold lines (join lines that start with a space)
     const unfolded = text.replace(/\r?\n[ \t]/g, "");
     const events = [];
@@ -454,18 +459,20 @@ document.addEventListener("DOMContentLoaded", function () {
 
       if (!start || isNaN(start)) continue;
 
-      // 🔥 HOME MATCH FILTER (only keep events where Herk-De-Stad is before "/")
-      let isHome = false;
-      if (summary) {
-        const parts = summary.split("/");
-        if (parts.length >= 2) {
-          const leftSide = parts[0];
-          if (leftSide.includes("Herk-De-Stad")) {
-            isHome = true;
+      if (homeTeamFilter) {
+        // Only keep home matches where "home/away" summary has the selected team on the left side.
+        let isHome = false;
+        if (summary) {
+          const parts = summary.split("/");
+          if (parts.length >= 2) {
+            const leftSide = parts[0];
+            if (leftSide.includes(homeTeamFilter)) {
+              isHome = true;
+            }
           }
         }
+        if (!isHome) continue; // skip away matches / non-match items when home filter is active
       }
-      if (!isHome) continue; // skip away matches
 
       const finalEnd =
         end && !isNaN(end)
@@ -480,7 +487,7 @@ document.addEventListener("DOMContentLoaded", function () {
         resourceId: "kantine", // 🔹 this is what puts it in the Kantine lane
         extendedProps: {
           type: "ical",
-          source: "JVGH iCal",
+          source: sourceLabel,
           location: location || "",
         },
         classNames: ["ical-event"],
@@ -496,7 +503,13 @@ document.addEventListener("DOMContentLoaded", function () {
       const res = await fetch(url, { credentials: "omit" });
       if (!res.ok) throw new Error("HTTP " + res.status);
       const text = await res.text();
-      const parsed = parseICS(text);
+      const parsed =
+        target === "events"
+          ? parseICS(text, { sourceLabel: "JVGH events iCal" })
+          : parseICS(text, {
+              homeTeamFilter: "Herk-De-Stad",
+              sourceLabel: "JVGH iCal",
+            });
       if (target === "events") {
         eventsIcalExternalEvents = parsed;
       } else {
