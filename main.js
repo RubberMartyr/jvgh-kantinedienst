@@ -2272,7 +2272,14 @@ ${getAvailabilityLinkForUser(userId)}`;
           btn.type = "button";
           btn.className = "jvgh-calendar-control-btn";
           btn.textContent = "WhatsApp";
-          btn.disabled = !phone || !Number.isFinite(userId) || userId <= 0;
+          const isMissingPhone = !phone;
+          const isInvalidUserId = !Number.isFinite(userId) || userId <= 0;
+          btn.disabled = isMissingPhone || isInvalidUserId;
+          if (btn.disabled) {
+            btn.title = isMissingPhone
+              ? "Geen geldig telefoonnummer beschikbaar voor deze gebruiker."
+              : "Gebruiker heeft geen geldig ID om een bericht te versturen.";
+          }
           btn.addEventListener("click", async (event) => {
             event.stopPropagation();
             if (!statusEl) return;
