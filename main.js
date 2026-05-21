@@ -49,25 +49,21 @@ function ensureAvailabilityOverlay() {
       <button type="button" class="jvgh-availability-close" aria-label="Sluiten">×</button>
       <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
         <h2 style="margin:0;">Beschikbaarheid versturen</h2>
-        <button type="button" id="jvgh-whatsapp-settings-toggle" class="jvgh-calendar-control-btn" aria-label="Open WhatsApp instellingen">⚙️</button>
       </div>
       <p>Klik op de WhatsApp-knop naast een gebruiker om een beschikbaarheidsbericht te sturen.</p>
-      <div id="jvgh-whatsapp-settings-panel" class="hidden">
-      <label class="jvgh-whatsapp-field">Twilio Account SID
-        <input id="jvgh-twilio-account-sid" type="text" placeholder="AC..." />
-      </label>
-      <label class="jvgh-whatsapp-field">Twilio From (whatsapp:+...)
-        <input id="jvgh-whatsapp-from" type="text" placeholder="whatsapp:+324..." />
-      </label>
-      <label class="jvgh-whatsapp-field">Content SID
-        <input id="jvgh-whatsapp-content-sid" type="text" placeholder="HX..." />
-      </label>
+      <div class="jvgh-whatsapp-tabs" role="tablist" aria-label="WhatsApp secties">
+        <button type="button" class="jvgh-whatsapp-tab is-active" data-tab="bestuur" aria-selected="true">Bestuur</button>
+        <button type="button" class="jvgh-whatsapp-tab" data-tab="vrijwilligers" aria-selected="false">Vrijwilligers</button>
+        <button type="button" class="jvgh-whatsapp-tab" data-tab="instellingen" aria-selected="false">Instellingen</button>
+      </div>
+      <div id="jvgh-whatsapp-bestuur-panel" class="jvgh-whatsapp-panel" data-panel="bestuur"></div>
+      <div id="jvgh-whatsapp-vrijwilligers-panel" class="jvgh-whatsapp-panel hidden" data-panel="vrijwilligers"></div>
+      <div id="jvgh-whatsapp-settings-panel" class="jvgh-whatsapp-panel hidden" data-panel="instellingen">
       <label class="jvgh-whatsapp-field">Twilio Auth Token
         <input id="jvgh-twilio-auth-token" type="password" placeholder="••••••••••••••••" />
       </label>
       <button type="button" id="jvgh-whatsapp-settings-save" class="jvgh-calendar-control-btn">Instellingen opslaan</button>
       </div>
-      <div id="jvgh-whatsapp-users"></div>
       <div id="jvgh-send-whatsapp-status" class="small-muted"></div>
     </div>
   `;
@@ -83,26 +79,32 @@ function ensureAvailabilityOverlay() {
   });
 
   const authTokenInput = overlay.querySelector('#jvgh-twilio-auth-token');
-  const accountSidInput = overlay.querySelector('#jvgh-twilio-account-sid');
-  const fromInput = overlay.querySelector('#jvgh-whatsapp-from');
-  const contentSidInput = overlay.querySelector('#jvgh-whatsapp-content-sid');
-  const settingsPanel = overlay.querySelector('#jvgh-whatsapp-settings-panel');
-  const toggleSettingsButton = overlay.querySelector('#jvgh-whatsapp-settings-toggle');
-  toggleSettingsButton?.addEventListener('click', () => settingsPanel?.classList.toggle('hidden'));
+  const bestuurPanel = overlay.querySelector('#jvgh-whatsapp-bestuur-panel');
+  const vrijwilligersPanel = overlay.querySelector('#jvgh-whatsapp-vrijwilligers-panel');
+  const FROM_NUMBER = 'whatsapp:+32460215323';
+  const CONTENT_SID = 'HX55eb6858d19820160e4b39b840bee4db';
+  const tabs = Array.from(overlay.querySelectorAll('.jvgh-whatsapp-tab'));
+  const panels = Array.from(overlay.querySelectorAll('.jvgh-whatsapp-panel'));
+  const activateTab = (tabName) => {
+    tabs.forEach((tab) => {
+      const isActive = tab.dataset.tab === tabName;
+      tab.classList.toggle('is-active', isActive);
+      tab.setAttribute('aria-selected', String(isActive));
+    });
+    panels.forEach((panel) => {
+      panel.classList.toggle('hidden', panel.dataset.panel !== tabName);
+    });
+  };
+  tabs.forEach((tab) => tab.addEventListener('click', () => activateTab(tab.dataset.tab)));
 
   const loadSettings = async () => {
     try {
       const res = await fetch('/api/whatsapp-settings');
       const data = await res.json();
       const settings = data?.settings || {};
-      if (accountSidInput) accountSidInput.value = settings.accountSid || localStorage.getItem('jvgh_twilio_account_sid') || '';
-      if (fromInput) fromInput.value = settings.from || localStorage.getItem('jvgh_twilio_from') || '';
-      if (contentSidInput) contentSidInput.value = settings.contentSid || localStorage.getItem('jvgh_twilio_content_sid') || '';
+      localStorage.setItem('jvgh_twilio_account_sid', settings.accountSid || localStorage.getItem('jvgh_twilio_account_sid') || '');
       if (authTokenInput) authTokenInput.value = settings.authToken || localStorage.getItem('jvgh_twilio_auth_token') || '';
     } catch {
-      if (accountSidInput) accountSidInput.value = localStorage.getItem('jvgh_twilio_account_sid') || '';
-      if (fromInput) fromInput.value = localStorage.getItem('jvgh_twilio_from') || '';
-      if (contentSidInput) contentSidInput.value = localStorage.getItem('jvgh_twilio_content_sid') || '';
       if (authTokenInput) authTokenInput.value = localStorage.getItem('jvgh_twilio_auth_token') || '';
     }
   };
@@ -110,14 +112,11 @@ function ensureAvailabilityOverlay() {
 
   overlay.querySelector('#jvgh-whatsapp-settings-save')?.addEventListener('click', async () => {
     const payload = {
-      accountSid: accountSidInput?.value?.trim() || '',
-      from: fromInput?.value?.trim() || '',
-      contentSid: contentSidInput?.value?.trim() || '',
+      accountSid: localStorage.getItem('jvgh_twilio_account_sid') || '',
+      from: FROM_NUMBER,
+      contentSid: CONTENT_SID,
       authToken: authTokenInput?.value?.trim() || '',
     };
-    localStorage.setItem('jvgh_twilio_account_sid', payload.accountSid);
-    localStorage.setItem('jvgh_twilio_from', payload.from);
-    localStorage.setItem('jvgh_twilio_content_sid', payload.contentSid);
     localStorage.setItem('jvgh_twilio_auth_token', payload.authToken);
     try {
       const res = await fetch('/api/whatsapp-settings', {
@@ -2255,13 +2254,13 @@ ${getAvailabilityLinkForUser(userId)}`;
   function sendAvailabilityReminderMails() {
     const overlay = ensureAvailabilityOverlay();
     const statusEl = overlay.querySelector('#jvgh-send-whatsapp-status');
-    const usersWrap = overlay.querySelector('#jvgh-whatsapp-users');
+    const bestuurPanel = overlay.querySelector('#jvgh-whatsapp-bestuur-panel');
+    const vrijwilligersPanel = overlay.querySelector('#jvgh-whatsapp-vrijwilligers-panel');
     if (statusEl) statusEl.textContent = '';
-    if (usersWrap) {
+    if (bestuurPanel && vrijwilligersPanel) {
       const authTokenInput = overlay.querySelector('#jvgh-twilio-auth-token');
-      const makeSection = (title, users = []) => {
+      const makeSection = (users = []) => {
         const section = document.createElement("div");
-        section.innerHTML = `<h3 style="margin:8px 0 4px;">${title}</h3>`;
         users.forEach((user) => {
           const phone = getUserPhone(user);
           const userId = Number(user?.id);
@@ -2282,13 +2281,13 @@ ${getAvailabilityLinkForUser(userId)}`;
               const authToken = authTokenInput?.value?.trim() || '';
               localStorage.setItem('jvgh_twilio_auth_token', authToken);
               const payload = {
-                to: `whatsapp:${phone}`,
+                to: normalizeWhatsappTo(phone),
                 firstName: getUserFirstName(user),
                 userId,
                 authToken,
-                accountSid: accountSidInput?.value?.trim() || '',
-                from: fromInput?.value?.trim() || '',
-                contentSid: contentSidInput?.value?.trim() || '',
+                accountSid: localStorage.getItem('jvgh_twilio_account_sid') || '',
+                from: 'whatsapp:+32460215323',
+                contentSid: 'HX55eb6858d19820160e4b39b840bee4db',
               };
               const res = await fetch('/api/send-availability-whatsapp', {
                 method: 'POST',
@@ -2311,9 +2310,10 @@ ${getAvailabilityLinkForUser(userId)}`;
         return section;
       };
 
-      usersWrap.innerHTML = "";
-      usersWrap.appendChild(makeSection("Bestuur", usersByRole.bestuur));
-      usersWrap.appendChild(makeSection("Vrijwilligers", usersByRole.vrijwilliger));
+      bestuurPanel.innerHTML = "";
+      bestuurPanel.appendChild(makeSection(usersByRole.bestuur));
+      vrijwilligersPanel.innerHTML = "";
+      vrijwilligersPanel.appendChild(makeSection(usersByRole.vrijwilliger));
     }
     overlay.classList.remove('hidden');
   }
@@ -2332,6 +2332,12 @@ ${getAvailabilityLinkForUser(userId)}`;
     if (digits.startsWith("00")) return `+${digits.slice(2)}`;
     if (digits.startsWith("0")) return `+32${digits.slice(1)}`;
     return `+${digits}`;
+  }
+
+  function normalizeWhatsappTo(phone) {
+    const raw = String(phone || "").trim();
+    if (!raw) return "";
+    return raw.startsWith("whatsapp:") ? raw : `whatsapp:${raw}`;
   }
 
   function getUserFirstName(user) {

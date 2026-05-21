@@ -1154,6 +1154,31 @@ body {
   font: inherit;
 }
 
+.jvgh-whatsapp-tabs {
+  display: flex;
+  gap: 8px;
+  margin: 12px 0;
+}
+
+.jvgh-whatsapp-tab {
+  border: 1px solid #cbd5e1;
+  background: #f8fafc;
+  border-radius: 999px;
+  padding: 6px 12px;
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.jvgh-whatsapp-tab.is-active {
+  background: #0f3467;
+  border-color: #0f3467;
+  color: #fff;
+}
+
+.jvgh-whatsapp-panel.hidden {
+  display: none;
+}
+
 /* Distinct iCal source colors */
 .ec .ec-event.ical-jvgh-matches,
 .ec .ical-jvgh-matches {
