@@ -59,8 +59,14 @@ function ensureAvailabilityOverlay() {
       <div id="jvgh-whatsapp-bestuur-panel" class="jvgh-whatsapp-panel" data-panel="bestuur"></div>
       <div id="jvgh-whatsapp-vrijwilligers-panel" class="jvgh-whatsapp-panel hidden" data-panel="vrijwilligers"></div>
       <div id="jvgh-whatsapp-settings-panel" class="jvgh-whatsapp-panel hidden" data-panel="instellingen">
-      <label class="jvgh-whatsapp-field">Twilio Auth Token
-        <input id="jvgh-twilio-auth-token" type="password" placeholder="••••••••••••••••" />
+      <label class="jvgh-whatsapp-field">Afzender (zichtbaar, hard coded)
+        <input id="jvgh-whatsapp-from" type="text" readonly />
+      </label>
+      <label class="jvgh-whatsapp-field">Template SID (zichtbaar, hard coded)
+        <input id="jvgh-whatsapp-content-sid" type="text" readonly />
+      </label>
+      <label class="jvgh-whatsapp-field">Bericht sjabloon
+        <textarea id="jvgh-whatsapp-message-template" rows="5" placeholder="Gebruik {name} en {link}"></textarea>
       </label>
       <button type="button" id="jvgh-whatsapp-settings-save" class="jvgh-calendar-control-btn">Instellingen opslaan</button>
       </div>
@@ -78,11 +84,17 @@ function ensureAvailabilityOverlay() {
     if (event.target === overlay) overlay.classList.add('hidden');
   });
 
-  const authTokenInput = overlay.querySelector('#jvgh-twilio-auth-token');
   const bestuurPanel = overlay.querySelector('#jvgh-whatsapp-bestuur-panel');
   const vrijwilligersPanel = overlay.querySelector('#jvgh-whatsapp-vrijwilligers-panel');
+  const fromInput = overlay.querySelector('#jvgh-whatsapp-from');
+  const contentSidInput = overlay.querySelector('#jvgh-whatsapp-content-sid');
+  const templateInput = overlay.querySelector('#jvgh-whatsapp-message-template');
   const FROM_NUMBER = 'whatsapp:+32460215323';
   const CONTENT_SID = 'HX55eb6858d19820160e4b39b840bee4db';
+  const DEFAULT_MESSAGE_TEMPLATE = `Beste {name},
+
+Vul uw beschikbaarheid in via onderstaande link:
+{link}`;
   const tabs = Array.from(overlay.querySelectorAll('.jvgh-whatsapp-tab'));
   const panels = Array.from(overlay.querySelectorAll('.jvgh-whatsapp-panel'));
   const activateTab = (tabName) => {
@@ -97,42 +109,21 @@ function ensureAvailabilityOverlay() {
   };
   tabs.forEach((tab) => tab.addEventListener('click', () => activateTab(tab.dataset.tab)));
 
-  const loadSettings = async () => {
-    try {
-      const res = await fetch('/api/whatsapp-settings');
-      const data = await res.json();
-      const settings = data?.settings || {};
-      localStorage.setItem('jvgh_twilio_account_sid', settings.accountSid || localStorage.getItem('jvgh_twilio_account_sid') || '');
-      if (authTokenInput) authTokenInput.value = settings.authToken || localStorage.getItem('jvgh_twilio_auth_token') || '';
-    } catch {
-      if (authTokenInput) authTokenInput.value = localStorage.getItem('jvgh_twilio_auth_token') || '';
-    }
+  const loadSettings = () => {
+    if (fromInput) fromInput.value = FROM_NUMBER;
+    if (contentSidInput) contentSidInput.value = CONTENT_SID;
+    const savedTemplate = localStorage.getItem('jvgh_whatsapp_message_template') || DEFAULT_MESSAGE_TEMPLATE;
+    if (templateInput) templateInput.value = savedTemplate;
   };
   loadSettings();
 
-  overlay.querySelector('#jvgh-whatsapp-settings-save')?.addEventListener('click', async () => {
-    const payload = {
-      accountSid: localStorage.getItem('jvgh_twilio_account_sid') || '',
-      from: FROM_NUMBER,
-      contentSid: CONTENT_SID,
-      authToken: authTokenInput?.value?.trim() || '',
-    };
-    localStorage.setItem('jvgh_twilio_auth_token', payload.authToken);
-    try {
-      const res = await fetch('/api/whatsapp-settings', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-      const data = await res.json();
-      const statusEl = overlay.querySelector('#jvgh-send-whatsapp-status');
-      if (!res.ok || !data.ok) throw new Error(data.error || 'Opslaan mislukt');
-      if (statusEl) statusEl.textContent = 'Instellingen opgeslagen.';
-    } catch (error) {
-      const statusEl = overlay.querySelector('#jvgh-send-whatsapp-status');
-      if (statusEl) statusEl.textContent = `Instellingen lokaal opgeslagen (WordPress sync mislukt: ${error.message})`;
-    }
+  overlay.querySelector('#jvgh-whatsapp-settings-save')?.addEventListener('click', () => {
+    const statusEl = overlay.querySelector('#jvgh-send-whatsapp-status');
+    const template = templateInput?.value?.trim() || DEFAULT_MESSAGE_TEMPLATE;
+    localStorage.setItem('jvgh_whatsapp_message_template', template);
+    if (statusEl) statusEl.textContent = 'Instellingen opgeslagen.';
   });
+
 
   return overlay;
 }
@@ -2290,28 +2281,15 @@ ${getAvailabilityLinkForUser(userId)}`;
             if (!statusEl) return;
             statusEl.textContent = "Versturen...";
             try {
-              const authToken = authTokenInput?.value?.trim() || '';
-              localStorage.setItem('jvgh_twilio_auth_token', authToken);
-              const payload = {
-                to: normalizeWhatsappTo(phone),
-                firstName: getUserFirstName(user),
-                userId,
-                authToken,
-                accountSid: localStorage.getItem('jvgh_twilio_account_sid') || '',
-                from: 'whatsapp:+32460215323',
-                contentSid: 'HX55eb6858d19820160e4b39b840bee4db',
-              };
-              const res = await fetch('/api/send-availability-whatsapp', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload),
-              });
-              const data = await res.json();
-              if (!res.ok || !data.ok) {
-                const codePart = data?.code ? ` (code ${data.code})` : '';
-                throw new Error(`${data.error || 'Onbekende fout'}${codePart}`);
-              }
-              statusEl.textContent = `Verzonden naar ${user?.name || "-"}. SID: ${data.sid}`;
+              const link = getAvailabilityLinkForUser(userId);
+              const template = templateInput?.value?.trim() || DEFAULT_MESSAGE_TEMPLATE;
+              const message = template
+                .replaceAll('{name}', user?.name || '-')
+                .replaceAll('{firstName}', getUserFirstName(user))
+                .replaceAll('{link}', link);
+              const whatsappUrl = `https://wa.me/${encodeURIComponent(phone.replace('+', ''))}?text=${encodeURIComponent(message)}`;
+              window.open(whatsappUrl, '_blank', 'noopener');
+              statusEl.textContent = `WhatsApp geopend voor ${user?.name || "-"}.`;
             } catch (error) {
               statusEl.textContent = `Verzenden mislukt: ${error.message}`;
             }
@@ -2395,12 +2373,6 @@ ${getAvailabilityLinkForUser(userId)}`;
     const numberPart = digits.replace(/^\+/, "");
     if (!/^\d{8,15}$/.test(numberPart)) return "";
     return `+${numberPart}`;
-  }
-
-  function normalizeWhatsappTo(phone) {
-    const raw = String(phone || "").trim();
-    if (!raw) return "";
-    return raw.startsWith("whatsapp:") ? raw : `whatsapp:${raw}`;
   }
 
   function getUserFirstName(user) {
