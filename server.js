@@ -5,6 +5,7 @@ const twilio = require('twilio');
 const app = express();
 const port = Number(process.env.PORT || 8080);
 const wpSettingsUrl = process.env.WP_WHATSAPP_SETTINGS_URL || 'https://jeugdherk.be/wp-json/jvgh/v1/whatsapp-settings';
+const wpVolunteersUrl = process.env.WP_VOLUNTEERS_URL || 'https://jeugdherk.be/wp-json/jvgh/v1/volunteers';
 
 app.use(express.json());
 app.use(express.static(__dirname));
@@ -25,6 +26,63 @@ async function fetchWpWhatsAppSettings() {
   if (!res.ok) throw new Error(`WordPress settings fetch failed: HTTP ${res.status}`);
   return res.json();
 }
+
+async function fetchWpUserDetails(userId) {
+  const headers = {};
+  const authHeader = getWpAuthHeader();
+  if (authHeader) headers.Authorization = authHeader;
+  headers.Accept = 'application/json';
+
+  const id = Number(userId);
+  if (!Number.isFinite(id) || id <= 0) return null;
+
+  const endpoints = [
+    `https://jeugdherk.be/wp-json/wp/v2/users/${id}?context=edit`,
+    `https://jeugdherk.be/wp-json/wp/v2/users/${id}`,
+    `https://jeugdherk.be/wp-json/wp/v2/users?include=${id}&per_page=1`,
+  ];
+
+  for (const url of endpoints) {
+    try {
+      const res = await fetch(url, { headers });
+      if (!res.ok) continue;
+      const data = await res.json();
+      return Array.isArray(data) ? (data[0] || null) : data;
+    } catch (_error) {
+      // Try the next endpoint
+    }
+  }
+  return null;
+}
+
+app.get('/api/volunteers', async (req, res) => {
+  try {
+    const role = String(req.query?.role || '').trim();
+    const url = role ? `${wpVolunteersUrl}?role=${encodeURIComponent(role)}` : wpVolunteersUrl;
+
+    const headers = {};
+    const authHeader = getWpAuthHeader();
+    if (authHeader) headers.Authorization = authHeader;
+    const volunteersRes = await fetch(url, { headers });
+    if (!volunteersRes.ok) {
+      return res.status(volunteersRes.status).json({ ok: false, error: `WordPress volunteers fetch failed: HTTP ${volunteersRes.status}` });
+    }
+    const volunteers = await volunteersRes.json();
+    if (!Array.isArray(volunteers)) return res.json([]);
+
+    const enriched = await Promise.all(volunteers.map(async (user) => {
+      const wpUser = await fetchWpUserDetails(user?.id);
+      return {
+        ...user,
+        systemuser: wpUser || null,
+      };
+    }));
+
+    return res.json(enriched);
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message || 'Failed to load volunteers.' });
+  }
+});
 
 app.get('/api/whatsapp-settings', async (_req, res) => {
   try {

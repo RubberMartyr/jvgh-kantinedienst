@@ -2152,7 +2152,7 @@ if (playerSelect) {
   JVGH_loadYouthTeams();
 
   // --- Volunteers / Bestuur: load from WP REST API ---
-  const baseVolunteersUrl = `https://jeugdherk.be/wp-json/jvgh/v1/volunteers`;
+  const baseVolunteersUrl = `/api/volunteers`;
   const roleDurationMinutes = {
     bestuur: 270,
     vrijwilliger: 240,
@@ -2262,7 +2262,8 @@ ${getAvailabilityLinkForUser(userId)}`;
       const makeSection = (users = []) => {
         const section = document.createElement("div");
         users.forEach((user) => {
-          const phone = getUserPhone(user);
+          const phoneInfo = getUserPhoneInfo(user);
+          const phone = phoneInfo.normalized;
           const userId = Number(user?.id);
           const row = document.createElement("div");
           row.className = "resource-line";
@@ -2272,11 +2273,11 @@ ${getAvailabilityLinkForUser(userId)}`;
           btn.type = "button";
           btn.className = "jvgh-calendar-control-btn";
           btn.textContent = "WhatsApp";
-          const isMissingPhone = !phone;
+          const isInvalidPhone = !phone;
           const isInvalidUserId = !Number.isFinite(userId) || userId <= 0;
-          btn.disabled = isMissingPhone || isInvalidUserId;
-          const disabledReason = isMissingPhone
-            ? "Geen geldig telefoonnummer beschikbaar voor deze gebruiker."
+          btn.disabled = isInvalidPhone || isInvalidUserId;
+          const disabledReason = isInvalidPhone
+            ? phoneInfo.reason || "Geen geldig telefoonnummer beschikbaar voor deze gebruiker."
             : "Gebruiker heeft geen geldig ID om een bericht te versturen.";
           const tooltipWrapper = document.createElement("span");
           tooltipWrapper.title = btn.disabled ? disabledReason : "";
@@ -2335,15 +2336,65 @@ ${getAvailabilityLinkForUser(userId)}`;
     return String(user.email || user.user_email || user.mail || "").trim();
   }
 
-  function getUserPhone(user) {
-    if (!user || typeof user !== "object") return "";
-    const raw = String(user.phone || user.mobile || user.whatsapp || user.tel || "").trim();
+  function getUserPhoneInfo(user) {
+    if (!user || typeof user !== "object") {
+      return { normalized: "", reason: "Geen gebruikersdata beschikbaar." };
+    }
+
+    const sources = [
+      user.phone,
+      user.mobile,
+      user.whatsapp,
+      user.tel,
+      user.telefoon,
+      user.gsm,
+      user.user_phone,
+      user.phone_number,
+      user?.meta?.phone,
+      user?.meta?.mobile,
+      user?.meta?.telefoon,
+      user?.acf?.phone,
+      user?.acf?.mobile,
+      user?.acf?.telefoon,
+      user?.systemuser?.phone,
+      user?.systemuser?.mobile,
+      user?.systemuser?.telefoon,
+    ];
+
+    const raw = sources.find((value) => String(value || "").trim()) || "";
+    const rawPhone = String(raw).trim();
+    if (!rawPhone) {
+      return {
+        normalized: "",
+        reason: "Geen telefoonnummer gevonden in de API-respons voor deze gebruiker.",
+      };
+    }
+
+    const normalized = normalizePhoneNumber(rawPhone);
+    if (!normalized) {
+      return {
+        normalized: "",
+        reason: `Ongeldig telefoonnummer: ${rawPhone}`,
+      };
+    }
+
+    return { normalized, reason: "" };
+  }
+
+  function normalizePhoneNumber(rawPhone) {
+    const raw = String(rawPhone || "").trim();
     if (!raw) return "";
-    const digits = raw.replace(/[^\d+]/g, "");
-    if (digits.startsWith("+")) return digits;
-    if (digits.startsWith("00")) return `+${digits.slice(2)}`;
-    if (digits.startsWith("0")) return `+32${digits.slice(1)}`;
-    return `+${digits}`;
+
+    let digits = raw.replace(/[^\d+]/g, "");
+    if (!digits) return "";
+
+    if (digits.startsWith("00")) digits = `+${digits.slice(2)}`;
+    else if (!digits.startsWith("+") && digits.startsWith("0")) digits = `+32${digits.slice(1)}`;
+    else if (!digits.startsWith("+")) digits = `+${digits}`;
+
+    const numberPart = digits.replace(/^\+/, "");
+    if (!/^\d{8,15}$/.test(numberPart)) return "";
+    return `+${numberPart}`;
   }
 
   function normalizeWhatsappTo(phone) {
