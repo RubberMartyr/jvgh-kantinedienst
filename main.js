@@ -65,10 +65,10 @@ function ensureAvailabilityOverlay() {
       <label class="jvgh-whatsapp-field">Template SID (zichtbaar, hard coded)
         <input id="jvgh-whatsapp-content-sid" type="text" readonly />
       </label>
-      <label class="jvgh-whatsapp-field">Bericht sjabloon
-        <textarea id="jvgh-whatsapp-message-template" rows="5" placeholder="Gebruik {name} en {link}"></textarea>
+      <label class="jvgh-whatsapp-field">Auth token (Twilio)
+        <input id="jvgh-twilio-auth-token" type="password" placeholder="Alleen nodig voor server-side Twilio API" />
       </label>
-      <button type="button" id="jvgh-whatsapp-settings-save" class="jvgh-calendar-control-btn">Instellingen opslaan</button>
+      <p class="small-muted" style="margin-top:6px;">WhatsApp verzenden gebeurt hier via uw eigen WhatsApp app (wa.me). Dit gebruikt geen Twilio auth token of bericht-sjabloon.</p>
       </div>
       <div id="jvgh-send-whatsapp-status" class="small-muted"></div>
     </div>
@@ -88,7 +88,6 @@ function ensureAvailabilityOverlay() {
   const vrijwilligersPanel = overlay.querySelector('#jvgh-whatsapp-vrijwilligers-panel');
   const fromInput = overlay.querySelector('#jvgh-whatsapp-from');
   const contentSidInput = overlay.querySelector('#jvgh-whatsapp-content-sid');
-  const templateInput = overlay.querySelector('#jvgh-whatsapp-message-template');
   const FROM_NUMBER = 'whatsapp:+32460215323';
   const CONTENT_SID = 'HX55eb6858d19820160e4b39b840bee4db';
   const DEFAULT_MESSAGE_TEMPLATE = `Beste {name},
@@ -112,17 +111,8 @@ Vul uw beschikbaarheid in via onderstaande link:
   const loadSettings = () => {
     if (fromInput) fromInput.value = FROM_NUMBER;
     if (contentSidInput) contentSidInput.value = CONTENT_SID;
-    const savedTemplate = localStorage.getItem('jvgh_whatsapp_message_template') || DEFAULT_MESSAGE_TEMPLATE;
-    if (templateInput) templateInput.value = savedTemplate;
   };
   loadSettings();
-
-  overlay.querySelector('#jvgh-whatsapp-settings-save')?.addEventListener('click', () => {
-    const statusEl = overlay.querySelector('#jvgh-send-whatsapp-status');
-    const template = templateInput?.value?.trim() || DEFAULT_MESSAGE_TEMPLATE;
-    localStorage.setItem('jvgh_whatsapp_message_template', template);
-    if (statusEl) statusEl.textContent = 'Instellingen opgeslagen.';
-  });
 
 
   return overlay;
@@ -2249,9 +2239,16 @@ ${getAvailabilityLinkForUser(userId)}`;
     const vrijwilligersPanel = overlay.querySelector('#jvgh-whatsapp-vrijwilligers-panel');
     if (statusEl) statusEl.textContent = '';
     if (bestuurPanel && vrijwilligersPanel) {
-      const authTokenInput = overlay.querySelector('#jvgh-twilio-auth-token');
-      const makeSection = (users = []) => {
+      const makeSection = (users = [], roleLabel = '') => {
         const section = document.createElement("div");
+        if (!Array.isArray(users) || users.length === 0) {
+          const empty = document.createElement("p");
+          empty.className = "small-muted";
+          empty.textContent = `Geen ${roleLabel || 'gebruikers'} gevonden.`;
+          section.appendChild(empty);
+          return section;
+        }
+
         users.forEach((user) => {
           const phoneInfo = getUserPhoneInfo(user);
           const phone = phoneInfo.normalized;
@@ -2282,7 +2279,7 @@ ${getAvailabilityLinkForUser(userId)}`;
             statusEl.textContent = "Versturen...";
             try {
               const link = getAvailabilityLinkForUser(userId);
-              const template = templateInput?.value?.trim() || DEFAULT_MESSAGE_TEMPLATE;
+              const template = DEFAULT_MESSAGE_TEMPLATE;
               const message = template
                 .replaceAll('{name}', user?.name || '-')
                 .replaceAll('{firstName}', getUserFirstName(user))
@@ -2302,9 +2299,9 @@ ${getAvailabilityLinkForUser(userId)}`;
       };
 
       bestuurPanel.innerHTML = "";
-      bestuurPanel.appendChild(makeSection(usersByRole.bestuur));
+      bestuurPanel.appendChild(makeSection(usersByRole.bestuur, 'bestuursleden'));
       vrijwilligersPanel.innerHTML = "";
-      vrijwilligersPanel.appendChild(makeSection(usersByRole.vrijwilliger));
+      vrijwilligersPanel.appendChild(makeSection(usersByRole.vrijwilliger, 'vrijwilligers'));
     }
     overlay.classList.remove('hidden');
   }
@@ -2441,6 +2438,10 @@ ${getAvailabilityLinkForUser(userId)}`;
         containerEl.innerHTML = "";
 
         if (!Array.isArray(users) || users.length === 0) {
+          if (role === "bestuur") {
+            containerEl.innerHTML = '<p style="margin:6px 0;color:#6c757d;">Geen bestuursleden gevonden.</p>';
+            return;
+          }
           containerEl.innerHTML =
             '<p style="margin:6px 0;color:#6c757d;">Geen namen gevonden.</p>';
           return;
