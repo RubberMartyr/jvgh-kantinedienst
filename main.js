@@ -2275,10 +2275,14 @@ ${getAvailabilityLinkForUser(userId)}`;
           const isMissingPhone = !phone;
           const isInvalidUserId = !Number.isFinite(userId) || userId <= 0;
           btn.disabled = isMissingPhone || isInvalidUserId;
+          const disabledReason = isMissingPhone
+            ? "Geen geldig telefoonnummer beschikbaar voor deze gebruiker."
+            : "Gebruiker heeft geen geldig ID om een bericht te versturen.";
+          const tooltipWrapper = document.createElement("span");
+          tooltipWrapper.title = btn.disabled ? disabledReason : "";
+          tooltipWrapper.style.display = "inline-block";
           if (btn.disabled) {
-            btn.title = isMissingPhone
-              ? "Geen geldig telefoonnummer beschikbaar voor deze gebruiker."
-              : "Gebruiker heeft geen geldig ID om een bericht te versturen.";
+            btn.setAttribute("aria-label", disabledReason);
           }
           btn.addEventListener("click", async (event) => {
             event.stopPropagation();
@@ -2311,7 +2315,8 @@ ${getAvailabilityLinkForUser(userId)}`;
               statusEl.textContent = `Verzenden mislukt: ${error.message}`;
             }
           });
-          row.appendChild(btn);
+          tooltipWrapper.appendChild(btn);
+          row.appendChild(tooltipWrapper);
           section.appendChild(row);
         });
         return section;
