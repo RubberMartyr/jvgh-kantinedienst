@@ -68,7 +68,7 @@ function ensureAvailabilityOverlay() {
       <label class="jvgh-whatsapp-field">Auth token (Twilio)
         <input id="jvgh-twilio-auth-token" type="password" placeholder="Alleen nodig voor server-side Twilio API" />
       </label>
-      <p class="small-muted" style="margin-top:6px;">WhatsApp verzenden gebeurt hier via uw eigen WhatsApp app (wa.me). Dit gebruikt geen Twilio auth token of bericht-sjabloon.</p>
+      <p class="small-muted" style="margin-top:6px;">WhatsApp verzenden gebeurt server-side via Twilio. Het auth token is enkel nodig als dit niet op de server is ingesteld.</p>
       </div>
       <div id="jvgh-send-whatsapp-status" class="small-muted"></div>
     </div>
@@ -88,8 +88,6 @@ function ensureAvailabilityOverlay() {
   const vrijwilligersPanel = overlay.querySelector('#jvgh-whatsapp-vrijwilligers-panel');
   const fromInput = overlay.querySelector('#jvgh-whatsapp-from');
   const contentSidInput = overlay.querySelector('#jvgh-whatsapp-content-sid');
-  const FROM_NUMBER = 'whatsapp:+32460215323';
-  const CONTENT_SID = 'HX55eb6858d19820160e4b39b840bee4db';
   const tabs = Array.from(overlay.querySelectorAll('.jvgh-whatsapp-tab'));
   const panels = Array.from(overlay.querySelectorAll('.jvgh-whatsapp-panel'));
   const activateTab = (tabName) => {
@@ -119,10 +117,8 @@ document.getElementById("print-button").addEventListener("click", () => {
 });
 
 
-const WHATSAPP_DEFAULT_MESSAGE_TEMPLATE = `Beste {name},
-
-Vul uw beschikbaarheid in via onderstaande link:
-{link}`;
+const FROM_NUMBER = 'whatsapp:+32460215323';
+const CONTENT_SID = 'HX55eb6858d19820160e4b39b840bee4db';
 
 const DEFAULT_ASSIGNMENT_DURATION_MINUTES = 240;
 
@@ -2280,15 +2276,25 @@ ${getAvailabilityLinkForUser(userId)}`;
             if (!statusEl) return;
             statusEl.textContent = "Versturen...";
             try {
-              const link = getAvailabilityLinkForUser(userId);
-              const template = WHATSAPP_DEFAULT_MESSAGE_TEMPLATE;
-              const message = template
-                .replaceAll('{name}', user?.name || '-')
-                .replaceAll('{firstName}', getUserFirstName(user))
-                .replaceAll('{link}', link);
-              const whatsappUrl = `https://wa.me/${encodeURIComponent(phone.replace('+', ''))}?text=${encodeURIComponent(message)}`;
-              window.open(whatsappUrl, '_blank', 'noopener');
-              statusEl.textContent = `WhatsApp geopend voor ${user?.name || "-"}.`;
+              const overlayEl = ensureAvailabilityOverlay();
+              const authTokenInput = overlayEl.querySelector('#jvgh-twilio-auth-token');
+              const authToken = String(authTokenInput?.value || '').trim();
+
+              const response = await fetch('/api/send-availability-whatsapp', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  ...(authToken ? { authToken } : {}),
+                  to: phone,
+                  firstName: getUserFirstName(user),
+                  userId: String(userId),
+                }),
+              });
+              const payload = await response.json();
+              if (!response.ok || !payload?.ok) {
+                throw new Error(payload?.error || 'Twilio verzending mislukt.');
+              }
+              statusEl.textContent = `WhatsApp verzonden via Twilio naar ${user?.name || "-"}.`;
             } catch (error) {
               statusEl.textContent = `Verzenden mislukt: ${error.message}`;
             }
