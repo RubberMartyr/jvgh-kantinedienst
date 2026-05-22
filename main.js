@@ -90,10 +90,6 @@ function ensureAvailabilityOverlay() {
   const contentSidInput = overlay.querySelector('#jvgh-whatsapp-content-sid');
   const FROM_NUMBER = 'whatsapp:+32460215323';
   const CONTENT_SID = 'HX55eb6858d19820160e4b39b840bee4db';
-  const DEFAULT_MESSAGE_TEMPLATE = `Beste {name},
-
-Vul uw beschikbaarheid in via onderstaande link:
-{link}`;
   const tabs = Array.from(overlay.querySelectorAll('.jvgh-whatsapp-tab'));
   const panels = Array.from(overlay.querySelectorAll('.jvgh-whatsapp-panel'));
   const activateTab = (tabName) => {
@@ -121,6 +117,12 @@ Vul uw beschikbaarheid in via onderstaande link:
 document.getElementById("print-button").addEventListener("click", () => {
   window.print();
 });
+
+
+const WHATSAPP_DEFAULT_MESSAGE_TEMPLATE = `Beste {name},
+
+Vul uw beschikbaarheid in via onderstaande link:
+{link}`;
 
 const DEFAULT_ASSIGNMENT_DURATION_MINUTES = 240;
 
@@ -2279,7 +2281,7 @@ ${getAvailabilityLinkForUser(userId)}`;
             statusEl.textContent = "Versturen...";
             try {
               const link = getAvailabilityLinkForUser(userId);
-              const template = DEFAULT_MESSAGE_TEMPLATE;
+              const template = WHATSAPP_DEFAULT_MESSAGE_TEMPLATE;
               const message = template
                 .replaceAll('{name}', user?.name || '-')
                 .replaceAll('{firstName}', getUserFirstName(user))
