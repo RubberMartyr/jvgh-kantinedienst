@@ -59,16 +59,19 @@ function ensureAvailabilityOverlay() {
       <div id="jvgh-whatsapp-bestuur-panel" class="jvgh-whatsapp-panel" data-panel="bestuur"></div>
       <div id="jvgh-whatsapp-vrijwilligers-panel" class="jvgh-whatsapp-panel hidden" data-panel="vrijwilligers"></div>
       <div id="jvgh-whatsapp-settings-panel" class="jvgh-whatsapp-panel hidden" data-panel="instellingen">
-      <label class="jvgh-whatsapp-field">Afzender (zichtbaar, hard coded)
-        <input id="jvgh-whatsapp-from" type="text" readonly />
+      <label class="jvgh-whatsapp-field">Account SID (Twilio)
+        <input id="jvgh-whatsapp-account-sid" type="text" placeholder="ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" />
       </label>
-      <label class="jvgh-whatsapp-field">Template SID (zichtbaar, hard coded)
-        <input id="jvgh-whatsapp-content-sid" type="text" readonly />
+      <label class="jvgh-whatsapp-field">Afzender (Twilio WhatsApp nummer)
+        <input id="jvgh-whatsapp-from" type="text" placeholder="whatsapp:+32460215323" />
+      </label>
+      <label class="jvgh-whatsapp-field">Template SID (Twilio ContentSid)
+        <input id="jvgh-whatsapp-content-sid" type="text" placeholder="HXxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" />
       </label>
       <label class="jvgh-whatsapp-field">Auth token (Twilio)
         <input id="jvgh-twilio-auth-token" type="password" placeholder="Alleen nodig voor server-side Twilio API" />
       </label>
-      <p class="small-muted" style="margin-top:6px;">WhatsApp verzenden gebeurt server-side via Twilio. Het auth token is enkel nodig als dit niet op de server is ingesteld.</p>
+      <p class="small-muted" style="margin-top:6px;">WhatsApp verzenden gebeurt rechtstreeks vanuit de browser via de Twilio API.</p>
       </div>
       <div id="jvgh-send-whatsapp-status" class="small-muted"></div>
     </div>
@@ -86,6 +89,7 @@ function ensureAvailabilityOverlay() {
 
   const bestuurPanel = overlay.querySelector('#jvgh-whatsapp-bestuur-panel');
   const vrijwilligersPanel = overlay.querySelector('#jvgh-whatsapp-vrijwilligers-panel');
+  const accountSidInput = overlay.querySelector('#jvgh-whatsapp-account-sid');
   const fromInput = overlay.querySelector('#jvgh-whatsapp-from');
   const contentSidInput = overlay.querySelector('#jvgh-whatsapp-content-sid');
   const tabs = Array.from(overlay.querySelectorAll('.jvgh-whatsapp-tab'));
@@ -102,13 +106,6 @@ function ensureAvailabilityOverlay() {
   };
   tabs.forEach((tab) => tab.addEventListener('click', () => activateTab(tab.dataset.tab)));
 
-  const loadSettings = () => {
-    if (fromInput) fromInput.value = FROM_NUMBER;
-    if (contentSidInput) contentSidInput.value = CONTENT_SID;
-  };
-  loadSettings();
-
-
   return overlay;
 }
 
@@ -116,9 +113,6 @@ document.getElementById("print-button").addEventListener("click", () => {
   window.print();
 });
 
-
-const FROM_NUMBER = 'whatsapp:+32460215323';
-const CONTENT_SID = 'HX55eb6858d19820160e4b39b840bee4db';
 
 const DEFAULT_ASSIGNMENT_DURATION_MINUTES = 240;
 
@@ -2277,22 +2271,40 @@ ${getAvailabilityLinkForUser(userId)}`;
             statusEl.textContent = "Versturen...";
             try {
               const overlayEl = ensureAvailabilityOverlay();
+              const accountSidInput = overlayEl.querySelector('#jvgh-whatsapp-account-sid');
+              const fromInput = overlayEl.querySelector('#jvgh-whatsapp-from');
+              const contentSidInput = overlayEl.querySelector('#jvgh-whatsapp-content-sid');
               const authTokenInput = overlayEl.querySelector('#jvgh-twilio-auth-token');
+
+              const accountSid = String(accountSidInput?.value || '').trim();
+              const from = String(fromInput?.value || '').trim();
+              const contentSid = String(contentSidInput?.value || '').trim();
               const authToken = String(authTokenInput?.value || '').trim();
 
-              const response = await fetch('/api/send-availability-whatsapp', {
+              if (!accountSid || !from || !contentSid || !authToken) {
+                throw new Error('Vul Account SID, From, Content SID en Auth token in via Instellingen.');
+              }
+
+              const params = new URLSearchParams();
+              params.set('To', phone);
+              params.set('From', from);
+              params.set('ContentSid', contentSid);
+              params.set('ContentVariables', JSON.stringify({
+                "1": getUserFirstName(user),
+                "2": String(userId),
+              }));
+
+              const response = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${encodeURIComponent(accountSid)}/Messages.json`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  ...(authToken ? { authToken } : {}),
-                  to: phone,
-                  firstName: getUserFirstName(user),
-                  userId: String(userId),
-                }),
+                headers: {
+                  'Content-Type': 'application/x-www-form-urlencoded',
+                  Authorization: `Basic ${btoa(`${accountSid}:${authToken}`)}`,
+                },
+                body: params.toString(),
               });
               const payload = await response.json();
-              if (!response.ok || !payload?.ok) {
-                throw new Error(payload?.error || 'Twilio verzending mislukt.');
+              if (!response.ok) {
+                throw new Error(payload?.message || payload?.error || 'Twilio verzending mislukt.');
               }
               statusEl.textContent = `WhatsApp verzonden via Twilio naar ${user?.name || "-"}.`;
             } catch (error) {
