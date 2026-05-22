@@ -2285,8 +2285,12 @@ ${getAvailabilityLinkForUser(userId)}`;
                 throw new Error('Vul Account SID, From, Content SID en Auth token in via Instellingen.');
               }
 
+              const whatsappTo = phone && !phone.toLowerCase().startsWith('whatsapp:')
+                ? `whatsapp:${phone}`
+                : phone;
+
               const params = new URLSearchParams();
-              params.set('To', phone);
+              params.set('To', whatsappTo);
               params.set('From', from);
               params.set('ContentSid', contentSid);
               params.set('ContentVariables', JSON.stringify({
