@@ -65,6 +65,26 @@
       font-weight: 600;
     }
 
+    .availability-month-unavailable {
+      margin: 0 0 14px;
+      padding: 10px 12px;
+      border: 1px solid #d1d5db;
+      border-radius: 10px;
+      background: #f9fafb;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 16px;
+      font-weight: 600;
+      color: #1f2937;
+    }
+
+    .availability-month-unavailable input[type="checkbox"] {
+      width: 20px;
+      height: 20px;
+      cursor: pointer;
+    }
+
     .availability-save-wrap {
       display: flex;
       justify-content: stretch;
@@ -244,6 +264,10 @@
   <section class="availability-wrap">
     <div class="availability-meta" id="availability-meta"></div>
     <div class="availability-status" id="availability-status">Laden…</div>
+    <label class="availability-month-unavailable" for="availability-month-unavailable-checkbox">
+      <input type="checkbox" id="availability-month-unavailable-checkbox" />
+      Ik ben niet beschikbaar deze maand
+    </label>
     <div class="availability-actions-wrap hidden">
       <button id="availability-add-calendar" class="availability-calendar-btn">Add to calendar</button>
     </div>

@@ -74,6 +74,24 @@ function parseMonthInput(raw) {
   return null;
 }
 
+
+function monthUnavailableTask(monthKey) {
+  return {
+    id: null,
+    date: `${monthKey}-01`,
+    time: "",
+    qty: 0,
+    title: "Ik ben niet beschikbaar deze maand",
+    source: "monthly-unavailable",
+    sourceReason: "Maand niet beschikbaar",
+    isMonthUnavailableDummy: true,
+  };
+}
+
+function isMonthUnavailableTask(task) {
+  return Boolean(task?.isMonthUnavailableDummy || task?.source === "monthly-unavailable");
+}
+
 function getDurationMinutes(taskQty) {
   const qty = Number(taskQty);
   if (!Number.isFinite(qty)) return DEFAULT_ASSIGNMENT_DURATION_MINUTES;
@@ -99,6 +117,9 @@ function formatShiftLabel(task) {
 
   const dateStr = String(task.date || "").slice(0, 10);
   const timeStr = String(task.time || "").slice(0, 5);
+  if (isMonthUnavailableTask(task)) {
+    return "Ik ben niet beschikbaar deze maand";
+  }
   if (!dateStr || !timeStr) return "Onbekende shift";
 
   const [y, m, d] = dateStr.split("-").map(Number);
@@ -395,6 +416,7 @@ async function ensureTaskForShift(shift, scheduleByDay) {
   if (shift.id) return shift.id;
   const dayKey = shift.date;
   let scheduleId = scheduleByDay.get(dayKey);
+  const isUnavailable = isMonthUnavailableTask(shift);
 
   if (!scheduleId) {
     const createdSchedule = await JVGHApi.createSchedule({
@@ -418,10 +440,10 @@ async function ensureTaskForShift(shift, scheduleByDay) {
 
   if (!task) {
     const createdTask = await JVGHApi.createTask(scheduleId, {
-      title: `Kantinedienst ${shift.time}`,
-      qty: Number(shift.qty) || DEFAULT_ASSIGNMENT_DURATION_MINUTES,
+      title: isUnavailable ? "Niet beschikbaar deze maand" : `Kantinedienst ${shift.time}`,
+      qty: isUnavailable ? 0 : Number(shift.qty) || DEFAULT_ASSIGNMENT_DURATION_MINUTES,
       date: shift.date,
-      time: shift.time,
+      time: isUnavailable ? "" : shift.time,
     });
     task = createdTask?.task && createdTask.task.id ? createdTask.task : createdTask;
   }
@@ -504,6 +526,7 @@ function renderList({ tasks, stateByTask, userId }) {
     checkbox.type = "checkbox";
     checkbox.checked = state.currentChecked;
     checkbox.title = checkboxHoverTitle(state.signups, userId);
+    checkbox.dataset.shiftKey = shiftKey(task);
 
     const textWrap = document.createElement("div");
     textWrap.className = "availability-item-main";
@@ -552,6 +575,10 @@ function renderList({ tasks, stateByTask, userId }) {
       const dirtyCount = computeDirtyCount(stateByTask);
       setSaveDirtyState(dirtyCount > 0);
       setStatus(dirtyCount > 0 ? `${dirtyCount} wijziging(en) nog op te slaan.` : "Alles opgeslagen.");
+      if (isMonthUnavailableTask(task)) {
+        const monthUnavailableCheckbox = document.getElementById("availability-month-unavailable-checkbox");
+        if (monthUnavailableCheckbox) monthUnavailableCheckbox.checked = checkbox.checked;
+      }
     });
 
     li.appendChild(checkbox);
@@ -727,9 +754,21 @@ document.addEventListener("DOMContentLoaded", async () => {
           time: String(task.time || "").slice(0, 5),
         });
       });
-      const allShifts = Array.from(mergedByKey.values()).sort((a, b) =>
-        `${a.date || ""} ${a.time || ""}`.localeCompare(`${b.date || ""} ${b.time || ""}`)
+      const monthUnavailable = monthUnavailableTask(currentMonthKey);
+      const existingMonthUnavailable = tasks.find((task) =>
+        String(task.date || "").slice(0, 10) === monthUnavailable.date && !String(task.time || "").slice(0, 5)
       );
+      if (existingMonthUnavailable) {
+        mergedByKey.set("month-unavailable", { ...existingMonthUnavailable, ...monthUnavailable });
+      } else {
+        mergedByKey.set("month-unavailable", monthUnavailable);
+      }
+
+      const allShifts = Array.from(mergedByKey.values()).sort((a, b) => {
+        if (isMonthUnavailableTask(a)) return -1;
+        if (isMonthUnavailableTask(b)) return 1;
+        return `${a.date || ""} ${a.time || ""}`.localeCompare(`${b.date || ""} ${b.time || ""}`);
+      });
 
       setStatus("Inschrijvingen laden…");
       const signupsByTask = await loadSignupsByTask(allShifts.filter((s) => s.id));
@@ -755,6 +794,12 @@ document.addEventListener("DOMContentLoaded", async () => {
       setSaveDirtyState(false);
       setSaveButtonsVisible(true);
       setCalendarButtonVisible(true);
+
+      const monthUnavailableCheckbox = document.getElementById("availability-month-unavailable-checkbox");
+      const monthUnavailableState = Array.from(currentStateByTask.values()).find((state) => isMonthUnavailableTask(state.task));
+      if (monthUnavailableCheckbox && monthUnavailableState) {
+        monthUnavailableCheckbox.checked = monthUnavailableState.currentChecked;
+      }
     } catch (err) {
       console.error(err);
       setStatus("Fout bij laden van shifts of inschrijvingen.", true);
@@ -804,6 +849,22 @@ document.addEventListener("DOMContentLoaded", async () => {
 
       setStatus(`${selectedCount} shift(s) geëxporteerd naar kalenderbestand.`);
     };
+  }
+
+  const monthUnavailableCheckbox = document.getElementById("availability-month-unavailable-checkbox");
+  if (monthUnavailableCheckbox) {
+    monthUnavailableCheckbox.addEventListener("change", () => {
+      const monthUnavailableState = Array.from(currentStateByTask.values()).find((state) => isMonthUnavailableTask(state.task));
+      if (!monthUnavailableState) return;
+      monthUnavailableState.currentChecked = monthUnavailableCheckbox.checked;
+      const dirtyCount = computeDirtyCount(currentStateByTask);
+      setSaveDirtyState(dirtyCount > 0);
+      setStatus(dirtyCount > 0 ? `${dirtyCount} wijziging(en) nog op te slaan.` : "Alles opgeslagen.");
+
+      const monthUnavailableStateKey = shiftKey(monthUnavailableState.task);
+      const listCheckbox = document.querySelector(`#availability-list input[data-shift-key="${monthUnavailableStateKey}"]`);
+      if (listCheckbox) listCheckbox.checked = monthUnavailableCheckbox.checked;
+    });
   }
 
   await loadMonth();
