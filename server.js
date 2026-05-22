@@ -120,7 +120,8 @@ app.post('/api/send-availability-whatsapp', async (req, res) => {
     const authToken = String(req.body?.authToken || settings.authToken || process.env.TWILIO_AUTH_TOKEN || '').trim();
     const from = String(req.body?.from || settings.from || '').trim();
     const contentSid = String(req.body?.contentSid || settings.contentSid || '').trim();
-    const to = String(req.body?.to || '').trim();
+    const rawTo = String(req.body?.to || '').trim();
+    const to = rawTo && !rawTo.toLowerCase().startsWith('whatsapp:') ? `whatsapp:${rawTo}` : rawTo;
     const firstName = String(req.body?.firstName || '').trim();
     const userId = String(req.body?.userId || '').trim();
 
