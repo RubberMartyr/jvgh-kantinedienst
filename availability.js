@@ -76,12 +76,16 @@ function parseMonthInput(raw) {
 
 
 function monthUnavailableTask(monthKey) {
+  const start = new Date(`${monthKey}-01T00:00:00`);
+  const end = new Date(`${monthKey}-01T01:00:00`);
   return {
     id: null,
     date: `${monthKey}-01`,
     time: "",
     qty: 0,
     title: "Ik ben niet beschikbaar deze maand",
+    start: start.toISOString(),
+    end: end.toISOString(),
     source: "monthly-unavailable",
     sourceReason: "Maand niet beschikbaar",
     isMonthUnavailableDummy: true,
@@ -419,10 +423,12 @@ async function ensureTaskForShift(shift, scheduleByDay) {
   const isUnavailable = isMonthUnavailableTask(shift);
 
   if (!scheduleId) {
+    const fallbackStart = shift.start || `${shift.date}T00:00:00.000Z`;
+    const fallbackEnd = shift.end || `${shift.date}T01:00:00.000Z`;
     const createdSchedule = await JVGHApi.createSchedule({
       title: `Kantinedienst ${dayKey}`,
-      start: shift.start,
-      end: shift.end,
+      start: fallbackStart,
+      end: fallbackEnd,
     });
     const sch = createdSchedule?.schedule && createdSchedule.schedule.id
       ? createdSchedule.schedule
