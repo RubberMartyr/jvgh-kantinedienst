@@ -512,6 +512,11 @@ function applyMonthUnavailableExclusivity(stateByTask) {
   const monthUnavailableChecked = Boolean(monthUnavailableState.currentChecked);
   const monthUnavailableStateKey = shiftKey(monthUnavailableState.task);
 
+  const listCheckboxByKey = new Map(
+    Array.from(document.querySelectorAll("#availability-list input[data-shift-key]"))
+      .map((checkbox) => [checkbox.dataset.shiftKey, checkbox])
+  );
+
   stateByTask.forEach((state) => {
     if (isMonthUnavailableTask(state.task)) return;
 
@@ -520,7 +525,7 @@ function applyMonthUnavailableExclusivity(stateByTask) {
     }
 
     const key = shiftKey(state.task);
-    const checkbox = document.querySelector(`#availability-list input[data-shift-key="${key}"]`);
+    const checkbox = listCheckboxByKey.get(key);
     if (checkbox) {
       checkbox.checked = state.currentChecked;
       checkbox.disabled = monthUnavailableChecked;
