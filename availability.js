@@ -512,19 +512,24 @@ function applyMonthUnavailableExclusivity(stateByTask) {
   const monthUnavailableChecked = Boolean(monthUnavailableState.currentChecked);
   const monthUnavailableStateKey = shiftKey(monthUnavailableState.task);
 
+  const listCheckboxByKey = new Map(
+    Array.from(document.querySelectorAll("#availability-list input[data-shift-key]"))
+      .map((checkbox) => [checkbox.dataset.shiftKey, checkbox])
+  );
+
   stateByTask.forEach((state) => {
     if (isMonthUnavailableTask(state.task)) return;
-
     if (monthUnavailableChecked) {
       state.currentChecked = false;
     }
+  });
 
-    const key = shiftKey(state.task);
-    const checkbox = document.querySelector(`#availability-list input[data-shift-key="${key}"]`);
-    if (checkbox) {
-      checkbox.checked = state.currentChecked;
-      checkbox.disabled = monthUnavailableChecked;
-    }
+  listCheckboxByKey.forEach((checkbox, key) => {
+    if (key === monthUnavailableStateKey) return;
+
+    const state = stateByTask.get(key);
+    checkbox.checked = state ? Boolean(state.currentChecked) : false;
+    checkbox.disabled = monthUnavailableChecked;
   });
 
   const monthUnavailableCheckbox = document.getElementById("availability-month-unavailable-checkbox");
@@ -532,11 +537,13 @@ function applyMonthUnavailableExclusivity(stateByTask) {
     monthUnavailableCheckbox.checked = monthUnavailableChecked;
   }
 
-  const monthUnavailableListCheckbox = document.querySelector(`#availability-list input[data-shift-key="${monthUnavailableStateKey}"]`);
+  const monthUnavailableListCheckbox = listCheckboxByKey.get(monthUnavailableStateKey);
   if (monthUnavailableListCheckbox) {
     monthUnavailableListCheckbox.checked = monthUnavailableChecked;
+    monthUnavailableListCheckbox.disabled = false;
   }
 }
+
 
 function renderList({ tasks, stateByTask, userId }) {
   const listEl = document.getElementById("availability-list");
