@@ -805,7 +805,13 @@ document.addEventListener("DOMContentLoaded", async () => {
         String(task.date || "").slice(0, 10) === monthUnavailable.date && !String(task.time || "").slice(0, 5)
       );
       if (existingMonthUnavailable) {
-        mergedByKey.set("month-unavailable", { ...existingMonthUnavailable, ...monthUnavailable });
+        mergedByKey.set("month-unavailable", {
+          ...monthUnavailable,
+          ...existingMonthUnavailable,
+          source: "monthly-unavailable",
+          sourceReason: "Maand niet beschikbaar",
+          isMonthUnavailableDummy: true,
+        });
       } else {
         mergedByKey.set("month-unavailable", monthUnavailable);
       }
