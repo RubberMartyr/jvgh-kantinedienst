@@ -1,5 +1,7 @@
 const DEFAULT_ASSIGNMENT_DURATION_MINUTES = 240;
 
+let syncingAvailabilityCheckboxes = false;
+
 function pad2(n) {
   return String(n).padStart(2, "0");
 }
@@ -506,6 +508,8 @@ function computeDirtyCount(stateByTask) {
 
 
 function handleAvailabilityCheckboxChange(stateByTask, task, checked) {
+  if (syncingAvailabilityCheckboxes) return;
+
   const changedState = findStateForTask(stateByTask, task);
   if (!changedState) return;
 
@@ -543,20 +547,40 @@ function applyMonthUnavailableExclusivity(stateByTask, changedTask = null) {
     }
   });
 
-  const listCheckboxes = Array.from(document.querySelectorAll("#availability-list input[data-shift-key]"));
-  listCheckboxes.forEach((checkbox) => {
-    const key = checkbox.dataset.shiftKey;
-    const state = stateByTask.get(key);
-    if (!state) return;
-    const isMonthUnavailable = isMonthUnavailableTask(state.task);
-    checkbox.checked = Boolean(state.currentChecked);
-    checkbox.disabled = !isMonthUnavailable && monthUnavailableChecked;
-  });
+  syncingAvailabilityCheckboxes = true;
 
-  const monthUnavailableCheckbox = document.getElementById("availability-month-unavailable-checkbox");
-  if (monthUnavailableCheckbox) {
-    monthUnavailableCheckbox.checked = Boolean(monthUnavailableState.currentChecked);
-    monthUnavailableCheckbox.disabled = false;
+  try {
+    const listCheckboxes = Array.from(
+      document.querySelectorAll("#availability-list input[data-shift-key]")
+    );
+
+    listCheckboxes.forEach((checkbox) => {
+      const key = checkbox.dataset.shiftKey;
+      const state = stateByTask.get(key);
+
+      if (!state) return;
+
+      const isMonthUnavailable = isMonthUnavailableTask(state.task);
+
+      checkbox.checked = Boolean(state.currentChecked);
+
+      checkbox.disabled =
+        !isMonthUnavailable && monthUnavailableChecked;
+    });
+
+    const monthUnavailableCheckbox = document.getElementById(
+      "availability-month-unavailable-checkbox"
+    );
+
+    if (monthUnavailableCheckbox) {
+      monthUnavailableCheckbox.checked = Boolean(
+        monthUnavailableState.currentChecked
+      );
+
+      monthUnavailableCheckbox.disabled = false;
+    }
+  } finally {
+    syncingAvailabilityCheckboxes = false;
   }
 }
 
