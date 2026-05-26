@@ -93,7 +93,7 @@ function monthUnavailableTask(monthKey) {
 }
 
 function isMonthUnavailableTask(task) {
-  return Boolean(task?.isMonthUnavailableDummy || task?.source === "monthly-unavailable");
+  return Boolean(task?.isMonthUnavailableDummy === true);
 }
 
 function getDurationMinutes(taskQty) {
