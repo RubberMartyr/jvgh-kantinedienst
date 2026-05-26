@@ -668,18 +668,35 @@ function renderList({ tasks, stateByTask, userId }) {
       expandButton.title = open ? "Details verbergen" : "Details tonen";
     });
 
-    checkbox.addEventListener("change", (event) => {
-      if (!event.isTrusted) return;
+    if (isMonthUnavailableTask(task)) {
+      checkbox.addEventListener("change", () => {
+        const topCheckbox = document.getElementById(
+          "availability-month-unavailable-checkbox"
+        );
 
-      handleAvailabilityCheckboxChange(
-        stateByTask,
-        task,
-        checkbox.checked
-      );
-      const dirtyCount = computeDirtyCount(stateByTask);
-      setSaveDirtyState(dirtyCount > 0);
-      setStatus(dirtyCount > 0 ? `${dirtyCount} wijziging(en) nog op te slaan.` : "Alles opgeslagen.");
-    });
+        if (topCheckbox) {
+          topCheckbox.click();
+        }
+      });
+    } else {
+      checkbox.addEventListener("change", () => {
+        handleAvailabilityCheckboxChange(
+          stateByTask,
+          task,
+          checkbox.checked
+        );
+
+        const dirtyCount = computeDirtyCount(stateByTask);
+
+        setSaveDirtyState(dirtyCount > 0);
+
+        setStatus(
+          dirtyCount > 0
+            ? `${dirtyCount} wijziging(en) nog op te slaan.`
+            : "Alles opgeslagen."
+        );
+      });
+    }
 
     li.appendChild(checkbox);
     li.appendChild(textWrap);
