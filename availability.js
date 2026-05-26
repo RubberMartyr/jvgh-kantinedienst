@@ -562,7 +562,16 @@ function applyMonthUnavailableExclusivity(stateByTask, changedTask = null) {
 
       const isMonthUnavailable = isMonthUnavailableTask(state.task);
 
-      checkbox.checked = Boolean(state.currentChecked);
+      // CRITICAL FIX:
+      // Always sync month-unavailable row checkbox
+      // directly from the master monthUnavailableState
+      if (isMonthUnavailable) {
+        checkbox.checked = Boolean(
+          monthUnavailableState.currentChecked
+        );
+      } else {
+        checkbox.checked = Boolean(state.currentChecked);
+      }
 
       checkbox.disabled =
         !isMonthUnavailable && monthUnavailableChecked;
