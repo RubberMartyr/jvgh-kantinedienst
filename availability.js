@@ -509,44 +509,34 @@ function applyMonthUnavailableExclusivity(stateByTask, changedTask = null) {
   const monthUnavailableState = Array.from(stateByTask.values()).find((state) => isMonthUnavailableTask(state.task));
   if (!monthUnavailableState) return;
 
-  if (changedTask && !isMonthUnavailableTask(changedTask)) {
-    const changedState = findStateForTask(stateByTask, changedTask);
-    if (changedState && changedState.currentChecked) {
-      monthUnavailableState.currentChecked = false;
-    }
+  const changedState = changedTask ? findStateForTask(stateByTask, changedTask) : null;
+  if (changedState && !isMonthUnavailableTask(changedTask) && Boolean(changedState.currentChecked)) {
+    monthUnavailableState.currentChecked = false;
   }
 
   const monthUnavailableChecked = Boolean(monthUnavailableState.currentChecked);
-  const monthUnavailableStateKey = shiftKey(monthUnavailableState.task);
 
   stateByTask.forEach((state) => {
-    if (!isMonthUnavailableTask(state.task) && monthUnavailableChecked) {
+    const isMonthUnavailable = isMonthUnavailableTask(state.task);
+    if (!isMonthUnavailable && monthUnavailableChecked) {
       state.currentChecked = false;
     }
   });
 
-  const listCheckboxByKey = new Map(
-    Array.from(document.querySelectorAll("#availability-list input[data-shift-key]"))
-      .map((checkbox) => [checkbox.dataset.shiftKey, checkbox])
-  );
-
-  listCheckboxByKey.forEach((checkbox, key) => {
+  const listCheckboxes = Array.from(document.querySelectorAll("#availability-list input[data-shift-key]"));
+  listCheckboxes.forEach((checkbox) => {
+    const key = checkbox.dataset.shiftKey;
     const state = stateByTask.get(key);
     if (!state) return;
-
+    const isMonthUnavailable = isMonthUnavailableTask(state.task);
     checkbox.checked = Boolean(state.currentChecked);
-    checkbox.disabled = !isMonthUnavailableTask(state.task) && monthUnavailableChecked;
+    checkbox.disabled = !isMonthUnavailable && monthUnavailableChecked;
   });
 
   const monthUnavailableCheckbox = document.getElementById("availability-month-unavailable-checkbox");
   if (monthUnavailableCheckbox) {
-    monthUnavailableCheckbox.checked = monthUnavailableChecked;
-  }
-
-  const monthUnavailableListCheckbox = listCheckboxByKey.get(monthUnavailableStateKey);
-  if (monthUnavailableListCheckbox) {
-    monthUnavailableListCheckbox.checked = monthUnavailableChecked;
-    monthUnavailableListCheckbox.disabled = false;
+    monthUnavailableCheckbox.checked = Boolean(monthUnavailableState.currentChecked);
+    monthUnavailableCheckbox.disabled = true;
   }
 }
 
@@ -852,11 +842,6 @@ document.addEventListener("DOMContentLoaded", async () => {
       setSaveButtonsVisible(true);
       setCalendarButtonVisible(true);
 
-      const monthUnavailableCheckbox = document.getElementById("availability-month-unavailable-checkbox");
-      const monthUnavailableState = Array.from(currentStateByTask.values()).find((state) => isMonthUnavailableTask(state.task));
-      if (monthUnavailableCheckbox && monthUnavailableState) {
-        monthUnavailableCheckbox.checked = monthUnavailableState.currentChecked;
-      }
     } catch (err) {
       console.error(err);
       setStatus("Fout bij laden van shifts of inschrijvingen.", true);
