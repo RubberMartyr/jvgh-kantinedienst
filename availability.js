@@ -915,8 +915,15 @@ document.addEventListener("DOMContentLoaded", async () => {
     monthUnavailableCheckbox.addEventListener("change", () => {
       const monthUnavailableState = Array.from(currentStateByTask.values()).find((state) => isMonthUnavailableTask(state.task));
       if (!monthUnavailableState) return;
+
       monthUnavailableState.currentChecked = monthUnavailableCheckbox.checked;
       applyMonthUnavailableExclusivity(currentStateByTask);
+      renderList({
+        tasks: Array.from(currentStateByTask.values()).map((state) => state.task),
+        stateByTask: currentStateByTask,
+        userId,
+      });
+
       const dirtyCount = computeDirtyCount(currentStateByTask);
       setSaveDirtyState(dirtyCount > 0);
       setStatus(dirtyCount > 0 ? `${dirtyCount} wijziging(en) nog op te slaan.` : "Alles opgeslagen.");
