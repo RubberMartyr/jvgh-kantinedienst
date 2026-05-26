@@ -562,21 +562,8 @@ function applyMonthUnavailableExclusivity(stateByTask, changedTask = null) {
 
       if (!state) return;
 
-      const isMonthUnavailable = isMonthUnavailableTask(state.task);
-
-      // CRITICAL FIX:
-      // Always sync month-unavailable row checkbox
-      // directly from the master monthUnavailableState
-      if (isMonthUnavailable) {
-        checkbox.checked = Boolean(
-          monthUnavailableState.currentChecked
-        );
-      } else {
-        checkbox.checked = Boolean(state.currentChecked);
-      }
-
-      checkbox.disabled =
-        !isMonthUnavailable && monthUnavailableChecked;
+      checkbox.checked = Boolean(state.currentChecked);
+      checkbox.disabled = monthUnavailableChecked;
     });
 
     const monthUnavailableCheckbox = document.getElementById(
@@ -606,6 +593,10 @@ function renderList({ tasks, stateByTask, userId }) {
   }
 
   tasks.forEach((task) => {
+    if (isMonthUnavailableTask(task)) {
+      return;
+    }
+
     const state = findStateForTask(stateByTask, task);
     if (!state) return;
 
@@ -668,43 +659,23 @@ function renderList({ tasks, stateByTask, userId }) {
       expandButton.title = open ? "Details verbergen" : "Details tonen";
     });
 
-    if (isMonthUnavailableTask(task)) {
-      checkbox.addEventListener("change", () => {
-        handleAvailabilityCheckboxChange(
-          stateByTask,
-          task,
-          checkbox.checked
-        );
+    checkbox.addEventListener("change", () => {
+      handleAvailabilityCheckboxChange(
+        stateByTask,
+        task,
+        checkbox.checked
+      );
 
-        const dirtyCount = computeDirtyCount(stateByTask);
+      const dirtyCount = computeDirtyCount(stateByTask);
 
-        setSaveDirtyState(dirtyCount > 0);
+      setSaveDirtyState(dirtyCount > 0);
 
-        setStatus(
-          dirtyCount > 0
-            ? `${dirtyCount} wijziging(en) nog op te slaan.`
-            : "Alles opgeslagen."
-        );
-      });
-    } else {
-      checkbox.addEventListener("change", () => {
-        handleAvailabilityCheckboxChange(
-          stateByTask,
-          task,
-          checkbox.checked
-        );
-
-        const dirtyCount = computeDirtyCount(stateByTask);
-
-        setSaveDirtyState(dirtyCount > 0);
-
-        setStatus(
-          dirtyCount > 0
-            ? `${dirtyCount} wijziging(en) nog op te slaan.`
-            : "Alles opgeslagen."
-        );
-      });
-    }
+      setStatus(
+        dirtyCount > 0
+          ? `${dirtyCount} wijziging(en) nog op te slaan.`
+          : "Alles opgeslagen."
+      );
+    });
 
     li.appendChild(checkbox);
     li.appendChild(textWrap);
