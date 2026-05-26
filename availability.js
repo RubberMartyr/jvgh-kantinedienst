@@ -353,7 +353,13 @@ function parseICalDate(line) {
   return Number.isNaN(d.getTime()) ? null : d;
 }
 
-function parseICS(text) {
+const ICAL_URL = "https://jeugdherk.be/calendar/jvgh-kalender/?feed=sp-ical";
+const EVENTS_ICAL_URL = "https://jeugdherk.be/events/lijst/?ical=1";
+const VERHUUR_ICAL_URL = "https://outlook.office365.com/owa/calendar/f2d34940b5f74818ac3baf863b3d9c1a@jeugdherk.be/51ee3ee8905543a1b01ab337a8bd734d13775201653858586117/calendar.ics";
+const DAGELIJKS_BESTUUR_ICAL_URL = "https://outlook.office365.com/owa/calendar/f2d34940b5f74818ac3baf863b3d9c1a@jeugdherk.be/35511a0627d644998a24502f56390cf118238942820750685558/calendar.ics";
+
+function parseICS(text, options = {}) {
+  const { sourceType = "match", sourceLabel = "Wedstrijd", homeTeamFilter = null } = options;
   const unfolded = text.replace(/\r?\n[ \t]/g, "");
   const events = [];
   const regex = /BEGIN:VEVENT([\s\S]*?)END:VEVENT/g;
@@ -372,25 +378,37 @@ function parseICS(text) {
     const endRaw = parseICalDate(pick("DTEND"));
     if (!start || Number.isNaN(start.getTime())) continue;
 
-    const parts = String(summary || "").split("/");
-    if (!(parts.length >= 2 && parts[0].includes("Herk-De-Stad"))) continue;
+    if (!summary) continue;
+
+    if (homeTeamFilter) {
+      const parts = String(summary || "").split("/");
+      if (!(parts.length >= 2 && parts[0].includes(homeTeamFilter))) continue;
+    }
 
     const end = endRaw && !Number.isNaN(endRaw.getTime())
       ? endRaw
       : new Date(start.getTime() + 60 * 60 * 1000);
 
-    events.push({ summary, start, end });
+    events.push({ summary, start, end, sourceType, sourceLabel });
   }
 
   return events;
 }
 
 async function loadShiftSlotsForMonth(monthKey) {
-  const ICAL_URL = "https://jeugdherk.be/calendar/jvgh-kalender/?feed=sp-ical";
-  const res = await fetch(ICAL_URL, { credentials: "omit" });
-  if (!res.ok) return [];
-  const text = await res.text();
-  const events = parseICS(text);
+  const [matchesText, eventsText, verhuurText, bestuurText] = await Promise.all([
+    fetch(ICAL_URL, { credentials: "omit" }).then((r) => (r.ok ? r.text() : "")),
+    fetch(EVENTS_ICAL_URL, { credentials: "omit" }).then((r) => (r.ok ? r.text() : "")),
+    fetch(VERHUUR_ICAL_URL, { credentials: "omit" }).then((r) => (r.ok ? r.text() : "")),
+    fetch(DAGELIJKS_BESTUUR_ICAL_URL, { credentials: "omit" }).then((r) => (r.ok ? r.text() : "")),
+  ]);
+
+  const events = [
+    ...parseICS(matchesText, { sourceType: "match", sourceLabel: "Wedstrijd", homeTeamFilter: "Herk-De-Stad" }),
+    ...parseICS(eventsText, { sourceType: "event", sourceLabel: "Evenement" }),
+    ...parseICS(verhuurText, { sourceType: "rental", sourceLabel: "Verhuur" }),
+    ...parseICS(bestuurText, { sourceType: "board", sourceLabel: "Dagelijks bestuur" }),
+  ];
 
   return events
     .map((ev) => {
@@ -410,6 +428,8 @@ async function loadShiftSlotsForMonth(monthKey) {
         icsSummary: ev.summary || "",
         icsStart: ev.start.toISOString(),
         icsEnd: ev.end.toISOString(),
+        sourceType: ev.sourceType,
+        sourceLabel: ev.sourceLabel,
       };
     })
     .filter((slot) => slot.date.slice(0, 7) === monthKey)
@@ -577,6 +597,9 @@ function renderList({ tasks, stateByTask, userId }) {
 
     const li = document.createElement("li");
     li.className = "availability-item";
+    if (task.sourceType) {
+      li.classList.add(`availability-type-${task.sourceType}`);
+    }
     const plannedCount = Array.isArray(state.signups) ? state.signups.length : 0;
     if (plannedCount >= 3) {
       li.classList.add("availability-item-full");
@@ -598,7 +621,12 @@ function renderList({ tasks, stateByTask, userId }) {
     const label = document.createElement("span");
     label.textContent = formatShiftLabel(task);
 
+    const sourceBadge = document.createElement("span");
+    sourceBadge.className = "availability-source-badge";
+    sourceBadge.textContent = task.sourceLabel || "Shift";
+
     textWrap.appendChild(label);
+    textWrap.appendChild(sourceBadge);
 
     const expandButton = document.createElement("button");
     expandButton.type = "button";
