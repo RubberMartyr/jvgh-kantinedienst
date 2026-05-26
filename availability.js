@@ -355,8 +355,16 @@ function parseICalDate(line) {
 
 const ICAL_URL = "https://jeugdherk.be/calendar/jvgh-kalender/?feed=sp-ical";
 const EVENTS_ICAL_URL = "https://jeugdherk.be/events/lijst/?ical=1";
-const VERHUUR_ICAL_URL = "https://outlook.office365.com/owa/calendar/f2d34940b5f74818ac3baf863b3d9c1a@jeugdherk.be/51ee3ee8905543a1b01ab337a8bd734d13775201653858586117/calendar.ics";
-const DAGELIJKS_BESTUUR_ICAL_URL = "https://outlook.office365.com/owa/calendar/f2d34940b5f74818ac3baf863b3d9c1a@jeugdherk.be/35511a0627d644998a24502f56390cf118238942820750685558/calendar.ics";
+const VERHUUR_ICAL_URL =
+  "/wp-json/jvgh/v1/ics-proxy?url=" +
+  encodeURIComponent(
+    "https://outlook.office365.com/owa/calendar/f2d34940b5f74818ac3baf863b3d9c1a@jeugdherk.be/51ee3ee8905543a1b01ab337a8bd734d13775201653858586117/calendar.ics"
+  );
+const DAGELIJKS_BESTUUR_ICAL_URL =
+  "/wp-json/jvgh/v1/ics-proxy?url=" +
+  encodeURIComponent(
+    "https://outlook.office365.com/owa/calendar/f2d34940b5f74818ac3baf863b3d9c1a@jeugdherk.be/35511a0627d644998a24502f56390cf118238942820750685558/calendar.ics"
+  );
 
 function parseICS(text, options = {}) {
   const { sourceType = "match", sourceLabel = "Wedstrijd", homeTeamFilter = null } = options;
