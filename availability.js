@@ -540,12 +540,14 @@ function applyMonthUnavailableExclusivity(stateByTask, changedTask = null) {
 
   const monthUnavailableChecked = Boolean(monthUnavailableState.currentChecked);
 
-  stateByTask.forEach((state) => {
-    const isMonthUnavailable = isMonthUnavailableTask(state.task);
-    if (!isMonthUnavailable && monthUnavailableChecked) {
-      state.currentChecked = false;
-    }
-  });
+  if (changedTaskIsMonthUnavailable && monthUnavailableChecked) {
+    stateByTask.forEach((state) => {
+      const isMonthUnavailable = isMonthUnavailableTask(state.task);
+      if (!isMonthUnavailable) {
+        state.currentChecked = false;
+      }
+    });
+  }
 
   syncingAvailabilityCheckboxes = true;
 
