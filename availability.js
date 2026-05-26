@@ -1,7 +1,5 @@
 const DEFAULT_ASSIGNMENT_DURATION_MINUTES = 240;
 
-let syncingAvailabilityCheckboxes = false;
-
 function pad2(n) {
   return String(n).padStart(2, "0");
 }
@@ -506,97 +504,55 @@ function computeDirtyCount(stateByTask) {
   return count;
 }
 
-
-function handleAvailabilityCheckboxChange(stateByTask, task, checked) {
-  if (syncingAvailabilityCheckboxes) return;
-
-  const changedState = findStateForTask(stateByTask, task);
-  if (!changedState) return;
-
-  changedState.currentChecked = Boolean(checked);
-
-  const monthUnavailableState = Array.from(stateByTask.values()).find((state) => isMonthUnavailableTask(state.task));
-  if (!monthUnavailableState) return;
-
-  if (isMonthUnavailableTask(task)) {
-    monthUnavailableState.currentChecked = Boolean(checked);
-  } else if (Boolean(checked)) {
-    monthUnavailableState.currentChecked = false;
-  }
-
-  applyMonthUnavailableExclusivity(stateByTask, task);
+function getMonthUnavailableState(stateByTask) {
+  return Array.from(stateByTask.values()).find((state) =>
+    isMonthUnavailableTask(state.task)
+  );
 }
 
-function applyMonthUnavailableExclusivity(stateByTask, changedTask = null) {
-  const monthUnavailableState = Array.from(stateByTask.values()).find((state) => isMonthUnavailableTask(state.task));
-  if (!monthUnavailableState) return;
+function syncAvailabilityDom(stateByTask) {
+  const monthUnavailableState = getMonthUnavailableState(stateByTask);
+  const monthUnavailableChecked = Boolean(monthUnavailableState?.currentChecked);
 
-  const changedState = changedTask ? findStateForTask(stateByTask, changedTask) : null;
-  const changedTaskIsMonthUnavailable = changedTask ? isMonthUnavailableTask(changedTask) : false;
-
-  if (!changedTaskIsMonthUnavailable && changedState && Boolean(changedState.currentChecked)) {
-    monthUnavailableState.currentChecked = false;
+  const topCheckbox = document.getElementById("availability-month-unavailable-checkbox");
+  if (topCheckbox) {
+    topCheckbox.checked = monthUnavailableChecked;
+    topCheckbox.disabled = false;
   }
 
-  const monthUnavailableChecked = Boolean(monthUnavailableState.currentChecked);
-
-  if (changedTaskIsMonthUnavailable && monthUnavailableChecked) {
-    stateByTask.forEach((state) => {
-      const isMonthUnavailable = isMonthUnavailableTask(state.task);
-      if (!isMonthUnavailable) {
-        state.currentChecked = false;
-      }
-    });
-  }
-
-  syncingAvailabilityCheckboxes = true;
-
-  try {
-    const listCheckboxes = Array.from(
-      document.querySelectorAll("#availability-list input[data-shift-key]")
-    );
-
-    listCheckboxes.forEach((checkbox) => {
-      const key = checkbox.dataset.shiftKey;
-      const state = stateByTask.get(key);
-
+  document
+    .querySelectorAll("#availability-list input[data-shift-key]")
+    .forEach((checkbox) => {
+      const state = stateByTask.get(checkbox.dataset.shiftKey);
       if (!state) return;
 
       checkbox.checked = Boolean(state.currentChecked);
       checkbox.disabled = monthUnavailableChecked;
     });
+}
 
-    const monthUnavailableCheckbox = document.getElementById(
-      "availability-month-unavailable-checkbox"
-    );
-
-    if (monthUnavailableCheckbox) {
-      monthUnavailableCheckbox.checked = Boolean(
-        monthUnavailableState.currentChecked
-      );
-
-      monthUnavailableCheckbox.disabled = false;
-    }
-  } finally {
-    syncingAvailabilityCheckboxes = false;
-  }
+function updateDirtyUi(stateByTask) {
+  const dirtyCount = computeDirtyCount(stateByTask);
+  setSaveDirtyState(dirtyCount > 0);
+  setStatus(
+    dirtyCount > 0
+      ? `${dirtyCount} wijziging(en) nog op te slaan.`
+      : "Alles opgeslagen."
+  );
 }
 
 
 function renderList({ tasks, stateByTask, userId }) {
   const listEl = document.getElementById("availability-list");
   listEl.innerHTML = "";
+  const visibleTasks = tasks.filter((task) => !isMonthUnavailableTask(task));
 
-  if (!tasks.length) {
+  if (!visibleTasks.length) {
     setStatus("Geen shifts gevonden voor deze maand.");
     return;
   }
 
-  tasks.forEach((task) => {
-    if (isMonthUnavailableTask(task)) {
-      return;
-    }
-
+  visibleTasks.forEach((task) => {
     const state = findStateForTask(stateByTask, task);
     if (!state) return;
 
@@ -660,21 +616,18 @@ function renderList({ tasks, stateByTask, userId }) {
     });
 
     checkbox.addEventListener("change", () => {
-      handleAvailabilityCheckboxChange(
-        stateByTask,
-        task,
-        checkbox.checked
-      );
+      const state = findStateForTask(stateByTask, task);
+      if (!state) return;
 
-      const dirtyCount = computeDirtyCount(stateByTask);
+      state.currentChecked = Boolean(checkbox.checked);
 
-      setSaveDirtyState(dirtyCount > 0);
+      const monthUnavailableState = getMonthUnavailableState(stateByTask);
+      if (monthUnavailableState && state.currentChecked) {
+        monthUnavailableState.currentChecked = false;
+      }
 
-      setStatus(
-        dirtyCount > 0
-          ? `${dirtyCount} wijziging(en) nog op te slaan.`
-          : "Alles opgeslagen."
-      );
+      syncAvailabilityDom(stateByTask);
+      updateDirtyUi(stateByTask);
     });
 
     li.appendChild(checkbox);
@@ -684,8 +637,8 @@ function renderList({ tasks, stateByTask, userId }) {
     listEl.appendChild(li);
   });
 
-  applyMonthUnavailableExclusivity(stateByTask);
-  setStatus(`${tasks.length} shifts geladen.`);
+  syncAvailabilityDom(stateByTask);
+  setStatus(`${visibleTasks.length} shifts geladen.`);
 }
 
 async function saveChanges({ stateByTask, userId, userName }) {
@@ -872,6 +825,8 @@ document.addEventListener("DOMContentLoaded", async () => {
         if (isMonthUnavailableTask(b)) return 1;
         return `${a.date || ""} ${a.time || ""}`.localeCompare(`${b.date || ""} ${b.time || ""}`);
       });
+      console.log("[availability] allShifts", allShifts.length, allShifts);
+      console.log("[availability] visible shifts", allShifts.filter((task) => !isMonthUnavailableTask(task)).length);
 
       setStatus("Inschrijvingen laden…");
       const signupsByTask = await loadSignupsByTask(allShifts.filter((s) => s.id));
@@ -909,32 +864,22 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   const monthUnavailableCheckbox = document.getElementById("availability-month-unavailable-checkbox");
   if (monthUnavailableCheckbox) {
-    monthUnavailableCheckbox.addEventListener("change", (event) => {
-      if (!event.isTrusted) return;
-
-      if (syncingAvailabilityCheckboxes) return;
-
-      const monthUnavailableState = Array.from(currentStateByTask.values()).find((state) =>
-        isMonthUnavailableTask(state.task)
-      );
-
+    monthUnavailableCheckbox.addEventListener("change", () => {
+      const monthUnavailableState = getMonthUnavailableState(currentStateByTask);
       if (!monthUnavailableState) return;
 
-      handleAvailabilityCheckboxChange(
-        currentStateByTask,
-        monthUnavailableState.task,
-        monthUnavailableCheckbox.checked
-      );
+      monthUnavailableState.currentChecked = Boolean(monthUnavailableCheckbox.checked);
 
-      const dirtyCount = computeDirtyCount(currentStateByTask);
+      if (monthUnavailableState.currentChecked) {
+        currentStateByTask.forEach((state) => {
+          if (!isMonthUnavailableTask(state.task)) {
+            state.currentChecked = false;
+          }
+        });
+      }
 
-      setSaveDirtyState(dirtyCount > 0);
-
-      setStatus(
-        dirtyCount > 0
-          ? `${dirtyCount} wijziging(en) nog op te slaan.`
-          : "Alles opgeslagen."
-      );
+      syncAvailabilityDom(currentStateByTask);
+      updateDirtyUi(currentStateByTask);
     });
   }
 
