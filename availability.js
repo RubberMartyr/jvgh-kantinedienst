@@ -506,47 +506,57 @@ function computeDirtyCount(stateByTask) {
 
 
 function applyMonthUnavailableExclusivity(stateByTask, changedTask = null) {
-  const monthUnavailableState = Array.from(stateByTask.values()).find((state) => isMonthUnavailableTask(state.task));
+  const monthUnavailableState = Array.from(stateByTask.values())
+    .find((state) => isMonthUnavailableTask(state.task));
+
   if (!monthUnavailableState) return;
 
-  if (changedTask && !isMonthUnavailableTask(changedTask)) {
+  // If month unavailable checked -> clear all others
+  if (
+    changedTask &&
+    isMonthUnavailableTask(changedTask) &&
+    monthUnavailableState.currentChecked
+  ) {
+    stateByTask.forEach((state) => {
+      if (!isMonthUnavailableTask(state.task)) {
+        state.currentChecked = false;
+      }
+    });
+  }
+
+  // If a normal shift checked -> uncheck month unavailable
+  if (
+    changedTask &&
+    !isMonthUnavailableTask(changedTask)
+  ) {
     const changedState = findStateForTask(stateByTask, changedTask);
-    if (changedState && changedState.currentChecked) {
+
+    if (changedState?.currentChecked) {
       monthUnavailableState.currentChecked = false;
     }
   }
 
-  const monthUnavailableChecked = Boolean(monthUnavailableState.currentChecked);
-  const monthUnavailableStateKey = shiftKey(monthUnavailableState.task);
+  // Sync DOM
+  document
+    .querySelectorAll("#availability-list input[data-shift-key]")
+    .forEach((checkbox) => {
+      const state = stateByTask.get(checkbox.dataset.shiftKey);
 
-  stateByTask.forEach((state) => {
-    if (!isMonthUnavailableTask(state.task) && monthUnavailableChecked) {
-      state.currentChecked = false;
-    }
-  });
+      if (!state) return;
 
-  const listCheckboxByKey = new Map(
-    Array.from(document.querySelectorAll("#availability-list input[data-shift-key]"))
-      .map((checkbox) => [checkbox.dataset.shiftKey, checkbox])
+      checkbox.checked = Boolean(state.currentChecked);
+
+      if (!isMonthUnavailableTask(state.task)) {
+        checkbox.disabled = monthUnavailableState.currentChecked;
+      }
+    });
+
+  const topCheckbox = document.getElementById(
+    "availability-month-unavailable-checkbox"
   );
 
-  listCheckboxByKey.forEach((checkbox, key) => {
-    const state = stateByTask.get(key);
-    if (!state) return;
-
-    checkbox.checked = Boolean(state.currentChecked);
-    checkbox.disabled = !isMonthUnavailableTask(state.task) && monthUnavailableChecked;
-  });
-
-  const monthUnavailableCheckbox = document.getElementById("availability-month-unavailable-checkbox");
-  if (monthUnavailableCheckbox) {
-    monthUnavailableCheckbox.checked = monthUnavailableChecked;
-  }
-
-  const monthUnavailableListCheckbox = listCheckboxByKey.get(monthUnavailableStateKey);
-  if (monthUnavailableListCheckbox) {
-    monthUnavailableListCheckbox.checked = monthUnavailableChecked;
-    monthUnavailableListCheckbox.disabled = false;
+  if (topCheckbox) {
+    topCheckbox.checked = monthUnavailableState.currentChecked;
   }
 }
 
@@ -577,7 +587,7 @@ function renderList({ tasks, stateByTask, userId }) {
 
     const checkbox = document.createElement("input");
     checkbox.type = "checkbox";
-    checkbox.checked = Boolean(state.currentChecked);
+    checkbox.checked = state.currentChecked;
     checkbox.title = checkboxHoverTitle(state.signups, userId);
     checkbox.dataset.shiftKey = shiftKey(task);
 
@@ -624,11 +634,19 @@ function renderList({ tasks, stateByTask, userId }) {
     });
 
     checkbox.addEventListener("change", () => {
-      state.currentChecked = Boolean(checkbox.checked);
+      state.currentChecked = checkbox.checked;
+    
       applyMonthUnavailableExclusivity(stateByTask, task);
+    
       const dirtyCount = computeDirtyCount(stateByTask);
+    
       setSaveDirtyState(dirtyCount > 0);
-      setStatus(dirtyCount > 0 ? `${dirtyCount} wijziging(en) nog op te slaan.` : "Alles opgeslagen.");
+    
+      setStatus(
+        dirtyCount > 0
+          ? `${dirtyCount} wijziging(en) nog op te slaan.`
+          : "Alles opgeslagen."
+      );
     });
 
     li.appendChild(checkbox);
