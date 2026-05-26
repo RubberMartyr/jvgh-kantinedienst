@@ -897,15 +897,29 @@ document.addEventListener("DOMContentLoaded", async () => {
   const monthUnavailableCheckbox = document.getElementById("availability-month-unavailable-checkbox");
   if (monthUnavailableCheckbox) {
     monthUnavailableCheckbox.addEventListener("change", () => {
+      if (syncingAvailabilityCheckboxes) return;
+
       const monthUnavailableState = Array.from(currentStateByTask.values()).find((state) =>
         isMonthUnavailableTask(state.task)
       );
+
       if (!monthUnavailableState) return;
-      monthUnavailableState.currentChecked = Boolean(monthUnavailableCheckbox.checked);
-      applyMonthUnavailableExclusivity(currentStateByTask, monthUnavailableState.task);
+
+      handleAvailabilityCheckboxChange(
+        currentStateByTask,
+        monthUnavailableState.task,
+        monthUnavailableCheckbox.checked
+      );
+
       const dirtyCount = computeDirtyCount(currentStateByTask);
+
       setSaveDirtyState(dirtyCount > 0);
-      setStatus(dirtyCount > 0 ? `${dirtyCount} wijziging(en) nog op te slaan.` : "Alles opgeslagen.");
+
+      setStatus(
+        dirtyCount > 0
+          ? `${dirtyCount} wijziging(en) nog op te slaan.`
+          : "Alles opgeslagen."
+      );
     });
   }
 
