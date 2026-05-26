@@ -657,8 +657,14 @@ function renderList({ tasks, stateByTask, userId }) {
       expandButton.title = open ? "Details verbergen" : "Details tonen";
     });
 
-    checkbox.addEventListener("change", () => {
-      handleAvailabilityCheckboxChange(stateByTask, task, checkbox.checked);
+    checkbox.addEventListener("change", (event) => {
+      if (!event.isTrusted) return;
+
+      handleAvailabilityCheckboxChange(
+        stateByTask,
+        task,
+        checkbox.checked
+      );
       const dirtyCount = computeDirtyCount(stateByTask);
       setSaveDirtyState(dirtyCount > 0);
       setStatus(dirtyCount > 0 ? `${dirtyCount} wijziging(en) nog op te slaan.` : "Alles opgeslagen.");
@@ -896,7 +902,9 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   const monthUnavailableCheckbox = document.getElementById("availability-month-unavailable-checkbox");
   if (monthUnavailableCheckbox) {
-    monthUnavailableCheckbox.addEventListener("change", () => {
+    monthUnavailableCheckbox.addEventListener("change", (event) => {
+      if (!event.isTrusted) return;
+
       if (syncingAvailabilityCheckboxes) return;
 
       const monthUnavailableState = Array.from(currentStateByTask.values()).find((state) =>
