@@ -830,14 +830,19 @@ async function saveChanges({ stateByTask, userId, userName }) {
     for (const state of toDelete) {
       const isUnavailable = isMonthUnavailableTask(state.task);
       if (isUnavailable) {
-        if (state.task?.id && state.task?.sheetId && typeof JVGHApi.deleteTask === "function") {
-          await JVGHApi.deleteTask(state.task.sheetId, state.task.id);
-        } else {
-          console.warn(
-            "[availability] Month unavailable was unchecked, but task could not be deleted because deleteTask or IDs are missing.",
-            state.task
+        if (!state.task?.id || !state.task?.sheetId) {
+          throw new Error(
+            "Kan maand-niet-beschikbaar niet verwijderen: task id of sheet id ontbreekt."
           );
         }
+
+        if (typeof JVGHApi.deleteTask !== "function") {
+          throw new Error(
+            "Kan maand-niet-beschikbaar niet verwijderen: JVGHApi.deleteTask ontbreekt."
+          );
+        }
+
+        await JVGHApi.deleteTask(state.task.sheetId, state.task.id);
 
         state.task.id = null;
         state.userSignup = null;
