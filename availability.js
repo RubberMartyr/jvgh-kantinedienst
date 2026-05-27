@@ -907,12 +907,15 @@ document.addEventListener("DOMContentLoaded", async () => {
       allShifts.forEach((task) => {
         const signups = signupsByTask.get(String(task.id)) || [];
         const userSignup = signups.find((su) => Number(su.userId || su.user_id) === Number(userId)) || null;
+        const isMonthUnavailable = isMonthUnavailableTask(task);
+        const isPersistedUnavailable = isMonthUnavailable && Boolean(task.id);
+        const checked = isPersistedUnavailable || Boolean(userSignup);
         currentStateByTask.set(shiftKey(task), {
           task,
           signups: [...signups],
           userSignup,
-          originalChecked: Boolean(userSignup),
-          currentChecked: Boolean(userSignup),
+          originalChecked: checked,
+          currentChecked: checked,
         });
       });
 
