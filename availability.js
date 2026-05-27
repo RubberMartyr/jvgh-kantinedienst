@@ -736,6 +736,7 @@ async function saveChanges({ stateByTask, userId, userName }) {
     });
 
     for (const state of toCreate) {
+      const isUnavailable = isMonthUnavailableTask(state.task);
       const previousKey = shiftKey(state.task);
       if (!state.task.id) {
         await ensureTaskForShift(state.task, scheduleByDay);
@@ -745,22 +746,31 @@ async function saveChanges({ stateByTask, userId, userName }) {
         stateByTask.delete(previousKey);
         stateByTask.set(newKey, state);
       }
-      const created = await JVGHApi.createSignup(state.task.id, {
-        firstName: userName,
-        lastName: "",
-        email: "",
-        phone: "",
-        userId,
-      });
+      if (!isUnavailable) {
+        const created = await JVGHApi.createSignup(state.task.id, {
+          firstName: userName,
+          lastName: "",
+          email: "",
+          phone: "",
+          userId,
+        });
 
-      const signup = created?.signup && created.signup.id ? created.signup : created;
-      state.signups.push(signup);
-      state.userSignup = signup;
+        const signup = created?.signup && created.signup.id ? created.signup : created;
+
+        state.signups.push(signup);
+        state.userSignup = signup;
+      }
       state.originalChecked = true;
       state.currentChecked = true;
     }
 
     for (const state of toDelete) {
+      const isUnavailable = isMonthUnavailableTask(state.task);
+      if (isUnavailable) {
+        state.originalChecked = false;
+        state.currentChecked = false;
+        continue;
+      }
       const signup = state.userSignup;
       if (!signup?.id) continue;
       await JVGHApi.deleteSignup(state.task.id, signup.id);
