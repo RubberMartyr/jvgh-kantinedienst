@@ -577,45 +577,55 @@ function getMonthUnavailableState(stateByTask) {
 }
 
 function syncAvailabilityDom(stateByTask) {
-  const monthUnavailableState = getMonthUnavailableState(stateByTask);
+const monthUnavailableState =
+getMonthUnavailableState(stateByTask);
 
-  const monthUnavailableChecked = Boolean(monthUnavailableState?.currentChecked);
+const monthUnavailableChecked =
+Boolean(monthUnavailableState?.currentChecked);
 
-  // NEW:
-  // Detect whether at least one normal shift is selected
-  const hasNormalShiftSelected = Array.from(stateByTask.values()).some(
-    (state) =>
-      !isMonthUnavailableTask(state.task) &&
-      Boolean(state.currentChecked)
-  );
+// Only count NORMAL shifts
+const hasNormalShiftSelected =
+Array.from(stateByTask.values()).some(
+(state) =>
+!isMonthUnavailableTask(state.task) &&
+Boolean(state.currentChecked)
+);
 
-  const topCheckbox = document.getElementById(
-    "availability-month-unavailable-checkbox"
-  );
+const topCheckbox = document.getElementById(
+"availability-month-unavailable-checkbox"
+);
 
-  if (topCheckbox) {
-    topCheckbox.checked = monthUnavailableChecked;
+// Update top checkbox
+if (topCheckbox) {
+topCheckbox.checked = monthUnavailableChecked;
 
-    // NEW:
-    // Disable top checkbox when any normal shift selected
-    topCheckbox.disabled = hasNormalShiftSelected;
-  }
-
-  document
-    .querySelectorAll("#availability-list input[data-shift-key]")
-    .forEach((checkbox) => {
-      const state = stateByTask.get(checkbox.dataset.shiftKey);
-
-      if (!state) return;
-
-      checkbox.checked = Boolean(state.currentChecked);
-
-      // Existing behavior:
-      // Disable normal shifts when month unavailable selected
-      checkbox.disabled = monthUnavailableChecked;
-    });
+// Disable top checkbox only when normal shifts selected
+topCheckbox.disabled =
+hasNormalShiftSelected &&
+!monthUnavailableChecked;
 }
 
+// Update normal shift checkboxes
+document
+.querySelectorAll(
+"#availability-list input[data-shift-key]"
+)
+.forEach((checkbox) => {
+const state =
+stateByTask.get(checkbox.dataset.shiftKey);
+
+  if (!state) return;
+
+  checkbox.checked =
+    Boolean(state.currentChecked);
+
+  // IMPORTANT:
+  // Disable normal shifts ONLY when month unavailable checked
+  checkbox.disabled =
+    monthUnavailableChecked;
+});
+
+}
 function updateDirtyUi(stateByTask) {
   const dirtyCount = computeDirtyCount(stateByTask);
   setSaveDirtyState(dirtyCount > 0);
