@@ -809,6 +809,23 @@ async function saveChanges({ stateByTask, userId, userName }) {
         stateByTask.delete(previousKey);
         stateByTask.set(newKey, state);
       }
+      if (isUnavailable && !state.userSignup) {
+        const created = await JVGHApi.createSignup(state.task.id, {
+          firstName: userName,
+          lastName: "",
+          email: "",
+          phone: "",
+          userId,
+        });
+
+        const signup =
+          created?.signup && created.signup.id
+            ? created.signup
+            : created;
+
+        state.signups.push(signup);
+        state.userSignup = signup;
+      }
       if (!isUnavailable) {
         const created = await JVGHApi.createSignup(state.task.id, {
           firstName: userName,
@@ -1003,8 +1020,9 @@ document.addEventListener("DOMContentLoaded", async () => {
         const signups = signupsByTask.get(String(task.id)) || [];
         const userSignup = signups.find((su) => Number(su.userId || su.user_id) === Number(userId)) || null;
         const isMonthUnavailable = isMonthUnavailableTask(task);
-        const isPersistedUnavailable = isMonthUnavailable && Boolean(task.id);
-        const checked = isPersistedUnavailable || Boolean(userSignup);
+        const checked =
+          Boolean(userSignup) ||
+          (isMonthUnavailable && Boolean(task.id) && signups.length === 0);
         currentStateByTask.set(shiftKey(task), {
           task,
           signups: [...signups],
