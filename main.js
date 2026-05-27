@@ -1096,8 +1096,15 @@ document.addEventListener("DOMContentLoaded", function () {
           : tasksResp || [];
 
         for (const task of tasks) {
-          const title = String(task?.title || "").toLowerCase();
-          const isUnavailableTask = title.includes("niet beschikbaar");
+          const title = String(task?.title || "").trim().toLowerCase();
+
+          const isUnavailableTask =
+            title.includes("niet beschikbaar deze maand") ||
+            title.includes("ik ben niet beschikbaar deze maand");
+
+          const isAvailabilityTask =
+            isUnavailableTask ||
+            title.includes("kantinedienst");
 
           let signupsResp;
           try {
@@ -1113,15 +1120,10 @@ document.addEventListener("DOMContentLoaded", function () {
           signups.forEach((signup) => {
             const userId = Number(signup.userId || signup.user_id);
             if (!Number.isFinite(userId)) return;
-            result.set(userId, true);
-          });
-
-          if (isUnavailableTask && task.userId) {
-            const unavailableUserId = Number(task.userId);
-            if (Number.isFinite(unavailableUserId)) {
-              result.set(unavailableUserId, true);
+            if (isAvailabilityTask) {
+              result.set(userId, true);
             }
-          }
+          });
         }
       }
     } catch (err) {
@@ -2305,6 +2307,7 @@ ${getAvailabilityLinkForUser(userId)}`;
     const bestuurPanel = overlay.querySelector('#jvgh-whatsapp-bestuur-panel');
     const vrijwilligersPanel = overlay.querySelector('#jvgh-whatsapp-vrijwilligers-panel');
     const monthKey = getCurrentPlannerMonthKey();
+    availabilityStatusByMonth.delete(monthKey);
     const availabilityMap = await loadAvailabilityStatusForMonth(monthKey);
     if (statusEl) statusEl.textContent = '';
     if (bestuurPanel && vrijwilligersPanel) {
