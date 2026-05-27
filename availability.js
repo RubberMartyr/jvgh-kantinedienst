@@ -1020,9 +1020,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         const signups = signupsByTask.get(String(task.id)) || [];
         const userSignup = signups.find((su) => Number(su.userId || su.user_id) === Number(userId)) || null;
         const isMonthUnavailable = isMonthUnavailableTask(task);
-        const checked =
-          Boolean(userSignup) ||
-          (isMonthUnavailable && Boolean(task.id) && signups.length === 0);
+        const checked = Boolean(userSignup);
         currentStateByTask.set(shiftKey(task), {
           task,
           signups: [...signups],
