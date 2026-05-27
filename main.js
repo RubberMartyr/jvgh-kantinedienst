@@ -1100,15 +1100,17 @@ document.addEventListener("DOMContentLoaded", function () {
             .trim()
             .toLowerCase();
 
-          // ONLY availability-related tasks
+          // Availability can be indicated via month-unavailable task OR normal kantinedienst signup.
           const isUnavailableTask =
             title.includes("niet beschikbaar deze maand") ||
             title.includes("ik ben niet beschikbaar deze maand");
 
+          const isKantineTask =
+            title.includes("kantinedienst");
+
           const isAvailabilityTask =
             isUnavailableTask ||
-            title.includes("beschikbaarheid") ||
-            title.includes("availability");
+            isKantineTask;
 
           // Ignore normal kantinedienst planning tasks
           if (!isAvailabilityTask) {
