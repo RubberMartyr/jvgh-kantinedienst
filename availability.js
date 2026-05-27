@@ -76,8 +76,11 @@ function parseMonthInput(raw) {
 
 
 function monthUnavailableTask(monthKey) {
-  const start = new Date(`${monthKey}-01T00:00:00`);
-  const end = new Date(`${monthKey}-01T01:00:00`);
+  const [year, month] = monthKey.split("-").map(Number);
+
+  // Use midday to avoid timezone conversion moving this to the previous UTC day/month.
+  const start = new Date(year, month - 1, 1, 12, 0, 0);
+  const end = new Date(year, month - 1, 1, 13, 0, 0);
   return {
     id: null,
     date: `${monthKey}-01`,
@@ -90,6 +93,13 @@ function monthUnavailableTask(monthKey) {
     sourceReason: "Maand niet beschikbaar",
     isMonthUnavailableDummy: true,
   };
+}
+
+function addMonthToKey(monthKey, amount) {
+  const [year, month] = monthKey.split("-").map(Number);
+  const d = new Date(year, month - 1, 1);
+  d.setMonth(d.getMonth() + amount);
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}`;
 }
 
 function isMonthUnavailableTask(task) {
@@ -307,7 +317,15 @@ async function loadTasksForMonth(monthKey) {
     ? schedulesResp.schedules
     : schedulesResp || [];
 
-  const monthSchedules = schedules.filter((s) => String(s?.start || "").slice(0, 7) === monthKey);
+  const scheduleMonthKeys = new Set([
+    addMonthToKey(monthKey, -1),
+    monthKey,
+    addMonthToKey(monthKey, 1),
+  ]);
+
+  const monthSchedules = schedules.filter((s) =>
+    scheduleMonthKeys.has(String(s?.start || "").slice(0, 7))
+  );
   const tasks = [];
 
   for (const schedule of monthSchedules) {
@@ -464,8 +482,15 @@ async function ensureTaskForShift(shift, scheduleByDay) {
   const isUnavailable = isMonthUnavailableTask(shift);
 
   if (!scheduleId) {
-    const fallbackStart = shift.start || `${shift.date}T00:00:00.000Z`;
-    const fallbackEnd = shift.end || `${shift.date}T01:00:00.000Z`;
+    let fallbackStart = shift.start || `${shift.date}T00:00:00.000Z`;
+    let fallbackEnd = shift.end || `${shift.date}T01:00:00.000Z`;
+
+    if (isUnavailable) {
+      const [y, m, d] = String(shift.date).slice(0, 10).split("-").map(Number);
+      fallbackStart = new Date(y, m - 1, d, 12, 0, 0).toISOString();
+      fallbackEnd = new Date(y, m - 1, d, 13, 0, 0).toISOString();
+    }
+
     const createdSchedule = await JVGHApi.createSchedule({
       title: `Kantinedienst ${dayKey}`,
       start: fallbackStart,
@@ -795,6 +820,18 @@ async function saveChanges({ stateByTask, userId, userName }) {
     for (const state of toDelete) {
       const isUnavailable = isMonthUnavailableTask(state.task);
       if (isUnavailable) {
+        if (state.task?.id && state.task?.sheetId && typeof JVGHApi.deleteTask === "function") {
+          await JVGHApi.deleteTask(state.task.sheetId, state.task.id);
+        } else {
+          console.warn(
+            "[availability] Month unavailable was unchecked, but task could not be deleted because deleteTask or IDs are missing.",
+            state.task
+          );
+        }
+
+        state.task.id = null;
+        state.userSignup = null;
+        state.signups = [];
         state.originalChecked = false;
         state.currentChecked = false;
         continue;
@@ -914,6 +951,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       const existingMonthUnavailable = tasks.find((task) =>
         isPersistedMonthUnavailableTask(task, currentMonthKey)
       );
+      console.log("[availability] existingMonthUnavailable", existingMonthUnavailable);
       if (existingMonthUnavailable) {
         mergedByKey.set("month-unavailable", {
           ...monthUnavailable,
@@ -956,6 +994,10 @@ document.addEventListener("DOMContentLoaded", async () => {
           currentChecked: checked,
         });
       });
+      console.log(
+        "[availability] month unavailable state",
+        getMonthUnavailableState(currentStateByTask)
+      );
 
       renderList({ tasks: allShifts, stateByTask: currentStateByTask, userId });
       setSaveDirtyState(false);
