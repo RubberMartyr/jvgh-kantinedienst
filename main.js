@@ -1096,17 +1096,27 @@ document.addEventListener("DOMContentLoaded", function () {
           : tasksResp || [];
 
         for (const task of tasks) {
-          const title = String(task?.title || "").trim().toLowerCase();
+          const title = String(task?.title || "")
+            .trim()
+            .toLowerCase();
 
+          // ONLY availability-related tasks
           const isUnavailableTask =
             title.includes("niet beschikbaar deze maand") ||
             title.includes("ik ben niet beschikbaar deze maand");
 
           const isAvailabilityTask =
             isUnavailableTask ||
-            title.includes("kantinedienst");
+            title.includes("beschikbaarheid") ||
+            title.includes("availability");
+
+          // Ignore normal kantinedienst planning tasks
+          if (!isAvailabilityTask) {
+            continue;
+          }
 
           let signupsResp;
+
           try {
             signupsResp = await JVGHApi.getSignups(task.id);
           } catch {
@@ -1117,18 +1127,47 @@ document.addEventListener("DOMContentLoaded", function () {
             ? signupsResp.signups
             : signupsResp || [];
 
+          console.log(
+            "[JVGH][AVAILABILITY] task",
+            task.id,
+            title,
+            signups
+          );
+
           signups.forEach((signup) => {
-            const userId = Number(signup.userId || signup.user_id);
-            if (!Number.isFinite(userId)) return;
-            if (isAvailabilityTask) {
-              result.set(userId, true);
+            const rawUserId =
+              signup.userId ??
+              signup.user_id ??
+              signup.user?.id ??
+              signup.meta?.userId ??
+              signup.meta?.user_id;
+
+            const userId = Number(rawUserId);
+
+            console.log(
+              "[JVGH][AVAILABILITY] signup user",
+              rawUserId,
+              userId,
+              signup
+            );
+
+            if (!Number.isFinite(userId)) {
+              return;
             }
+
+            result.set(userId, true);
           });
         }
       }
     } catch (err) {
       console.error("[JVGH] Failed to load availability status", err);
     }
+
+    console.log(
+      "[JVGH][AVAILABILITY][FINAL]",
+      monthKey,
+      Array.from(result.entries())
+    );
 
     availabilityStatusByMonth.set(monthKey, result);
     return result;
