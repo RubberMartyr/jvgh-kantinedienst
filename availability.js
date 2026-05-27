@@ -737,6 +737,26 @@ async function saveChanges({ stateByTask, userId, userName }) {
 
     for (const state of toCreate) {
       const isUnavailable = isMonthUnavailableTask(state.task);
+      if (isUnavailable) {
+        // Remove ALL normal shift signups first
+        for (const otherState of entries) {
+          if (otherState === state || isMonthUnavailableTask(otherState.task)) {
+            continue;
+          }
+
+          const signup = otherState.userSignup;
+
+          if (signup?.id) {
+            await JVGHApi.deleteSignup(otherState.task.id, signup.id);
+
+            otherState.signups = otherState.signups.filter((su) => Number(su.id) !== Number(signup.id));
+
+            otherState.userSignup = null;
+            otherState.originalChecked = false;
+            otherState.currentChecked = false;
+          }
+        }
+      }
       const previousKey = shiftKey(state.task);
       if (!state.task.id) {
         await ensureTaskForShift(state.task, scheduleByDay);
