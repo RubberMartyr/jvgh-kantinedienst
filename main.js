@@ -363,6 +363,7 @@ document.addEventListener("DOMContentLoaded", function () {
   let dagelijksBestuurIcalExternalEvents = []; // dagelijks bestuur parsed VEVENTs from ICS
   let shiftsEnabled = false;
   let lastDatesSetInfo = null;
+  const availabilityStatusByMonth = new Map();
 
   function setIcalStatus(msg) {
     if (icalStatusEl) {
@@ -1055,6 +1056,80 @@ document.addEventListener("DOMContentLoaded", function () {
       lastDatesSetInfo?.start ||
       new Date();
     return jvghMonthKey(new Date(focusedDate));
+  }
+
+  function getCurrentPlannerMonthKey() {
+    const focusedDate =
+      lastDatesSetInfo?.view?.currentStart ||
+      lastDatesSetInfo?.start ||
+      new Date();
+    return jvghMonthKey(new Date(focusedDate));
+  }
+
+  async function loadAvailabilityStatusForMonth(monthKey) {
+    if (!monthKey) return new Map();
+    if (availabilityStatusByMonth.has(monthKey)) {
+      return availabilityStatusByMonth.get(monthKey);
+    }
+
+    const result = new Map();
+    try {
+      const schedulesResp = await JVGHApi.getSchedules();
+      const schedules = Array.isArray(schedulesResp?.schedules)
+        ? schedulesResp.schedules
+        : schedulesResp || [];
+
+      const relevantSchedules = schedules.filter(
+        (schedule) => String(schedule?.start || "").slice(0, 7) === monthKey
+      );
+
+      for (const schedule of relevantSchedules) {
+        let tasksResp;
+        try {
+          tasksResp = await JVGHApi.getTasks(schedule.id);
+        } catch {
+          continue;
+        }
+
+        const tasks = Array.isArray(tasksResp?.tasks)
+          ? tasksResp.tasks
+          : tasksResp || [];
+
+        for (const task of tasks) {
+          const title = String(task?.title || "").toLowerCase();
+          const isUnavailableTask = title.includes("niet beschikbaar");
+
+          let signupsResp;
+          try {
+            signupsResp = await JVGHApi.getSignups(task.id);
+          } catch {
+            continue;
+          }
+
+          const signups = Array.isArray(signupsResp?.signups)
+            ? signupsResp.signups
+            : signupsResp || [];
+
+          signups.forEach((signup) => {
+            const userId = Number(signup.userId || signup.user_id);
+            if (!Number.isFinite(userId)) return;
+            result.set(userId, true);
+          });
+
+          if (isUnavailableTask && task.userId) {
+            const unavailableUserId = Number(task.userId);
+            if (Number.isFinite(unavailableUserId)) {
+              result.set(unavailableUserId, true);
+            }
+          }
+        }
+      }
+    } catch (err) {
+      console.error("[JVGH] Failed to load availability status", err);
+    }
+
+    availabilityStatusByMonth.set(monthKey, result);
+    return result;
   }
 
   async function refreshCurrentMonthData() {
@@ -2224,11 +2299,13 @@ ${getAvailabilityLinkForUser(userId)}`;
         : "";
   }
 
-  function sendAvailabilityReminderMails() {
+  async function sendAvailabilityReminderMails() {
     const overlay = ensureAvailabilityOverlay();
     const statusEl = overlay.querySelector('#jvgh-send-whatsapp-status');
     const bestuurPanel = overlay.querySelector('#jvgh-whatsapp-bestuur-panel');
     const vrijwilligersPanel = overlay.querySelector('#jvgh-whatsapp-vrijwilligers-panel');
+    const monthKey = getCurrentPlannerMonthKey();
+    const availabilityMap = await loadAvailabilityStatusForMonth(monthKey);
     if (statusEl) statusEl.textContent = '';
     if (bestuurPanel && vrijwilligersPanel) {
       const makeSection = (users = [], roleLabel = '') => {
@@ -2245,10 +2322,14 @@ ${getAvailabilityLinkForUser(userId)}`;
           const phoneInfo = getUserPhoneInfo(user);
           const phone = phoneInfo.normalized;
           const userId = Number(user?.id);
+          const hasAvailability = availabilityMap.get(Number(user?.id)) === true;
           const row = document.createElement("div");
           row.className = "resource-line";
           row.style.marginBottom = "6px";
-          row.innerHTML = `<span class="resource-name">${user?.name || "-"}</span>`;
+          row.innerHTML = `
+            <span class="jvgh-availability-dot ${hasAvailability ? "is-available" : "is-missing"}"></span>
+            <span class="resource-name">${user?.name || "-"}</span>
+          `;
           const btn = document.createElement("button");
           btn.type = "button";
           btn.className = "jvgh-calendar-control-btn";

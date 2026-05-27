@@ -1179,6 +1179,25 @@ body {
   display: none;
 }
 
+.jvgh-availability-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  display: inline-block;
+  margin-right: 8px;
+  flex-shrink: 0;
+}
+
+.jvgh-availability-dot.is-available {
+  background: #28a745;
+  box-shadow: 0 0 4px rgba(40, 167, 69, 0.5);
+}
+
+.jvgh-availability-dot.is-missing {
+  background: #dc3545;
+  box-shadow: 0 0 4px rgba(220, 53, 69, 0.5);
+}
+
 /* Distinct iCal source colors */
 .ec .ec-event.ical-jvgh-matches,
 .ec .ical-jvgh-matches {
