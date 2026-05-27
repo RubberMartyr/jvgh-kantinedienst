@@ -938,6 +938,10 @@ document.addEventListener("DOMContentLoaded", async () => {
         mergedByKey.set(`${shift.date} ${shift.time}`, shift);
       });
       tasks.forEach((task) => {
+        if (isPersistedMonthUnavailableTask(task, currentMonthKey)) {
+          return;
+        }
+
         const key = `${String(task.date || "").slice(0, 10)} ${String(task.time || "").slice(0, 5)}`;
         const existing = mergedByKey.get(key) || {};
         mergedByKey.set(key, {
