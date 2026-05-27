@@ -96,6 +96,19 @@ function isMonthUnavailableTask(task) {
   return Boolean(task?.isMonthUnavailableDummy === true);
 }
 
+function isPersistedMonthUnavailableTask(task, monthKey) {
+  if (!task) return false;
+  const taskDate = String(task.date || "").slice(0, 10);
+  if (!taskDate.startsWith(`${monthKey}-`)) return false;
+
+  const taskTime = String(task.time || "").slice(0, 5);
+  const normalizedTitle = String(task.title || "").trim().toLowerCase();
+  const isUnavailableTitle = normalizedTitle === "niet beschikbaar deze maand" || normalizedTitle === "ik ben niet beschikbaar deze maand";
+  const qty = Number(task.qty);
+
+  return isUnavailableTitle && (taskTime === "" || taskTime === "00:00") && (!Number.isFinite(qty) || qty === 0);
+}
+
 function getDurationMinutes(taskQty) {
   const qty = Number(taskQty);
   if (!Number.isFinite(qty)) return DEFAULT_ASSIGNMENT_DURATION_MINUTES;
@@ -861,7 +874,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       });
       const monthUnavailable = monthUnavailableTask(currentMonthKey);
       const existingMonthUnavailable = tasks.find((task) =>
-        String(task.date || "").slice(0, 10) === monthUnavailable.date && !String(task.time || "").slice(0, 5)
+        isPersistedMonthUnavailableTask(task, currentMonthKey)
       );
       if (existingMonthUnavailable) {
         mergedByKey.set("month-unavailable", {
