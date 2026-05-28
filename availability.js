@@ -879,12 +879,12 @@ async function saveChanges({ stateByTask, userId, userName }) {
 
     setStatus("Wijzigingen opgeslagen.");
     setSaveDirtyState(false);
-    const refreshedTasks = Array.from(stateByTask.values()).map((s) => s.task);
-    renderList({ tasks: refreshedTasks, stateByTask, userId });
-    document.querySelectorAll('#availability-list input[type="checkbox"]').forEach((checkbox, index) => {
-      const state = Array.from(stateByTask.values())[index];
-      checkbox.title = checkboxHoverTitle(state.signups, userId);
-    });
+
+    // Fully reload month from backend after save.
+    // This avoids stale in-memory state mismatches.
+    if (typeof loadMonth === "function") {
+      await loadMonth();
+    }
   } catch (err) {
     console.error(err);
     setStatus("Fout bij opslaan van wijzigingen.", true);
@@ -953,7 +953,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     setMonthButtonsDisabled(monthLoading);
   }
 
-  async function loadMonth() {
+  window.loadMonth = async function loadMonth() {
     if (monthLoading) return;
     monthLoading = true;
     const currentMonthKey = monthKeyFromDate(currentMonthDate);
