@@ -217,6 +217,47 @@ function setStatus(msg, isError = false) {
   statusEl.classList.toggle("availability-error", isError);
 }
 
+function ensureAvailabilityToast() {
+  let toast = document.getElementById(
+    "availability-save-toast"
+  );
+
+  if (!toast) {
+    toast = document.createElement("div");
+    toast.id = "availability-save-toast";
+    document.body.appendChild(toast);
+  }
+
+  return toast;
+}
+
+let availabilityToastTimeout = null;
+
+function showAvailabilityToast(message, isError = false) {
+  const toast = ensureAvailabilityToast();
+
+  toast.textContent = message;
+
+  toast.classList.remove(
+    "is-visible",
+    "is-error"
+  );
+
+  if (isError) {
+    toast.classList.add("is-error");
+  }
+
+  requestAnimationFrame(() => {
+    toast.classList.add("is-visible");
+  });
+
+  clearTimeout(availabilityToastTimeout);
+
+  availabilityToastTimeout = setTimeout(() => {
+    toast.classList.remove("is-visible");
+  }, 2500);
+}
+
 function setSaveDirtyState(isDirty) {
   const saveButtons = document.querySelectorAll(".availability-save-btn");
   saveButtons.forEach((saveButton) => {
@@ -878,6 +919,9 @@ async function saveChanges({ stateByTask, userId, userName }) {
     }
 
     setStatus("Wijzigingen opgeslagen.");
+    showAvailabilityToast(
+      "✅ Beschikbaarheid opgeslagen"
+    );
     setSaveDirtyState(false);
 
     // Fully reload month from backend after save.
@@ -888,6 +932,10 @@ async function saveChanges({ stateByTask, userId, userName }) {
   } catch (err) {
     console.error(err);
     setStatus("Fout bij opslaan van wijzigingen.", true);
+    showAvailabilityToast(
+      "❌ Fout bij opslaan",
+      true
+    );
     saveButtons.forEach((saveButton) => {
       saveButton.disabled = false;
       saveButton.textContent = "Opslaan";
@@ -896,6 +944,8 @@ async function saveChanges({ stateByTask, userId, userName }) {
 }
 
 document.addEventListener("DOMContentLoaded", async () => {
+  ensureAvailabilityToast();
+
   const metaEl = document.getElementById("availability-meta");
   const { userRaw, userId, monthRaw, monthKey, userName: providedName } = getQueryParams();
 
