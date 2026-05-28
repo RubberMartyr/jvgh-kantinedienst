@@ -353,36 +353,47 @@ function buildAvailabilityICS({ stateByTask, userName }) {
 }
 
 async function loadTasksForMonth(monthKey) {
-  const schedulesResp = await JVGHApi.getSchedules();
-  const schedules = Array.isArray(schedulesResp?.schedules)
-    ? schedulesResp.schedules
-    : schedulesResp || [];
+  const resp = await JVGHApi.getMonthData(monthKey);
 
-  const scheduleMonthKeys = new Set([
-    addMonthToKey(monthKey, -1),
-    monthKey,
-    addMonthToKey(monthKey, 1),
-  ]);
+  const schedules = Array.isArray(resp?.schedules)
+    ? resp.schedules
+    : [];
 
-  const monthSchedules = schedules.filter((s) =>
-    scheduleMonthKeys.has(String(s?.start || "").slice(0, 7))
-  );
   const tasks = [];
+  const signupsByTask = new Map();
 
-  for (const schedule of monthSchedules) {
-    const tasksResp = await JVGHApi.getTasks(schedule.id);
-    const tasksArr = Array.isArray(tasksResp?.tasks) ? tasksResp.tasks : tasksResp || [];
+  schedules.forEach((schedule) => {
+    const scheduleTasks = Array.isArray(schedule.tasks)
+      ? schedule.tasks
+      : [];
 
-    tasksArr.forEach((task) => {
-      const dateStr = String(task.date || "").slice(0, 10);
-      if (dateStr.startsWith(monthKey)) {
-        tasks.push({ ...task, sheetId: schedule.id });
-      }
+    scheduleTasks.forEach((task) => {
+      const normalizedTask = {
+        ...task,
+        sheetId: schedule.id,
+      };
+
+      tasks.push(normalizedTask);
+
+      signupsByTask.set(
+        String(task.id),
+        Array.isArray(task.signups)
+          ? task.signups
+          : []
+      );
     });
-  }
+  });
 
-  tasks.sort((a, b) => `${a.date || ""} ${a.time || ""}`.localeCompare(`${b.date || ""} ${b.time || ""}`));
-  return tasks;
+  tasks.sort((a, b) =>
+    `${a.date || ""} ${a.time || ""}`.localeCompare(
+      `${b.date || ""} ${b.time || ""}`
+    )
+  );
+
+  return {
+    tasks,
+    signupsByTask,
+  };
 }
 
 function parseICalDate(line) {
@@ -565,17 +576,6 @@ async function ensureTaskForShift(shift, scheduleByDay) {
   return task.id;
 }
 
-async function loadSignupsByTask(tasks) {
-  const signupsByTask = new Map();
-
-  for (const task of tasks) {
-    const signupsResp = await JVGHApi.getSignups(task.id);
-    const signups = Array.isArray(signupsResp?.signups) ? signupsResp.signups : signupsResp || [];
-    signupsByTask.set(String(task.id), signups);
-  }
-
-  return signupsByTask;
-}
 
 async function resolveUserName({ providedName, userId, signupsByTask }) {
   if (providedName) return providedName;
@@ -1012,7 +1012,24 @@ document.addEventListener("DOMContentLoaded", async () => {
       renderMetaHeader();
       setMonthButtonsDisabled(true);
       setStatus("Shifts laden…");
-      const tasks = await loadTasksForMonth(currentMonthKey);
+      const {
+        tasks,
+        signupsByTask
+      } = await loadTasksForMonth(currentMonthKey);
+
+      console.log(
+        "[availability] month-data loaded",
+        {
+          tasks: tasks.length,
+          signups:
+            Array.from(signupsByTask.values())
+              .reduce(
+                (sum, arr) => sum + arr.length,
+                0
+              )
+        }
+      );
+
       const slotShifts = await loadShiftSlotsForMonth(currentMonthKey);
 
       const mergedByKey = new Map();
@@ -1058,8 +1075,6 @@ document.addEventListener("DOMContentLoaded", async () => {
       console.log("[availability] allShifts", allShifts.length, allShifts);
       console.log("[availability] visible shifts", allShifts.filter((task) => !isMonthUnavailableTask(task)).length);
 
-      setStatus("Inschrijvingen laden…");
-      const signupsByTask = await loadSignupsByTask(allShifts.filter((s) => s.id));
       if (!resolvedName) {
         resolvedName = await resolveUserName({ providedName, userId, signupsByTask });
         renderMetaHeader();

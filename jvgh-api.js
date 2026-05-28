@@ -50,6 +50,10 @@ async function getSchedules() {
   return jvghRequest('/schedules');
 }
 
+async function getMonthData(monthKey) {
+  return jvghRequest(`/month-data?month=${encodeURIComponent(monthKey)}`);
+}
+
 async function createSchedule({ title, start, end = null }) {
   return jvghRequest('/schedules', {
     method: 'POST',
@@ -440,6 +444,7 @@ async function getUserDisplayName(userId) {
 
 window.JVGHApi = {
   getSchedules,
+  getMonthData,
   createSchedule,
   updateSchedule,
   deleteSchedule,
