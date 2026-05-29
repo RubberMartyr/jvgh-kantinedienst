@@ -244,7 +244,25 @@ document.addEventListener("DOMContentLoaded", function () {
   let lastVisibleMonths = new Set();
   const loadedTaskIds = new Set(); // avoid refetching signups repeatedly for same taskId
   const loadingMonths = new Set(); // prevent double concurrent loads
+  const plannerMonthDataCache = new Map();
   let schedulesLoaded = false;
+
+  async function loadPlannerMonthData(monthKey) {
+    if (plannerMonthDataCache.has(monthKey)) {
+      return plannerMonthDataCache.get(monthKey);
+    }
+
+    const resp = await JVGHApi.getPlannerMonthData(monthKey);
+    console.log(
+      "[JVGH][planner-month-data]",
+      monthKey,
+      resp
+    );
+
+    plannerMonthDataCache.set(monthKey, resp);
+
+    return resp;
+  }
 
   async function loadExistingSchedulesOnce() {
     if (schedulesLoaded) return;
@@ -1074,26 +1092,21 @@ document.addEventListener("DOMContentLoaded", function () {
 
     const result = new Map();
     try {
-      const schedulesResp = await JVGHApi.getSchedules();
-      const schedules = Array.isArray(schedulesResp?.schedules)
-        ? schedulesResp.schedules
-        : schedulesResp || [];
-
-      const relevantSchedules = schedules.filter(
-        (schedule) => String(schedule?.start || "").slice(0, 7) === monthKey
+      const plannerData = await loadPlannerMonthData(monthKey);
+      console.log(
+        "[JVGH][planner-month-data]",
+        monthKey,
+        plannerData
       );
 
-      for (const schedule of relevantSchedules) {
-        let tasksResp;
-        try {
-          tasksResp = await JVGHApi.getTasks(schedule.id);
-        } catch {
-          continue;
-        }
+      const schedules = Array.isArray(plannerData?.schedules)
+        ? plannerData.schedules
+        : [];
 
-        const tasks = Array.isArray(tasksResp?.tasks)
-          ? tasksResp.tasks
-          : tasksResp || [];
+      for (const schedule of schedules) {
+        const tasks = Array.isArray(schedule?.tasks)
+          ? schedule.tasks
+          : [];
 
         for (const task of tasks) {
           const title = String(task?.title || "")
@@ -1115,17 +1128,9 @@ document.addEventListener("DOMContentLoaded", function () {
             continue;
           }
 
-          let signupsResp;
-
-          try {
-            signupsResp = await JVGHApi.getSignups(task.id);
-          } catch {
-            continue;
-          }
-
-          const signups = Array.isArray(signupsResp?.signups)
-            ? signupsResp.signups
-            : signupsResp || [];
+          const signups = Array.isArray(task?.signups)
+            ? task.signups
+            : [];
 
           console.log(
             "[JVGH][AVAILABILITY] task",
@@ -1136,11 +1141,8 @@ document.addEventListener("DOMContentLoaded", function () {
 
           signups.forEach((signup) => {
             const rawUserId =
-              signup.userId ??
-              signup.user_id ??
-              signup.user?.id ??
-              signup.meta?.userId ??
-              signup.meta?.user_id;
+              signup.userId ||
+              signup.user_id;
 
             const userId = Number(rawUserId);
 
@@ -1151,11 +1153,12 @@ document.addEventListener("DOMContentLoaded", function () {
               signup
             );
 
-            if (!Number.isFinite(userId)) {
-              return;
+            if (
+              Number.isFinite(userId) &&
+              isAvailabilityTask
+            ) {
+              result.set(userId, true);
             }
-
-            result.set(userId, true);
           });
         }
       }
@@ -1185,6 +1188,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
       loadedMonths.delete(monthKey);
       loadingMonths.delete(monthKey);
+      plannerMonthDataCache.delete(monthKey);
       loadedTaskIds.clear();
       schedulesLoaded = false;
 
@@ -1507,7 +1511,7 @@ document.addEventListener("DOMContentLoaded", function () {
   // 🔹 Load existing tasks/signups month-by-month from JVGH API and map them onto slots
   async function JVGH_loadMonthTasksAndSignups(monthKey) {
     if (!monthKey) return;
-    if (!window.JVGHApi || typeof JVGHApi.getSchedules !== "function") {
+    if (!window.JVGHApi || typeof JVGHApi.getPlannerMonthData !== "function") {
       console.warn("[JVGH] JVGHApi not available, cannot load signups.");
       return;
     }
@@ -1523,16 +1527,33 @@ document.addEventListener("DOMContentLoaded", function () {
     console.log("[JVGH] Loading month", monthKey, "(", monthLabel, ")");
 
     try {
-      await loadExistingSchedulesOnce();
       let sheetsProcessed = 0;
       let tasksProcessed = 0;
 
-      const sheetIds = new Set();
-      for (const [dayKey, sheetId] of daySheetMap.entries()) {
-        if (dayKey.startsWith(monthKey + "-")) sheetIds.add(sheetId);
-      }
+      const plannerData = await loadPlannerMonthData(monthKey);
+      console.log(
+        "[JVGH][planner-month-data]",
+        monthKey,
+        plannerData
+      );
 
-      console.log("[JVGH] Month sheets", monthKey, sheetIds.size);
+      const schedules = Array.isArray(plannerData?.schedules)
+        ? plannerData.schedules
+        : [];
+
+      schedules.forEach((schedule) => {
+        const startRaw = schedule?.start;
+        let key = null;
+        if (startRaw) {
+          const d = new Date(startRaw);
+          if (!isNaN(d)) key = jvghDayKeyFromDate(d);
+        }
+        if (key && key.startsWith(monthKey + "-") && !daySheetMap.has(key)) {
+          daySheetMap.set(key, schedule.id);
+        }
+      });
+
+      console.log("[JVGH] Month sheets", monthKey, schedules.length);
 
       const slotByKey = new Map();
       const slotByTaskId = new Map();
@@ -1554,17 +1575,12 @@ document.addEventListener("DOMContentLoaded", function () {
 
       const newAssignments = [];
 
-      for (const sheetId of sheetIds) {
+      for (const schedule of schedules) {
+        const sheetId = schedule?.id;
+        if (sheetId === undefined || sheetId === null) continue;
         sheetsProcessed += 1;
-        let tasksResp;
-        try {
-          tasksResp = await JVGHApi.getTasks(sheetId);
-        } catch (err) {
-          console.warn("[JVGH] Could not load tasks for sheet", sheetId, err);
-          continue;
-        }
 
-        const tasksArr = Array.isArray(tasksResp?.tasks) ? tasksResp.tasks : tasksResp || [];
+        const tasksArr = Array.isArray(schedule?.tasks) ? schedule.tasks : [];
         if (!tasksArr.length) continue;
 
         for (const task of tasksArr) {
@@ -1626,16 +1642,7 @@ document.addEventListener("DOMContentLoaded", function () {
           if (loadedTaskIds.has(taskIdKey)) continue;
           loadedTaskIds.add(taskIdKey);
 
-          let signupsResp;
-          try {
-            signupsResp = await JVGHApi.getSignups(task.id);
-          } catch (err) {
-            loadedTaskIds.delete(taskIdKey);
-            console.warn("[JVGH] Could not load signups for task", task.id, err);
-            continue;
-          }
-
-          const signupsArr = Array.isArray(signupsResp?.signups) ? signupsResp.signups : signupsResp || [];
+          const signupsArr = Array.isArray(task?.signups) ? task.signups : [];
           if (!signupsArr.length) continue;
 
           const startYear = parseInt(dateStr.slice(0, 4), 10);
@@ -1706,7 +1713,7 @@ document.addEventListener("DOMContentLoaded", function () {
       } else {
         console.warn("[JVGH] Month had no schedules in daySheetMap; not marking loaded:", monthKey);
       }
-      console.log("[JVGH] Loaded month", monthKey, "newAssignments", newAssignments.length);
+      console.log("[JVGH] Loaded month", monthKey, "tasks", tasksProcessed, "newAssignments", newAssignments.length);
     } catch (err) {
       console.error("[JVGH] Error while loading month", monthKey, err);
     } finally {
