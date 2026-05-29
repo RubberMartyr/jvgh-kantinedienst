@@ -7,6 +7,29 @@
   <!-- Local EventCalendar assets -->
   <link rel="stylesheet" href="./vendor/event-calendar.min.css" />
   <link rel="stylesheet" href="./styles.css" />
+
+  <script>
+    (function () {
+      const storageKey = "jvgh_access_granted";
+      let saved = null;
+
+      try {
+        saved = JSON.parse(localStorage.getItem(storageKey) || "null");
+      } catch (err) {
+        localStorage.removeItem(storageKey);
+      }
+
+      if (saved && saved.granted && saved.expires > Date.now()) {
+        return;
+      }
+
+      if (saved) {
+        localStorage.removeItem(storageKey);
+      }
+
+      document.documentElement.classList.add("jvgh-access-locked");
+    })();
+  </script>
 </head>
 <body>
 <header class="jvgh-header">
@@ -135,6 +158,14 @@
 <!-- External JS -->
 <script src="./vendor/event-calendar.min.js"></script>
 <script src="jvgh-api.js"></script>
+<script src="jvgh-access-control.js"></script>
+<script>
+  JVGHAccessControl.mount({
+    title: "Kantinedienst Planning",
+    subtitle: "Voer de toegangscode in om de planning te openen",
+    buttonText: "Toegang verkrijgen"
+  });
+</script>
 <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
 <script src="main.js"></script>
 </body>
