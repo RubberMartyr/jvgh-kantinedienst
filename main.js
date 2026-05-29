@@ -245,6 +245,12 @@ document.addEventListener("DOMContentLoaded", function () {
   const loadedTaskIds = new Set(); // avoid refetching signups repeatedly for same taskId
   const loadingMonths = new Set(); // prevent double concurrent loads
   const plannerMonthDataCache = new Map();
+  const taskBySheetDateTime = new Map();
+
+  function taskLookupKey(sheetId, dateStr, timeStr) {
+    return `${sheetId}|${dateStr}|${timeStr}`;
+  }
+
   let schedulesLoaded = false;
 
   async function loadPlannerMonthData(monthKey) {
@@ -317,27 +323,29 @@ document.addEventListener("DOMContentLoaded", function () {
   // Ensure: one task per shift (slot), on that day's sheet
   async function ensureTaskForSlot(slot) {
     if (slot.taskId) return slot.taskId;
+
     if (!slot.sheetId) {
       throw new Error("Slot heeft nog geen sheetId (sheet ontbreekt).");
     }
 
     const sheetId = slot.sheetId;
-    const resp = await JVGHApi.getTasks(sheetId);
-    const tasksArr = Array.isArray(resp.tasks) ? resp.tasks : resp || [];
-
     const startDate = new Date(slot.start);
+
     const dateStr = slot.start.slice(0, 10);
     const timeStr =
-      jvghPad2(startDate.getHours()) + ":" + jvghPad2(startDate.getMinutes());
+      jvghPad2(startDate.getHours()) +
+      ":" +
+      jvghPad2(startDate.getMinutes());
 
-    // probeer bestaande taak te vinden
-    let existingTask = tasksArr.find((t) => {
-      const tDate = (t.date || "").slice(0, 10);
-      const tTime = (t.time || "").slice(0, 5);
-      return tDate === dateStr && tTime === timeStr;
-    });
+    const lookupKey = taskLookupKey(
+      sheetId,
+      dateStr,
+      timeStr
+    );
 
-    // zo niet → nieuwe taak aanmaken
+    let existingTask =
+      taskBySheetDateTime.get(lookupKey);
+
     if (!existingTask) {
       const createdTask = await JVGHApi.createTask(sheetId, {
         title: `Kantinedienst ${timeStr}`,
@@ -346,13 +354,20 @@ document.addEventListener("DOMContentLoaded", function () {
         time: timeStr,
       });
 
-      const taskObj =
-        createdTask?.task && createdTask.task.id ? createdTask.task : createdTask;
+      existingTask =
+        createdTask?.task && createdTask.task.id
+          ? createdTask.task
+          : createdTask;
 
-      existingTask = taskObj;
+      taskBySheetDateTime.set(
+        lookupKey,
+        existingTask
+      );
     }
 
     slot.taskId = existingTask.id;
+    slot.sheetId = sheetId;
+
     return existingTask.id;
   }
 
@@ -1189,6 +1204,11 @@ document.addEventListener("DOMContentLoaded", function () {
       loadedMonths.delete(monthKey);
       loadingMonths.delete(monthKey);
       plannerMonthDataCache.delete(monthKey);
+      for (const key of Array.from(taskBySheetDateTime.keys())) {
+        if (key.includes(`|${monthKey}-`)) {
+          taskBySheetDateTime.delete(key);
+        }
+      }
       loadedTaskIds.clear();
       schedulesLoaded = false;
 
@@ -1588,6 +1608,17 @@ document.addEventListener("DOMContentLoaded", function () {
           const timeStr = String(task?.time || "").slice(0, 5);
           if (!dateStr || !timeStr) continue;
           if (!dateStr.startsWith(monthKey)) continue;
+
+          const lookupKey = taskLookupKey(
+            sheetId,
+            dateStr,
+            timeStr
+          );
+          taskBySheetDateTime.set(
+            lookupKey,
+            task
+          );
+
           tasksProcessed += 1;
 
           const taskKey = dateStr + " " + timeStr;
