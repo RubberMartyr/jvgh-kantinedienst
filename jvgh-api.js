@@ -54,6 +54,12 @@ async function getMonthData(monthKey) {
   return jvghRequest(`/month-data?month=${encodeURIComponent(monthKey)}`);
 }
 
+async function getPlannerMonthData(monthKey) {
+  return jvghRequest(
+    `/planner-month-data?month=${encodeURIComponent(monthKey)}`
+  );
+}
+
 async function createSchedule({ title, start, end = null }) {
   return jvghRequest('/schedules', {
     method: 'POST',
@@ -445,6 +451,7 @@ async function getUserDisplayName(userId) {
 window.JVGHApi = {
   getSchedules,
   getMonthData,
+  getPlannerMonthData,
   createSchedule,
   updateSchedule,
   deleteSchedule,
