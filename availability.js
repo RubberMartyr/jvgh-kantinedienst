@@ -361,8 +361,14 @@ async function loadTasksForMonth(monthKey) {
 
   const tasks = [];
   const signupsByTask = new Map();
+  const scheduleByDay = new Map();
 
   schedules.forEach((schedule) => {
+    const scheduleStart = String(schedule.start || "").slice(0, 10);
+    if (scheduleStart) {
+      scheduleByDay.set(scheduleStart, schedule.id);
+    }
+
     const scheduleTasks = Array.isArray(schedule.tasks)
       ? schedule.tasks
       : [];
@@ -393,6 +399,7 @@ async function loadTasksForMonth(monthKey) {
   return {
     tasks,
     signupsByTask,
+    scheduleByDay,
   };
 }
 
@@ -553,26 +560,24 @@ async function ensureTaskForShift(shift, scheduleByDay) {
       : createdSchedule;
     scheduleId = sch.id;
     scheduleByDay.set(dayKey, scheduleId);
+    shift.sheetId = scheduleId;
   }
 
-  const tasksResp = await JVGHApi.getTasks(scheduleId);
-  const tasksArr = Array.isArray(tasksResp?.tasks) ? tasksResp.tasks : tasksResp || [];
-  let task = tasksArr.find((t) =>
-    String(t.date || "").slice(0, 10) === shift.date &&
-    String(t.time || "").slice(0, 5) === shift.time
-  );
+  const createdTask = await JVGHApi.createTask(scheduleId, {
+    title: isUnavailable ? "Niet beschikbaar deze maand" : `Kantinedienst ${shift.time}`,
+    qty: isUnavailable ? 0 : Number(shift.qty) || DEFAULT_ASSIGNMENT_DURATION_MINUTES,
+    date: shift.date,
+    time: isUnavailable ? "" : shift.time,
+  });
 
-  if (!task) {
-    const createdTask = await JVGHApi.createTask(scheduleId, {
-      title: isUnavailable ? "Niet beschikbaar deze maand" : `Kantinedienst ${shift.time}`,
-      qty: isUnavailable ? 0 : Number(shift.qty) || DEFAULT_ASSIGNMENT_DURATION_MINUTES,
-      date: shift.date,
-      time: isUnavailable ? "" : shift.time,
-    });
-    task = createdTask?.task && createdTask.task.id ? createdTask.task : createdTask;
-  }
+  const task =
+    createdTask?.task && createdTask.task.id
+      ? createdTask.task
+      : createdTask;
 
   shift.id = task.id;
+  shift.sheetId = scheduleId;
+
   return task.id;
 }
 
@@ -785,7 +790,12 @@ function renderList({ tasks, stateByTask, userId }) {
   setStatus(`${visibleTasks.length} shifts geladen.`);
 }
 
-async function saveChanges({ stateByTask, userId, userName }) {
+async function saveChanges({
+  stateByTask,
+  userId,
+  userName,
+  scheduleByDay
+}) {
   const saveButtons = document.querySelectorAll(".availability-save-btn");
   saveButtons.forEach((saveButton) => {
     saveButton.disabled = true;
@@ -803,13 +813,9 @@ async function saveChanges({ stateByTask, userId, userName }) {
       return;
     }
 
-    const schedulesResp = await JVGHApi.getSchedules();
-    const schedules = Array.isArray(schedulesResp?.schedules) ? schedulesResp.schedules : schedulesResp || [];
-    const scheduleByDay = new Map();
-    schedules.forEach((s) => {
-      const day = String(s?.start || "").slice(0, 10);
-      if (day) scheduleByDay.set(day, s.id);
-    });
+    if (!(scheduleByDay instanceof Map)) {
+      scheduleByDay = new Map();
+    }
 
     for (const state of toCreate) {
       const isUnavailable = isMonthUnavailableTask(state.task);
@@ -964,6 +970,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   let currentMonthDate = monthDateFromKey(monthKey);
   let currentStateByTask = new Map();
+  let currentScheduleByDay = new Map();
   let resolvedName = providedName || null;
   let monthLoading = false;
   setSaveButtonsVisible(false);
@@ -1014,8 +1021,11 @@ document.addEventListener("DOMContentLoaded", async () => {
       setStatus("Shifts laden…");
       const {
         tasks,
-        signupsByTask
+        signupsByTask,
+        scheduleByDay
       } = await loadTasksForMonth(currentMonthKey);
+
+      currentScheduleByDay = scheduleByDay;
 
       console.log(
         "[availability] month-data loaded",
@@ -1136,7 +1146,12 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   document.querySelectorAll(".availability-save-btn").forEach((saveButton) => {
     saveButton.onclick = () => {
-      saveChanges({ stateByTask: currentStateByTask, userId, userName: resolvedName || "Gebruiker" });
+      saveChanges({
+        stateByTask: currentStateByTask,
+        userId,
+        userName: resolvedName || "Gebruiker",
+        scheduleByDay: currentScheduleByDay
+      });
     };
   });
 
