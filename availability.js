@@ -480,7 +480,12 @@ function parseICS(text, options = {}) {
 
     if (homeTeamFilter) {
       const parts = String(summary || "").split("/");
-      if (!(parts.length >= 2 && parts[0].includes(homeTeamFilter))) continue;
+      const homePart = String(parts[0] || "").toLowerCase();
+      const normalizedFilter = String(homeTeamFilter).toLowerCase();
+
+      if (!(parts.length >= 2 && homePart.includes(normalizedFilter))) {
+        continue;
+      }
     }
 
     const end = endRaw && !Number.isNaN(endRaw.getTime())
