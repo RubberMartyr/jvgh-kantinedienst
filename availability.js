@@ -472,8 +472,13 @@ function parseICS(text, options = {}) {
     };
 
     const summary = pick("SUMMARY");
-    const start = parseICalDate(pick("DTSTART"));
-    const endRaw = parseICalDate(pick("DTEND"));
+    const startRaw = pick("DTSTART");
+    const endRawValue = pick("DTEND");
+    const start = parseICalDate(startRaw);
+    const endRaw = parseICalDate(endRawValue);
+    const isAllDay =
+      /^\d{8}$/.test(startRaw) &&
+      (!endRawValue || /^\d{8}$/.test(endRawValue));
     if (!start || Number.isNaN(start.getTime())) continue;
 
     if (!summary) continue;
@@ -487,10 +492,118 @@ function parseICS(text, options = {}) {
       ? endRaw
       : new Date(start.getTime() + 60 * 60 * 1000);
 
-    events.push({ summary, start, end, sourceType, sourceLabel });
+    events.push({ summary, start, end, isAllDay, sourceType, sourceLabel });
   }
 
   return events;
+}
+
+function startOfCalendarDay(date) {
+  return new Date(
+    date.getFullYear(),
+    date.getMonth(),
+    date.getDate(),
+    0,
+    0,
+    0,
+    0
+  );
+}
+
+function addCalendarDays(date, amount) {
+  return new Date(
+    date.getFullYear(),
+    date.getMonth(),
+    date.getDate() + amount,
+    date.getHours(),
+    date.getMinutes(),
+    date.getSeconds(),
+    date.getMilliseconds()
+  );
+}
+
+function createDateUsingTime(day, timeSource) {
+  return new Date(
+    day.getFullYear(),
+    day.getMonth(),
+    day.getDate(),
+    timeSource.getHours(),
+    timeSource.getMinutes(),
+    timeSource.getSeconds(),
+    0
+  );
+}
+
+function expandEventIntoDailyOccurrences(event) {
+  if (!event?.start || !event?.end) {
+    return [];
+  }
+
+  const eventStart = new Date(event.start);
+  const eventEnd = new Date(event.end);
+
+  if (
+    Number.isNaN(eventStart.getTime()) ||
+    Number.isNaN(eventEnd.getTime()) ||
+    eventEnd <= eventStart
+  ) {
+    return [];
+  }
+
+  const startDay = startOfCalendarDay(eventStart);
+  const endDay = startOfCalendarDay(eventEnd);
+
+  // An event within one calendar day keeps its original time range.
+  if (!event.isAllDay && startDay.getTime() === endDay.getTime()) {
+    return [{
+      ...event,
+      start: eventStart,
+      end: eventEnd,
+    }];
+  }
+
+  const occurrences = [];
+
+  // VALUE=DATE has no times and uses an exclusive DTEND.
+  if (event.isAllDay) {
+    let currentDay = startDay;
+    const exclusiveEndDay = endDay;
+
+    while (currentDay < exclusiveEndDay) {
+      occurrences.push({
+        ...event,
+        start: new Date(currentDay),
+        end: addCalendarDays(currentDay, 1),
+      });
+
+      currentDay = addCalendarDays(currentDay, 1);
+    }
+
+    return occurrences;
+  }
+
+  // Timed multi-day events reuse the original DTSTART and DTEND times daily.
+  let currentDay = startDay;
+
+  while (currentDay <= endDay) {
+    const dailyStart = createDateUsingTime(currentDay, eventStart);
+    let dailyEnd = createDateUsingTime(currentDay, eventEnd);
+
+    // An end time no later than the start time belongs to the next day.
+    if (dailyEnd <= dailyStart) {
+      dailyEnd = addCalendarDays(dailyEnd, 1);
+    }
+
+    occurrences.push({
+      ...event,
+      start: dailyStart,
+      end: dailyEnd,
+    });
+
+    currentDay = addCalendarDays(currentDay, 1);
+  }
+
+  return occurrences;
 }
 
 async function loadShiftSlotsForMonth(monthKey) {
@@ -508,7 +621,11 @@ async function loadShiftSlotsForMonth(monthKey) {
     ...parseICS(bestuurText, { sourceType: "board", sourceLabel: "Dagelijks bestuur" }),
   ];
 
-  return events
+  const dailyEvents = events.flatMap((event) =>
+    expandEventIntoDailyOccurrences(event)
+  );
+
+  return dailyEvents
     .map((ev) => {
       const shiftStart = new Date(ev.start.getTime() - 60 * 60 * 1000);
       const shiftEnd = new Date(ev.end.getTime() + 2 * 60 * 60 * 1000);
