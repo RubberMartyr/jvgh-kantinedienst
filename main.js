@@ -2279,7 +2279,8 @@ if (playerSelect) {
   JVGH_loadYouthTeams();
 
   // --- Volunteers / Bestuur: load from WP REST API ---
-  const baseVolunteersUrl = `/api/volunteers`;
+  const baseVolunteersUrl =
+    "/wp-json/jvgh/v1/volunteers";
   const roleDurationMinutes = {
     bestuur: 270,
     vrijwilliger: 240,
