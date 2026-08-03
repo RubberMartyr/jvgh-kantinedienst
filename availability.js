@@ -195,11 +195,17 @@ function findStateForTask(stateByTask, task) {
   );
 }
 
+function getDefaultAvailabilityMonthKey(now = new Date()) {
+  const monthOffset = now.getDate() <= 15 ? 0 : 1;
+
+  return monthKeyFromDate(addMonths(now, monthOffset));
+}
+
 function getQueryParams() {
   const params = new URLSearchParams(window.location.search);
   const userRaw = params.get("userId") || params.get("user") || params.get("uid") || "";
-  const defaultNextMonth = monthKeyFromDate(addMonths(new Date(), 1));
-  const monthRaw = params.get("month") || defaultNextMonth;
+  const defaultMonth = getDefaultAvailabilityMonthKey();
+  const monthRaw = params.get("month") || defaultMonth;
 
   return {
     userRaw,
