@@ -173,6 +173,15 @@ function signupName(signup) {
   return `${firstName} ${lastName}`.trim() || "Vrijwilliger";
 }
 
+function normalizeSignupPersonName(value) {
+  return String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .replace(/\s+/g, " ")
+    .toLowerCase();
+}
+
 function formatHourRange(startIso, endIso) {
   const s = new Date(startIso);
   const e = new Date(endIso);
@@ -375,6 +384,49 @@ function getSignupUserId(signup) {
   return Number.isFinite(normalizedUserId)
     ? normalizedUserId
     : null;
+}
+
+function isSignupForCurrentUser(
+  signup,
+  currentUserId,
+  currentUserName
+) {
+  const normalizedCurrentUserId =
+    Number(currentUserId);
+
+  const signupUserId =
+    getSignupUserId(signup);
+
+  /*
+   * Wanneer de signup een user-ID bevat,
+   * moet dat ID beslissend zijn.
+   *
+   * Gebruik in dat geval nooit de naamfallback.
+   */
+  if (signupUserId !== null) {
+    return (
+      Number.isFinite(normalizedCurrentUserId) &&
+      signupUserId === normalizedCurrentUserId
+    );
+  }
+
+  /*
+   * Alleen wanneer de API geen user-ID terugstuurt,
+   * mag de volledige naam als legacy fallback dienen.
+   */
+  const normalizedCurrentUserName =
+    normalizeSignupPersonName(currentUserName);
+
+  const normalizedSignupName =
+    normalizeSignupPersonName(
+      signupName(signup)
+    );
+
+  return Boolean(
+    normalizedCurrentUserName &&
+    normalizedSignupName &&
+    normalizedSignupName === normalizedCurrentUserName
+  );
 }
 
 async function loadTasksForMonth(monthKey) {
@@ -816,9 +868,18 @@ async function resolveUserName({ providedName, userId, signupsByTask }) {
   return "Gebruiker";
 }
 
-function checkboxHoverTitle(signups, userId) {
-  const others = signups.filter((signup) =>
-    getSignupUserId(signup) !== Number(userId)
+function checkboxHoverTitle(
+  signups,
+  userId,
+  userName
+) {
+  const others = signups.filter(
+    (signup) =>
+      !isSignupForCurrentUser(
+        signup,
+        userId,
+        userName
+      )
   );
   if (!others.length) {
     return "Nog geen andere ingeplande gebruikers op deze shift.";
@@ -901,7 +962,12 @@ function updateDirtyUi(stateByTask) {
 }
 
 
-function renderList({ tasks, stateByTask, userId }) {
+function renderList({
+  tasks,
+  stateByTask,
+  userId,
+  userName
+}) {
   const listEl = document.getElementById("availability-list");
   listEl.innerHTML = "";
   const visibleTasks = tasks.filter((task) => !isMonthUnavailableTask(task));
@@ -932,7 +998,12 @@ function renderList({ tasks, stateByTask, userId }) {
     const checkbox = document.createElement("input");
     checkbox.type = "checkbox";
     checkbox.checked = Boolean(state.currentChecked);
-    checkbox.title = checkboxHoverTitle(state.signups, userId);
+    checkbox.title =
+      checkboxHoverTitle(
+        state.signups,
+        userId,
+        userName
+      );
     checkbox.dataset.shiftKey = shiftKey(task);
 
     const textWrap = document.createElement("div");
@@ -957,13 +1028,13 @@ function renderList({ tasks, stateByTask, userId }) {
     const details = document.createElement("div");
     details.className = "availability-details";
 
-    const normalizedCurrentUserId =
-      Number(userId);
-
     const otherUsers = state.signups.filter(
       (signup) =>
-        getSignupUserId(signup) !==
-        normalizedCurrentUserId
+        !isSignupForCurrentUser(
+          signup,
+          userId,
+          userName
+        )
     );
     const otherUsersHtml = otherUsers.length
       ? `<ul>${otherUsers.map((su) => `<li>${signupName(su)}</li>`).join("")}</ul>`
@@ -1341,14 +1412,13 @@ document.addEventListener("DOMContentLoaded", async () => {
       currentStateByTask = new Map();
       allShifts.forEach((task) => {
         const signups = signupsByTask.get(String(task.id)) || [];
-        const normalizedCurrentUserId =
-          Number(userId);
-
         const userSignup =
-          signups.find(
-            (signup) =>
-              getSignupUserId(signup) ===
-              normalizedCurrentUserId
+          signups.find((signup) =>
+            isSignupForCurrentUser(
+              signup,
+              userId,
+              resolvedName
+            )
           ) || null;
         const isMonthUnavailable = isMonthUnavailableTask(task);
         const checked = Boolean(userSignup);
@@ -1357,9 +1427,23 @@ document.addEventListener("DOMContentLoaded", async () => {
           {
             taskId: task.id,
             taskTitle: task.title,
-            userId: Number(userId),
-            signupUserIds:
-              signups.map(getSignupUserId),
+            currentUserId: Number(userId),
+            currentUserName: resolvedName,
+            signupMatches: signups.map(
+              (signup) => ({
+                signupId: signup.id,
+                signupUserId:
+                  getSignupUserId(signup),
+                signupName:
+                  signupName(signup),
+                isCurrentUser:
+                  isSignupForCurrentUser(
+                    signup,
+                    userId,
+                    resolvedName
+                  )
+              })
+            ),
             checked: Boolean(userSignup)
           }
         );
@@ -1376,7 +1460,12 @@ document.addEventListener("DOMContentLoaded", async () => {
         getMonthUnavailableState(currentStateByTask)
       );
 
-      renderList({ tasks: allShifts, stateByTask: currentStateByTask, userId });
+      renderList({
+        tasks: allShifts,
+        stateByTask: currentStateByTask,
+        userId,
+        userName: resolvedName
+      });
       setSaveDirtyState(false);
       setSaveButtonsVisible(true);
       setCalendarButtonVisible(true);
