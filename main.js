@@ -1164,16 +1164,16 @@ document.addEventListener("DOMContentLoaded", function () {
           : [];
 
         for (const task of tasks) {
-          const title = String(task?.title || "")
+          const normalizedTitle = String(task?.title || "")
             .trim()
             .toLowerCase();
 
           const isUnavailableTask =
-            title === "niet beschikbaar deze maand" ||
-            title === "ik ben niet beschikbaar deze maand";
+            normalizedTitle === "niet beschikbaar deze maand" ||
+            normalizedTitle === "ik ben niet beschikbaar deze maand";
 
           const isKantineTask =
-            title.includes("kantinedienst");
+            normalizedTitle.includes("kantinedienst");
 
           const isAvailabilityTask =
             isUnavailableTask ||
@@ -1190,14 +1190,14 @@ document.addEventListener("DOMContentLoaded", function () {
           console.log(
             "[JVGH][AVAILABILITY] task",
             task.id,
-            title,
+            normalizedTitle,
             signups
           );
 
           signups.forEach((signup) => {
             const rawUserId =
-              signup.userId ||
-              signup.user_id;
+              signup?.userId ??
+              signup?.user_id;
 
             const userId = Number(rawUserId);
 
@@ -2426,7 +2426,28 @@ ${getAvailabilityLinkForUser(userId)}`;
     const vrijwilligersPanel = overlay.querySelector('#jvgh-whatsapp-vrijwilligers-panel');
     const monthKey = getCurrentPlannerMonthKey();
     availabilityStatusByMonth.delete(monthKey);
+    plannerMonthDataCache.delete(monthKey);
     const availabilityMap = await loadAvailabilityStatusForMonth(monthKey);
+
+    let legend = overlay.querySelector(".jvgh-availability-legend");
+    if (!legend) {
+      legend = document.createElement("div");
+      legend.className = "jvgh-availability-legend";
+      legend.innerHTML = `
+        <span>
+          <span class="jvgh-availability-dot is-available"></span>
+          Beschikbaarheid doorgegeven
+        </span>
+        <span>
+          <span class="jvgh-availability-dot is-missing"></span>
+          Nog niets doorgegeven
+        </span>
+      `;
+
+      const tabs = overlay.querySelector(".jvgh-whatsapp-tabs");
+      tabs?.insertAdjacentElement("afterend", legend);
+    }
+
     if (statusEl) statusEl.textContent = '';
     if (bestuurPanel && vrijwilligersPanel) {
       const makeSection = (users = [], roleLabel = '') => {
@@ -2443,14 +2464,39 @@ ${getAvailabilityLinkForUser(userId)}`;
           const phoneInfo = getUserPhoneInfo(user);
           const phone = phoneInfo.normalized;
           const userId = Number(user?.id);
-          const hasAvailability = availabilityMap.get(Number(user?.id)) === true;
+          const hasAvailability =
+            Number.isFinite(userId) &&
+            availabilityMap.get(userId) === true;
+          const statusText = hasAvailability
+            ? "Beschikbaarheid doorgegeven"
+            : "Nog geen beschikbaarheid doorgegeven";
+
           const row = document.createElement("div");
-          row.className = "resource-line";
-          row.style.marginBottom = "6px";
-          row.innerHTML = `
-            <span class="jvgh-availability-dot ${hasAvailability ? "is-available" : "is-missing"}"></span>
-            <span class="resource-name">${user?.name || "-"}</span>
-          `;
+          row.className = "jvgh-availability-user-row";
+          row.title = statusText;
+
+          const dot = document.createElement("span");
+          dot.className =
+            `jvgh-availability-dot ${
+              hasAvailability
+                ? "is-available"
+                : "is-missing"
+            }`;
+          dot.setAttribute("aria-hidden", "true");
+          dot.title = statusText;
+
+          const name = document.createElement("span");
+          name.className = "resource-name";
+          name.textContent = user?.name || "-";
+
+          const statusLabel = document.createElement("span");
+          statusLabel.className = "jvgh-visually-hidden";
+          statusLabel.textContent = statusText;
+
+          row.appendChild(dot);
+          row.appendChild(name);
+          row.appendChild(statusLabel);
+
           const btn = document.createElement("button");
           btn.type = "button";
           btn.className = "jvgh-calendar-control-btn";
