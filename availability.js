@@ -358,6 +358,25 @@ function buildAvailabilityICS({ stateByTask, userName }) {
   ].join("\r\n");
 }
 
+function getSignupUserId(signup) {
+  if (!signup || typeof signup !== "object") {
+    return null;
+  }
+
+  const rawUserId =
+    signup.userId ??
+    signup.user_id ??
+    signup.user?.id ??
+    signup.meta?.userId ??
+    signup.meta?.user_id;
+
+  const normalizedUserId = Number(rawUserId);
+
+  return Number.isFinite(normalizedUserId)
+    ? normalizedUserId
+    : null;
+}
+
 async function loadTasksForMonth(monthKey) {
   const resp = await JVGHApi.getMonthData(monthKey);
 
@@ -407,6 +426,73 @@ async function loadTasksForMonth(monthKey) {
     signupsByTask,
     scheduleByDay,
   };
+}
+
+async function loadAuthoritativeSignupsByTask(
+  tasks,
+  fallbackSignupsByTask = new Map()
+) {
+  const result = new Map();
+
+  const taskIds = Array.from(
+    new Set(
+      (Array.isArray(tasks) ? tasks : [])
+        .map((task) => task?.id)
+        .filter(
+          (taskId) =>
+            taskId !== null &&
+            taskId !== undefined &&
+            String(taskId).trim() !== ""
+        )
+        .map(String)
+    )
+  );
+
+  if (
+    !window.JVGHApi ||
+    typeof JVGHApi.getSignups !== "function"
+  ) {
+    console.warn(
+      "[availability] JVGHApi.getSignups ontbreekt; embedded month-data signups worden gebruikt."
+    );
+
+    taskIds.forEach((taskId) => {
+      result.set(
+        taskId,
+        fallbackSignupsByTask.get(taskId) || []
+      );
+    });
+
+    return result;
+  }
+
+  for (const taskId of taskIds) {
+    try {
+      const response =
+        await JVGHApi.getSignups(taskId);
+
+      const signups =
+        Array.isArray(response?.signups)
+          ? response.signups
+          : Array.isArray(response)
+            ? response
+            : [];
+
+      result.set(taskId, signups);
+    } catch (error) {
+      console.warn(
+        `[availability] Kon actuele signups voor taak ${taskId} niet laden; fallback wordt gebruikt.`,
+        error
+      );
+
+      result.set(
+        taskId,
+        fallbackSignupsByTask.get(taskId) || []
+      );
+    }
+  }
+
+  return result;
 }
 
 function parseICalDate(line) {
@@ -719,7 +805,9 @@ async function resolveUserName({ providedName, userId, signupsByTask }) {
   }
 
   for (const signups of signupsByTask.values()) {
-    const match = signups.find((su) => Number(su.userId || su.user_id) === Number(userId));
+    const match = signups.find((signup) =>
+      getSignupUserId(signup) === Number(userId)
+    );
     if (match) {
       return signupName(match);
     }
@@ -729,7 +817,9 @@ async function resolveUserName({ providedName, userId, signupsByTask }) {
 }
 
 function checkboxHoverTitle(signups, userId) {
-  const others = signups.filter((su) => Number(su.userId || su.user_id) !== Number(userId));
+  const others = signups.filter((signup) =>
+    getSignupUserId(signup) !== Number(userId)
+  );
   if (!others.length) {
     return "Nog geen andere ingeplande gebruikers op deze shift.";
   }
@@ -867,7 +957,14 @@ function renderList({ tasks, stateByTask, userId }) {
     const details = document.createElement("div");
     details.className = "availability-details";
 
-    const otherUsers = state.signups.filter((su) => Number(su.userId || su.user_id) !== Number(userId));
+    const normalizedCurrentUserId =
+      Number(userId);
+
+    const otherUsers = state.signups.filter(
+      (signup) =>
+        getSignupUserId(signup) !==
+        normalizedCurrentUserId
+    );
     const otherUsersHtml = otherUsers.length
       ? `<ul>${otherUsers.map((su) => `<li>${signupName(su)}</li>`).join("")}</ul>`
       : "<div>Geen andere ingeplande personen op dit moment.</div>";
@@ -1149,7 +1246,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       setStatus("Shifts laden…");
       const {
         tasks,
-        signupsByTask,
+        signupsByTask: embeddedSignupsByTask,
         scheduleByDay
       } = await loadTasksForMonth(currentMonthKey);
 
@@ -1160,7 +1257,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         {
           tasks: tasks.length,
           signups:
-            Array.from(signupsByTask.values())
+            Array.from(embeddedSignupsByTask.values())
               .reduce(
                 (sum, arr) => sum + arr.length,
                 0
@@ -1213,6 +1310,29 @@ document.addEventListener("DOMContentLoaded", async () => {
       console.log("[availability] allShifts", allShifts.length, allShifts);
       console.log("[availability] visible shifts", allShifts.filter((task) => !isMonthUnavailableTask(task)).length);
 
+      setStatus("Inschrijvingen laden…");
+
+      const signupsByTask =
+        await loadAuthoritativeSignupsByTask(
+          allShifts.filter((task) => task?.id),
+          embeddedSignupsByTask
+        );
+
+      console.log(
+        "[availability] authoritative signups loaded",
+        {
+          tasks: allShifts.filter((task) => task?.id).length,
+          signups: Array.from(
+            signupsByTask.values()
+          ).reduce(
+            (total, signups) =>
+              total + signups.length,
+            0
+          ),
+          currentUserId: Number(userId)
+        }
+      );
+
       if (!resolvedName) {
         resolvedName = await resolveUserName({ providedName, userId, signupsByTask });
         renderMetaHeader();
@@ -1221,9 +1341,28 @@ document.addEventListener("DOMContentLoaded", async () => {
       currentStateByTask = new Map();
       allShifts.forEach((task) => {
         const signups = signupsByTask.get(String(task.id)) || [];
-        const userSignup = signups.find((su) => Number(su.userId || su.user_id) === Number(userId)) || null;
+        const normalizedCurrentUserId =
+          Number(userId);
+
+        const userSignup =
+          signups.find(
+            (signup) =>
+              getSignupUserId(signup) ===
+              normalizedCurrentUserId
+          ) || null;
         const isMonthUnavailable = isMonthUnavailableTask(task);
         const checked = Boolean(userSignup);
+        console.log(
+          "[availability] checkbox state",
+          {
+            taskId: task.id,
+            taskTitle: task.title,
+            userId: Number(userId),
+            signupUserIds:
+              signups.map(getSignupUserId),
+            checked: Boolean(userSignup)
+          }
+        );
         currentStateByTask.set(shiftKey(task), {
           task,
           signups: [...signups],
