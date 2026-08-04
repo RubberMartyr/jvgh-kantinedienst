@@ -37,6 +37,15 @@ document.getElementById("share-button").addEventListener("click", async () => {
 // - qty < 60  → volunteer capacity
 // - qty >= 60 → assignment duration in minutes (JVGH custom)
 
+const DEFAULT_TWILIO_ACCOUNT_SID =
+  "ACf53dde3cbb9c74b2446fcd19f7c4df61";
+
+const DEFAULT_TWILIO_WHATSAPP_FROM =
+  "whatsapp:+32460215323";
+
+const DEFAULT_TWILIO_CONTENT_SID =
+  "HX55eb6858d19820160e4b39b840bee4db";
+
 function ensureAvailabilityOverlay() {
   let overlay = document.getElementById('jvgh-availability-overlay');
   if (overlay) return overlay;
@@ -92,6 +101,31 @@ function ensureAvailabilityOverlay() {
   const accountSidInput = overlay.querySelector('#jvgh-whatsapp-account-sid');
   const fromInput = overlay.querySelector('#jvgh-whatsapp-from');
   const contentSidInput = overlay.querySelector('#jvgh-whatsapp-content-sid');
+
+  if (
+    accountSidInput &&
+    !accountSidInput.value
+  ) {
+    accountSidInput.value =
+      DEFAULT_TWILIO_ACCOUNT_SID;
+  }
+
+  if (
+    fromInput &&
+    !fromInput.value
+  ) {
+    fromInput.value =
+      DEFAULT_TWILIO_WHATSAPP_FROM;
+  }
+
+  if (
+    contentSidInput &&
+    !contentSidInput.value
+  ) {
+    contentSidInput.value =
+      DEFAULT_TWILIO_CONTENT_SID;
+  }
+  
   const tabs = Array.from(overlay.querySelectorAll('.jvgh-whatsapp-tab'));
   const panels = Array.from(overlay.querySelectorAll('.jvgh-whatsapp-panel'));
   const activateTab = (tabName) => {
