@@ -535,18 +535,24 @@ document.addEventListener("DOMContentLoaded", function () {
       if (!start || isNaN(start)) continue;
 
       if (homeTeamFilter) {
-        // Only keep home matches where "home/away" summary has the selected team on the left side.
-        let isHome = false;
-        if (summary) {
-          const parts = summary.split("/");
-          if (parts.length >= 2) {
-            const leftSide = parts[0];
-            if (leftSide.includes(homeTeamFilter)) {
-              isHome = true;
-            }
-          }
+        // Only keep home matches where "home/away" summary
+        // has the selected team on the left side.
+        const parts = String(summary || "").split("/");
+
+        const leftSide = String(parts[0] || "")
+          .trim()
+          .toLowerCase();
+
+        const normalizedHomeTeamFilter = String(homeTeamFilter || "")
+          .trim()
+          .toLowerCase();
+
+        const isHome =
+          parts.length >= 2 && leftSide.includes(normalizedHomeTeamFilter);
+
+        if (!isHome) {
+          continue;
         }
-        if (!isHome) continue; // skip away matches / non-match items when home filter is active
       }
 
       const finalEnd =
