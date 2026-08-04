@@ -1182,9 +1182,9 @@ body {
 .jvgh-availability-dot {
   width: 10px;
   height: 10px;
+  min-width: 10px;
   border-radius: 50%;
   display: inline-block;
-  margin-right: 8px;
   flex-shrink: 0;
 }
 
@@ -1196,6 +1196,45 @@ body {
 .jvgh-availability-dot.is-missing {
   background: #dc3545;
   box-shadow: 0 0 4px rgba(220, 53, 69, 0.5);
+}
+
+.jvgh-availability-user-row {
+  display: grid;
+  grid-template-columns: 10px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 7px;
+}
+
+.jvgh-availability-user-row .resource-name {
+  min-width: 0;
+}
+
+.jvgh-availability-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  margin: 8px 0 12px;
+  font-size: 0.82rem;
+  color: #475569;
+}
+
+.jvgh-availability-legend > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.jvgh-visually-hidden {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
 }
 
 /* Distinct iCal source colors */
