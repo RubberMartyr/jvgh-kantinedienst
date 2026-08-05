@@ -226,6 +226,13 @@ function shiftKey(task) {
   return `slot-${date}-${time}`;
 }
 
+function persistedSlotKey(task) {
+  const date = String(task?.date || "").slice(0, 10);
+  const time = String(task?.time || "").slice(0, 5);
+
+  return `${date} ${time}`;
+}
+
 function findStateForTask(stateByTask, task) {
   return (
     stateByTask.get(shiftKey(task)) ||
@@ -663,6 +670,42 @@ async function loadAuthoritativeSignupsByTask(
   }
 
   return result;
+}
+
+function collectSignupsForTaskGroup(task, signupsByTask) {
+  const taskIds =
+    Array.isArray(task?.relatedTaskIds) && task.relatedTaskIds.length
+      ? task.relatedTaskIds
+      : task?.id !== null && task?.id !== undefined
+        ? [task.id]
+        : [];
+
+  const combined = [];
+  const seen = new Set();
+
+  taskIds.forEach((taskId) => {
+    const signups = signupsByTask.get(String(taskId)) || [];
+
+    signups.forEach((signup) => {
+      const uniqueKey = `${String(taskId)}:${String(signup.id)}`;
+
+      if (seen.has(uniqueKey)) {
+        return;
+      }
+
+      seen.add(uniqueKey);
+      combined.push({
+        ...signup,
+        /*
+         * Intern veld zodat verwijderen via de juiste
+         * persisted task gebeurt.
+         */
+        __taskId: taskId,
+      });
+    });
+  });
+
+  return combined;
 }
 
 function parseICalDate(line) {
@@ -1265,6 +1308,35 @@ async function saveChanges({
       scheduleByDay = new Map();
     }
 
+    const deleteCurrentSignupFromState = async (state) => {
+      const signup = state.userSignup;
+      if (!signup?.id) return;
+
+      const signupTaskId =
+        state.userSignupTaskId ?? signup.__taskId ?? state.task.id;
+
+      if (!signupTaskId) {
+        throw new Error(
+          "Kan inschrijving niet verwijderen: oorspronkelijk taskId ontbreekt."
+        );
+      }
+
+      await JVGHApi.deleteSignup(signupTaskId, signup.id);
+
+      state.signups = state.signups.filter(
+        (su) =>
+          !(
+            Number(su.id) === Number(signup.id) &&
+            String(su.__taskId ?? "") === String(signupTaskId)
+          )
+      );
+
+      state.userSignup = null;
+      state.userSignupTaskId = null;
+      state.originalChecked = false;
+      state.currentChecked = false;
+    };
+
     for (const state of toCreate) {
       const isUnavailable = isMonthUnavailableTask(state.task);
       if (isUnavailable) {
@@ -1280,22 +1352,19 @@ async function saveChanges({
           const signup = otherState.userSignup;
 
           if (signup?.id) {
-            await JVGHApi.deleteSignup(
-              otherState.task.id,
-              signup.id
-            );
-
-            otherState.signups = otherState.signups.filter(
-              (su) => Number(su.id) !== Number(signup.id)
-            );
-
-            otherState.userSignup = null;
-            otherState.originalChecked = false;
-            otherState.currentChecked = false;
+            await deleteCurrentSignupFromState(otherState);
           }
         }
       }
       const previousKey = shiftKey(state.task);
+      if (
+        !state.task.id &&
+        Array.isArray(state.task.relatedTaskIds) &&
+        state.task.relatedTaskIds.length
+      ) {
+        state.task.id = state.task.relatedTaskIds[0];
+      }
+
       if (!state.task.id) {
         await ensureTaskForShift(state.task, scheduleByDay);
       }
@@ -1318,8 +1387,14 @@ async function saveChanges({
             ? created.signup
             : created;
 
-        state.signups.push(signup);
-        state.userSignup = signup;
+        const normalizedSignup = {
+          ...signup,
+          __taskId: state.task.id,
+        };
+
+        state.signups.push(normalizedSignup);
+        state.userSignup = normalizedSignup;
+        state.userSignupTaskId = state.task.id;
       }
       if (!isUnavailable) {
         const created = await JVGHApi.createSignup(state.task.id, {
@@ -1332,8 +1407,14 @@ async function saveChanges({
 
         const signup = created?.signup && created.signup.id ? created.signup : created;
 
-        state.signups.push(signup);
-        state.userSignup = signup;
+        const normalizedSignup = {
+          ...signup,
+          __taskId: state.task.id,
+        };
+
+        state.signups.push(normalizedSignup);
+        state.userSignup = normalizedSignup;
+        state.userSignupTaskId = state.task.id;
       }
       state.originalChecked = true;
       state.currentChecked = true;
@@ -1358,18 +1439,13 @@ async function saveChanges({
 
         state.task.id = null;
         state.userSignup = null;
+        state.userSignupTaskId = null;
         state.signups = [];
         state.originalChecked = false;
         state.currentChecked = false;
         continue;
       }
-      const signup = state.userSignup;
-      if (!signup?.id) continue;
-      await JVGHApi.deleteSignup(state.task.id, signup.id);
-      state.signups = state.signups.filter((su) => Number(su.id) !== Number(signup.id));
-      state.userSignup = null;
-      state.originalChecked = false;
-      state.currentChecked = false;
+      await deleteCurrentSignupFromState(state);
     }
 
     setStatus("Wijzigingen opgeslagen.");
@@ -1488,24 +1564,60 @@ document.addEventListener("DOMContentLoaded", async () => {
         }
       );
 
+      const persistedTasksBySlotKey = new Map();
+
+      tasks.forEach((task) => {
+        if (isPersistedMonthUnavailableTask(task, currentMonthKey)) {
+          return;
+        }
+
+        const key = persistedSlotKey(task);
+
+        if (!persistedTasksBySlotKey.has(key)) {
+          persistedTasksBySlotKey.set(key, []);
+        }
+
+        persistedTasksBySlotKey.get(key).push(task);
+      });
+
+      console.log(
+        "[availability] persisted task groups",
+        Array.from(persistedTasksBySlotKey.entries()).map(
+          ([key, groupedTasks]) => ({
+            key,
+            taskIds: groupedTasks.map((task) => task.id),
+          })
+        )
+      );
+
       const slotShifts = await loadShiftSlotsForMonth(currentMonthKey);
 
       const mergedByKey = new Map();
       slotShifts.forEach((shift) => {
         mergedByKey.set(`${shift.date} ${shift.time}`, shift);
       });
-      tasks.forEach((task) => {
-        if (isPersistedMonthUnavailableTask(task, currentMonthKey)) {
-          return;
-        }
-
-        const key = `${String(task.date || "").slice(0, 10)} ${String(task.time || "").slice(0, 5)}`;
+      persistedTasksBySlotKey.forEach((groupedTasks, key) => {
         const existing = mergedByKey.get(key) || {};
+        /*
+         * Gebruik deterministisch de eerste persisted task
+         * als canonical task voor deze visuele shift.
+         */
+        const canonicalTask = groupedTasks[0];
+
         mergedByKey.set(key, {
           ...existing,
-          ...task,
-          date: String(task.date || "").slice(0, 10),
-          time: String(task.time || "").slice(0, 5),
+          ...canonicalTask,
+          date: String(canonicalTask.date || "").slice(0, 10),
+          time: String(canonicalTask.time || "").slice(0, 5),
+          /*
+           * Bewaar alle task-ID's die dezelfde zichtbare shift
+           * vertegenwoordigen.
+           */
+          relatedTaskIds: groupedTasks
+            .map((task) => task.id)
+            .filter(
+              (taskId) => taskId !== null && taskId !== undefined
+            ),
         });
       });
       const monthUnavailable = monthUnavailableTask(currentMonthKey);
@@ -1537,14 +1649,18 @@ document.addEventListener("DOMContentLoaded", async () => {
 
       const signupsByTask =
         await loadAuthoritativeSignupsByTask(
-          allShifts.filter((task) => task?.id),
+          tasks.filter(
+            (task) => task?.id !== null && task?.id !== undefined
+          ),
           embeddedSignupsByTask
         );
 
       console.log(
         "[availability] authoritative signups loaded",
         {
-          tasks: allShifts.filter((task) => task?.id).length,
+          tasks: tasks.filter(
+            (task) => task?.id !== null && task?.id !== undefined
+          ).length,
           signups: Array.from(
             signupsByTask.values()
           ).reduce(
@@ -1563,7 +1679,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
       currentStateByTask = new Map();
       allShifts.forEach((task) => {
-        const signups = signupsByTask.get(String(task.id)) || [];
+        const signups = collectSignupsForTaskGroup(task, signupsByTask);
         const userSignup =
           signups.find((signup) =>
             isSignupForCurrentUser(
@@ -1577,17 +1693,13 @@ document.addEventListener("DOMContentLoaded", async () => {
         console.log(
           "[availability] checkbox identity check",
           {
-            taskId: task.id,
+            visibleTaskId: task.id,
+            relatedTaskIds: task.relatedTaskIds || [],
             currentUserId: Number(userId),
             currentUserName: resolvedName,
             signups: signups.map((signup) => ({
               signupId: signup.id,
-              rawUserId:
-                signup.userId ??
-                signup.user_id ??
-                signup.wpUserId ??
-                signup.wp_user_id ??
-                null,
+              sourceTaskId: signup.__taskId,
               normalizedUserId:
                 getSignupUserId(signup),
               name:
@@ -1606,6 +1718,7 @@ document.addEventListener("DOMContentLoaded", async () => {
           task,
           signups: [...signups],
           userSignup,
+          userSignupTaskId: userSignup?.__taskId ?? task.id ?? null,
           originalChecked: checked,
           currentChecked: checked,
         });
