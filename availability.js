@@ -168,9 +168,39 @@ function formatShiftLabel(task) {
 }
 
 function signupName(signup) {
-  const firstName = signup.firstName || signup.firstname || signup.first_name || "";
-  const lastName = signup.lastName || signup.lastname || signup.last_name || "";
-  return `${firstName} ${lastName}`.trim() || "Vrijwilliger";
+  if (!signup || typeof signup !== "object") {
+    return "";
+  }
+
+  const directName =
+    signup.name ||
+    signup.displayName ||
+    signup.display_name ||
+    signup.fullName ||
+    signup.full_name ||
+    "";
+
+  if (String(directName).trim()) {
+    return String(directName).trim();
+  }
+
+  const firstName =
+    signup.firstName ||
+    signup.firstname ||
+    signup.first_name ||
+    "";
+
+  const lastName =
+    signup.lastName ||
+    signup.lastname ||
+    signup.last_name ||
+    "";
+
+  return `${firstName} ${lastName}`.trim();
+}
+
+function signupDisplayName(signup) {
+  return signupName(signup) || "Vrijwilliger";
 }
 
 function normalizeSignupPersonName(value) {
@@ -375,13 +405,29 @@ function getSignupUserId(signup) {
   const rawUserId =
     signup.userId ??
     signup.user_id ??
+    signup.wpUserId ??
+    signup.wp_user_id ??
+    signup.wordpressUserId ??
+    signup.wordpress_user_id ??
     signup.user?.id ??
     signup.meta?.userId ??
     signup.meta?.user_id;
 
+  if (
+    rawUserId === null ||
+    rawUserId === undefined ||
+    rawUserId === false ||
+    String(rawUserId).trim() === ""
+  ) {
+    return null;
+  }
+
   const normalizedUserId = Number(rawUserId);
 
-  return Number.isFinite(normalizedUserId)
+  return (
+    Number.isInteger(normalizedUserId) &&
+    normalizedUserId > 0
+  )
     ? normalizedUserId
     : null;
 }
@@ -397,23 +443,14 @@ function isSignupForCurrentUser(
   const signupUserId =
     getSignupUserId(signup);
 
-  /*
-   * Wanneer de signup een user-ID bevat,
-   * moet dat ID beslissend zijn.
-   *
-   * Gebruik in dat geval nooit de naamfallback.
-   */
   if (signupUserId !== null) {
     return (
-      Number.isFinite(normalizedCurrentUserId) &&
+      Number.isInteger(normalizedCurrentUserId) &&
+      normalizedCurrentUserId > 0 &&
       signupUserId === normalizedCurrentUserId
     );
   }
 
-  /*
-   * Alleen wanneer de API geen user-ID terugstuurt,
-   * mag de volledige naam als legacy fallback dienen.
-   */
   const normalizedCurrentUserName =
     normalizeSignupPersonName(currentUserName);
 
@@ -422,11 +459,92 @@ function isSignupForCurrentUser(
       signupName(signup)
     );
 
-  return Boolean(
-    normalizedCurrentUserName &&
-    normalizedSignupName &&
-    normalizedSignupName === normalizedCurrentUserName
+  const invalidFallbackNames = new Set([
+    "",
+    "gebruiker",
+    "vrijwilliger"
+  ]);
+
+  if (
+    invalidFallbackNames.has(
+      normalizedCurrentUserName
+    )
+  ) {
+    return false;
+  }
+
+  return (
+    normalizedSignupName !== "" &&
+    normalizedSignupName ===
+      normalizedCurrentUserName
   );
+}
+
+const volunteerNameByUserIdCache = new Map();
+
+async function getVolunteerNameByUserId(userId) {
+  const normalizedUserId = Number(userId);
+
+  if (
+    !Number.isInteger(normalizedUserId) ||
+    normalizedUserId <= 0
+  ) {
+    return null;
+  }
+
+  if (volunteerNameByUserIdCache.has(normalizedUserId)) {
+    return volunteerNameByUserIdCache.get(normalizedUserId);
+  }
+
+  const roles = ["bestuur", "vrijwilliger"];
+
+  for (const role of roles) {
+    try {
+      const response = await fetch(
+        `/wp-json/jvgh/v1/volunteers?role=${encodeURIComponent(role)}&_=${Date.now()}`,
+        {
+          credentials: "same-origin",
+          cache: "no-store"
+        }
+      );
+
+      if (!response.ok) {
+        continue;
+      }
+
+      const users = await response.json();
+
+      const match = Array.isArray(users)
+        ? users.find(
+            (user) =>
+              Number(user?.id) === normalizedUserId
+          )
+        : null;
+
+      const name = String(match?.name || "").trim();
+
+      if (name) {
+        volunteerNameByUserIdCache.set(
+          normalizedUserId,
+          name
+        );
+
+        return name;
+      }
+    } catch (error) {
+      console.warn(
+        `[availability] Kon gebruiker ${normalizedUserId} niet ophalen voor rol ${role}.`,
+        error
+      );
+    }
+  }
+
+  volunteerNameByUserIdCache.set(
+    normalizedUserId,
+    null
+  );
+
+  return null;
 }
 
 async function loadTasksForMonth(monthKey) {
@@ -848,24 +966,58 @@ async function ensureTaskForShift(shift, scheduleByDay) {
 }
 
 
-async function resolveUserName({ providedName, userId, signupsByTask }) {
-  if (providedName) return providedName;
+async function resolveUserName({
+  providedName,
+  userId,
+  signupsByTask
+}) {
+  const cleanProvidedName =
+    String(providedName || "").trim();
 
-  if (window.JVGHApi && typeof JVGHApi.getUserDisplayName === "function") {
-    const apiName = await JVGHApi.getUserDisplayName(userId);
-    if (apiName) return apiName;
+  if (cleanProvidedName) {
+    return cleanProvidedName;
   }
 
-  for (const signups of signupsByTask.values()) {
-    const match = signups.find((signup) =>
-      getSignupUserId(signup) === Number(userId)
-    );
-    if (match) {
-      return signupName(match);
+  if (
+    window.JVGHApi &&
+    typeof JVGHApi.getUserDisplayName === "function"
+  ) {
+    try {
+      const apiName =
+        await JVGHApi.getUserDisplayName(userId);
+
+      if (String(apiName || "").trim()) {
+        return String(apiName).trim();
+      }
+    } catch (error) {
+      console.warn(
+        "[availability] getUserDisplayName mislukt.",
+        error
+      );
     }
   }
 
-  return "Gebruiker";
+  const volunteerName =
+    await getVolunteerNameByUserId(userId);
+
+  if (volunteerName) {
+    return volunteerName;
+  }
+
+  for (const signups of signupsByTask.values()) {
+    const match = signups.find(
+      (signup) =>
+        getSignupUserId(signup) === Number(userId)
+    );
+
+    const name = signupName(match);
+
+    if (name) {
+      return name;
+    }
+  }
+
+  return "";
 }
 
 function checkboxHoverTitle(
@@ -884,7 +1036,7 @@ function checkboxHoverTitle(
   if (!others.length) {
     return "Nog geen andere ingeplande gebruikers op deze shift.";
   }
-  return `Reeds ingepland: ${others.map(signupName).join(", ")}`;
+  return `Reeds ingepland: ${others.map(signupDisplayName).join(", ")}`;
 }
 
 function computeDirtyCount(stateByTask) {
@@ -1037,7 +1189,7 @@ function renderList({
         )
     );
     const otherUsersHtml = otherUsers.length
-      ? `<ul>${otherUsers.map((su) => `<li>${signupName(su)}</li>`).join("")}</ul>`
+      ? `<ul>${otherUsers.map((su) => `<li>${signupDisplayName(su)}</li>`).join("")}</ul>`
       : "<div>Geen andere ingeplande personen op dit moment.</div>";
 
     let reasonHtml = "<div><strong>Reden:</strong> Handmatige/plannings-taak</div>";
@@ -1423,27 +1575,30 @@ document.addEventListener("DOMContentLoaded", async () => {
         const isMonthUnavailable = isMonthUnavailableTask(task);
         const checked = Boolean(userSignup);
         console.log(
-          "[availability] checkbox state",
+          "[availability] checkbox identity check",
           {
             taskId: task.id,
-            taskTitle: task.title,
             currentUserId: Number(userId),
             currentUserName: resolvedName,
-            signupMatches: signups.map(
-              (signup) => ({
-                signupId: signup.id,
-                signupUserId:
-                  getSignupUserId(signup),
-                signupName:
-                  signupName(signup),
-                isCurrentUser:
-                  isSignupForCurrentUser(
-                    signup,
-                    userId,
-                    resolvedName
-                  )
-              })
-            ),
+            signups: signups.map((signup) => ({
+              signupId: signup.id,
+              rawUserId:
+                signup.userId ??
+                signup.user_id ??
+                signup.wpUserId ??
+                signup.wp_user_id ??
+                null,
+              normalizedUserId:
+                getSignupUserId(signup),
+              name:
+                signupName(signup),
+              matches:
+                isSignupForCurrentUser(
+                  signup,
+                  userId,
+                  resolvedName
+                )
+            })),
             checked: Boolean(userSignup)
           }
         );
