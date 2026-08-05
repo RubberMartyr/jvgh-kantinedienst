@@ -46,6 +46,9 @@ const DEFAULT_TWILIO_WHATSAPP_FROM =
 const DEFAULT_TWILIO_CONTENT_SID =
   "HX55eb6858d19820160e4b39b840bee4db";
 
+const DEFAULT_TWILIO_REMINDER_CONTENT_SID =
+  "HXd2a76ecab0c9744284fd0f7ec2e4a569";
+
 function ensureAvailabilityOverlay() {
   let overlay = document.getElementById('jvgh-availability-overlay');
   if (overlay) return overlay;
@@ -59,7 +62,7 @@ function ensureAvailabilityOverlay() {
       <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
         <h2 style="margin:0;">Beschikbaarheid versturen</h2>
       </div>
-      <p>Klik op de WhatsApp-knop naast een gebruiker om een beschikbaarheidsbericht te sturen.</p>
+      <p>Klik op Verstuur om het eerste beschikbaarheidsbericht te sturen of op Herinner om een herinnering te sturen.</p>
       <div class="jvgh-whatsapp-tabs" role="tablist" aria-label="WhatsApp secties">
         <button type="button" class="jvgh-whatsapp-tab is-active" data-tab="bestuur" aria-selected="true">Bestuur</button>
         <button type="button" class="jvgh-whatsapp-tab" data-tab="vrijwilligers" aria-selected="false">Vrijwilligers</button>
@@ -76,6 +79,9 @@ function ensureAvailabilityOverlay() {
       </label>
       <label class="jvgh-whatsapp-field">Template SID (Twilio ContentSid)
         <input id="jvgh-whatsapp-content-sid" type="text" placeholder="HXxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" />
+      </label>
+      <label class="jvgh-whatsapp-field">Herinnering Template SID (Twilio ContentSid)
+        <input id="jvgh-whatsapp-reminder-content-sid" type="text" placeholder="HXxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" />
       </label>
       <label class="jvgh-whatsapp-field">Auth token (Twilio)
         <input id="jvgh-twilio-auth-token" type="password" placeholder="Alleen nodig voor server-side Twilio API" />
@@ -101,6 +107,7 @@ function ensureAvailabilityOverlay() {
   const accountSidInput = overlay.querySelector('#jvgh-whatsapp-account-sid');
   const fromInput = overlay.querySelector('#jvgh-whatsapp-from');
   const contentSidInput = overlay.querySelector('#jvgh-whatsapp-content-sid');
+  const reminderContentSidInput = overlay.querySelector('#jvgh-whatsapp-reminder-content-sid');
 
   if (
     accountSidInput &&
@@ -124,6 +131,14 @@ function ensureAvailabilityOverlay() {
   ) {
     contentSidInput.value =
       DEFAULT_TWILIO_CONTENT_SID;
+  }
+
+  if (
+    reminderContentSidInput &&
+    !reminderContentSidInput.value
+  ) {
+    reminderContentSidInput.value =
+      DEFAULT_TWILIO_REMINDER_CONTENT_SID;
   }
   
   const tabs = Array.from(overlay.querySelectorAll('.jvgh-whatsapp-tab'));
@@ -2500,70 +2515,128 @@ ${getAvailabilityLinkForUser(userId)}`;
           const btn = document.createElement("button");
           btn.type = "button";
           btn.className = "jvgh-calendar-control-btn";
-          btn.textContent = "WhatsApp";
+          btn.textContent = "Verstuur";
+          const reminderButton = document.createElement("button");
+          reminderButton.type = "button";
+          reminderButton.className = "jvgh-calendar-control-btn";
+          reminderButton.textContent = "Herinner";
           const isInvalidPhone = !phone;
           const isInvalidUserId = !Number.isFinite(userId) || userId <= 0;
-          btn.disabled = isInvalidPhone || isInvalidUserId;
+          const buttonsDisabled = isInvalidPhone || isInvalidUserId;
+          btn.disabled = buttonsDisabled;
+          reminderButton.disabled = buttonsDisabled;
           const disabledReason = isInvalidPhone
             ? phoneInfo.reason || "Geen geldig telefoonnummer beschikbaar voor deze gebruiker."
             : "Gebruiker heeft geen geldig ID om een bericht te versturen.";
           const tooltipWrapper = document.createElement("span");
-          tooltipWrapper.title = btn.disabled ? disabledReason : "";
-          tooltipWrapper.style.display = "inline-block";
-          if (btn.disabled) {
+          tooltipWrapper.title = buttonsDisabled ? disabledReason : "";
+          tooltipWrapper.style.display = "inline-flex";
+          tooltipWrapper.style.gap = "6px";
+          tooltipWrapper.style.alignItems = "center";
+          if (buttonsDisabled) {
             btn.setAttribute("aria-label", disabledReason);
+            reminderButton.setAttribute("aria-label", disabledReason);
           }
-          btn.addEventListener("click", async (event) => {
-            event.stopPropagation();
+
+          async function sendWhatsAppMessage({
+            user,
+            phone,
+            userId,
+            contentSidSelector,
+            progressText,
+            successText,
+            missingContentSidLabel,
+          }) {
             if (!statusEl) return;
-            statusEl.textContent = "Versturen...";
+            statusEl.textContent = progressText;
+            const overlayEl = ensureAvailabilityOverlay();
+            const accountSidInput = overlayEl.querySelector('#jvgh-whatsapp-account-sid');
+            const fromInput = overlayEl.querySelector('#jvgh-whatsapp-from');
+            const contentSidInput = overlayEl.querySelector(contentSidSelector);
+            const authTokenInput = overlayEl.querySelector('#jvgh-twilio-auth-token');
+
+            const accountSid = String(accountSidInput?.value || '').trim();
+            const from = String(fromInput?.value || '').trim();
+            const contentSid = String(contentSidInput?.value || '').trim();
+            const authToken = String(authTokenInput?.value || '').trim();
+
+            if (!accountSid || !from || !contentSid || !authToken) {
+              throw new Error(`Vul Account SID, From, ${missingContentSidLabel} en Auth token in via Instellingen.`);
+            }
+
+            const whatsappTo = phone && !phone.toLowerCase().startsWith('whatsapp:')
+              ? `whatsapp:${phone}`
+              : phone;
+
+            const params = new URLSearchParams();
+            params.set('To', whatsappTo);
+            params.set('From', from);
+            params.set('ContentSid', contentSid);
+            params.set('ContentVariables', JSON.stringify({
+              "1": getUserFirstName(user),
+              "2": String(userId),
+            }));
+
+            const response = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${encodeURIComponent(accountSid)}/Messages.json`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+                Authorization: `Basic ${btoa(`${accountSid}:${authToken}`)}`,
+              },
+              body: params.toString(),
+            });
+            const payload = await response.json();
+            if (!response.ok) {
+              throw new Error(payload?.message || payload?.error || 'Twilio verzending mislukt.');
+            }
+            statusEl.textContent = successText;
+          }
+
+          const handleSendButtonClick = async ({
+            event,
+            button,
+            contentSidSelector,
+            progressText,
+            successText,
+            missingContentSidLabel,
+          }) => {
+            event.stopPropagation();
+            if (button.disabled) return;
+            button.disabled = true;
             try {
-              const overlayEl = ensureAvailabilityOverlay();
-              const accountSidInput = overlayEl.querySelector('#jvgh-whatsapp-account-sid');
-              const fromInput = overlayEl.querySelector('#jvgh-whatsapp-from');
-              const contentSidInput = overlayEl.querySelector('#jvgh-whatsapp-content-sid');
-              const authTokenInput = overlayEl.querySelector('#jvgh-twilio-auth-token');
-
-              const accountSid = String(accountSidInput?.value || '').trim();
-              const from = String(fromInput?.value || '').trim();
-              const contentSid = String(contentSidInput?.value || '').trim();
-              const authToken = String(authTokenInput?.value || '').trim();
-
-              if (!accountSid || !from || !contentSid || !authToken) {
-                throw new Error('Vul Account SID, From, Content SID en Auth token in via Instellingen.');
-              }
-
-              const whatsappTo = phone && !phone.toLowerCase().startsWith('whatsapp:')
-                ? `whatsapp:${phone}`
-                : phone;
-
-              const params = new URLSearchParams();
-              params.set('To', whatsappTo);
-              params.set('From', from);
-              params.set('ContentSid', contentSid);
-              params.set('ContentVariables', JSON.stringify({
-                "1": getUserFirstName(user),
-                "2": String(userId),
-              }));
-
-              const response = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${encodeURIComponent(accountSid)}/Messages.json`, {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/x-www-form-urlencoded',
-                  Authorization: `Basic ${btoa(`${accountSid}:${authToken}`)}`,
-                },
-                body: params.toString(),
+              await sendWhatsAppMessage({
+                user,
+                phone,
+                userId,
+                contentSidSelector,
+                progressText,
+                successText,
+                missingContentSidLabel,
               });
-              const payload = await response.json();
-              if (!response.ok) {
-                throw new Error(payload?.message || payload?.error || 'Twilio verzending mislukt.');
-              }
-              statusEl.textContent = `WhatsApp verzonden via Twilio naar ${user?.name || "-"}.`;
             } catch (error) {
               statusEl.textContent = `Verzenden mislukt: ${error.message}`;
+            } finally {
+              button.disabled = buttonsDisabled;
             }
-          });
+          };
+          btn.addEventListener("click", (event) => handleSendButtonClick({
+            event,
+            button: btn,
+            contentSidSelector: '#jvgh-whatsapp-content-sid',
+            progressText: "Versturen...",
+            successText: `WhatsApp verzonden via Twilio naar ${user?.name || "-"}.`,
+            missingContentSidLabel: "Template SID",
+          }));
+          reminderButton.addEventListener("click", (event) => handleSendButtonClick({
+            event,
+            button: reminderButton,
+            contentSidSelector: '#jvgh-whatsapp-reminder-content-sid',
+            progressText: "Herinnering versturen...",
+            successText: `Herinnering verzonden via Twilio naar ${user?.name || "-"}.`,
+            missingContentSidLabel: "Herinnering Template SID",
+          }));
           tooltipWrapper.appendChild(btn);
+          tooltipWrapper.appendChild(reminderButton);
           row.appendChild(tooltipWrapper);
           section.appendChild(row);
         });
