@@ -23,10 +23,18 @@ async function jvghRequest(path, { method = 'GET', body = null } = {}) {
     headers['Content-Type'] = 'application/json';
   }
 
-  const res = await fetch(url, {
+  const isGetRequest =
+    String(method).toUpperCase() === "GET";
+
+  const requestUrl = isGetRequest
+    ? `${url}${url.includes("?") ? "&" : "?"}_=${Date.now()}`
+    : url;
+
+  const res = await fetch(requestUrl, {
     method,
     headers,
     body: body ? JSON.stringify(body) : null,
+    cache: isGetRequest ? "no-store" : "no-cache",
   });
 
   let data = null;
