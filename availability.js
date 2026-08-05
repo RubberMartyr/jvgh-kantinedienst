@@ -367,9 +367,28 @@ function getShiftStartAndEnd(task) {
   return { start, end };
 }
 
+function hasSavedNormalAvailabilityShift(stateByTask) {
+  return Array.from(stateByTask.values()).some(
+    (state) =>
+      !isMonthUnavailableTask(state.task) &&
+      Boolean(state.originalChecked)
+  );
+}
+
+function updateCalendarButtonForState(stateByTask) {
+  const hasUnsavedChanges = computeDirtyCount(stateByTask) > 0;
+  setCalendarButtonVisible(
+    !hasUnsavedChanges && hasSavedNormalAvailabilityShift(stateByTask)
+  );
+}
+
 function buildAvailabilityICS({ stateByTask, userName }) {
   const nowStamp = formatICSDateUTC(new Date());
-  const selectedStates = Array.from(stateByTask.values()).filter((state) => state.currentChecked);
+  const selectedStates = Array.from(stateByTask.values()).filter(
+    (state) =>
+      !isMonthUnavailableTask(state.task) &&
+      state.currentChecked
+  );
   const events = selectedStates
     .map((state, index) => {
       const range = getShiftStartAndEnd(state.task);
@@ -1149,6 +1168,7 @@ stateByTask.get(checkbox.dataset.shiftKey);
 function updateDirtyUi(stateByTask) {
   const dirtyCount = computeDirtyCount(stateByTask);
   setSaveDirtyState(dirtyCount > 0);
+  updateCalendarButtonForState(stateByTask);
   setStatus(
     dirtyCount > 0
       ? `${dirtyCount} wijziging(en) nog op te slaan.`
@@ -1540,6 +1560,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     const currentMonthKey = monthKeyFromDate(currentMonthDate);
     try {
       setSaveButtonsVisible(false);
+      setCalendarButtonVisible(false);
       renderMetaHeader();
       setMonthButtonsDisabled(true);
       setStatus("Shifts laden…");
@@ -1736,10 +1757,11 @@ document.addEventListener("DOMContentLoaded", async () => {
       });
       setSaveDirtyState(false);
       setSaveButtonsVisible(true);
-      setCalendarButtonVisible(true);
+      updateCalendarButtonForState(currentStateByTask);
 
     } catch (err) {
       console.error(err);
+      setCalendarButtonVisible(false);
       setStatus("Fout bij laden van shifts of inschrijvingen.", true);
     } finally {
       monthLoading = false;
@@ -1782,9 +1804,18 @@ document.addEventListener("DOMContentLoaded", async () => {
   const calendarBtn = document.getElementById("availability-add-calendar");
   if (calendarBtn) {
     calendarBtn.onclick = () => {
-      const selectedCount = Array.from(currentStateByTask.values()).filter((state) => state.currentChecked).length;
+      if (computeDirtyCount(currentStateByTask) > 0) {
+        setStatus("Sla je wijzigingen eerst op voordat je je kantinediensten exporteert.");
+        return;
+      }
+
+      const selectedCount = Array.from(currentStateByTask.values()).filter(
+        (state) =>
+          !isMonthUnavailableTask(state.task) &&
+          state.currentChecked
+      ).length;
       if (!selectedCount) {
-        setStatus("Selecteer minstens één shift om naar je kalender te exporteren.");
+        setStatus("Selecteer minstens één opgeslagen kantinedienst om naar je kalender te exporteren.");
         return;
       }
 
