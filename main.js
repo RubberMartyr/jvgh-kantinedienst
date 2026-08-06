@@ -177,6 +177,23 @@ function jvghPad2(n) {
   return String(n).padStart(2, "0");
 }
 
+function formatEventCalendarLocalDateTime(value) {
+  const date = value instanceof Date ? value : new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return null;
+  }
+
+  return (
+    `${date.getFullYear()}-` +
+    `${jvghPad2(date.getMonth() + 1)}-` +
+    `${jvghPad2(date.getDate())}T` +
+    `${jvghPad2(date.getHours())}:` +
+    `${jvghPad2(date.getMinutes())}:` +
+    `${jvghPad2(date.getSeconds())}`
+  );
+}
+
 function jvghMonthKey(d) {
   if (!d) return null;
   const y = d.getFullYear();
@@ -578,8 +595,8 @@ document.addEventListener("DOMContentLoaded", function () {
       events.push({
         id: "ical-" + start.getTime() + "-" + Math.random().toString(16).slice(2),
         title: summary || "Externe gebeurtenis",
-        start: start.toISOString(),
-        end: finalEnd.toISOString(),
+        start: formatEventCalendarLocalDateTime(start),
+        end: formatEventCalendarLocalDateTime(finalEnd),
         resourceId: "kantine", // 🔹 this is what puts it in the Kantine lane
         extendedProps: {
           type: "ical",
@@ -917,8 +934,8 @@ document.addEventListener("DOMContentLoaded", function () {
         sheetId: assignment.sheetId,
       };
 
-      assignment.start = newStart.toISOString();
-      assignment.end = newEnd.toISOString();
+      assignment.start = formatEventCalendarLocalDateTime(newStart);
+      assignment.end = formatEventCalendarLocalDateTime(newEnd);
       if (targetSlot) {
         assignment.slotId = targetSlot.id;
       }
@@ -1077,8 +1094,8 @@ document.addEventListener("DOMContentLoaded", function () {
         sheetId: assignment.sheetId,
       };
 
-      assignment.start = newStart.toISOString();
-      assignment.end = newEnd.toISOString();
+      assignment.start = formatEventCalendarLocalDateTime(newStart);
+      assignment.end = formatEventCalendarLocalDateTime(newEnd);
       assignment.sheetId = Number(resolvedSheetId);
 
       console.log("Using task.qty as duration (JVGH custom)", {
@@ -1436,8 +1453,8 @@ document.addEventListener("DOMContentLoaded", function () {
 
           slots.push({
             id: shiftId,
-            start: shiftStart.toISOString(),
-            end: shiftEnd.toISOString(),
+            start: formatEventCalendarLocalDateTime(shiftStart),
+            end: formatEventCalendarLocalDateTime(shiftEnd),
             required: 5,
             resourceId: "kantine",
           });
@@ -1701,8 +1718,8 @@ document.addEventListener("DOMContentLoaded", function () {
 
               slot = {
                 id: "shift-task-" + String(task.id),
-                start: slotStartDate.toISOString(),
-                end: slotEndDate.toISOString(),
+                start: formatEventCalendarLocalDateTime(slotStartDate),
+                end: formatEventCalendarLocalDateTime(slotEndDate),
                 required: 5,
                 resourceId: "kantine",
                 manual: true,
@@ -1739,8 +1756,8 @@ document.addEventListener("DOMContentLoaded", function () {
           const assignmentStartDate = new Date(startYear, startMonth - 1, startDay, startHour, startMinute, 0);
           const durationMinutes = getTaskDurationMinutes(task.qty);
           const assignmentEndDate = new Date(assignmentStartDate.getTime() + durationMinutes * 60 * 1000);
-          const assignmentStartIso = assignmentStartDate.toISOString();
-          const assignmentEndIso = assignmentEndDate.toISOString();
+          const assignmentStartValue = formatEventCalendarLocalDateTime(assignmentStartDate);
+          const assignmentEndValue = formatEventCalendarLocalDateTime(assignmentEndDate);
 
           signupsArr.forEach((su) => {
             const firstName = su.firstName || su.firstname || su.first_name || "";
@@ -1783,8 +1800,8 @@ document.addEventListener("DOMContentLoaded", function () {
               data_role: dataRole,
               team_id: teamId,
               player_id: playerId,
-              start: assignmentStartIso,
-              end: assignmentEndIso,
+              start: assignmentStartValue,
+              end: assignmentEndValue,
             });
           });
         }
@@ -1955,8 +1972,8 @@ document.addEventListener("DOMContentLoaded", function () {
       const assignmentEndDate = new Date(
         assignmentStartDate.getTime() + durationMinutes * 60 * 1000
       );
-      const assignmentStartIso = assignmentStartDate.toISOString();
-      const assignmentEndIso = assignmentEndDate.toISOString();
+      const assignmentStartValue = formatEventCalendarLocalDateTime(assignmentStartDate);
+      const assignmentEndValue = formatEventCalendarLocalDateTime(assignmentEndDate);
 
       let slot = findSlotForDate(date);
 
@@ -1969,8 +1986,8 @@ document.addEventListener("DOMContentLoaded", function () {
 
         slot = {
           id: manualId,
-          start: assignmentStartIso,
-          end: assignmentEndIso,
+          start: assignmentStartValue,
+          end: assignmentEndValue,
           required: 5,
           resourceId: "kantine",
           manual: true,
@@ -2006,8 +2023,8 @@ document.addEventListener("DOMContentLoaded", function () {
         teamId: data.teamId || null,
         teamTitle: data.teamTitle || null,
         pending: true,
-        start: assignmentStartIso,
-        end: assignmentEndIso,
+        start: assignmentStartValue,
+        end: assignmentEndValue,
       };
       if (assignment.role === "parents") {
         console.log("[JVGH][DROP] parents resource dropped", {
