@@ -164,6 +164,7 @@ document.getElementById("print-button").addEventListener("click", () => {
 
 
 const DEFAULT_ASSIGNMENT_DURATION_MINUTES = 240;
+const JVGH_CALENDAR_TIME_ZONE = "Europe/Brussels";
 
 function jvghDayKeyFromDate(d) {
   if (!d) return null;
@@ -191,6 +192,65 @@ function formatEventCalendarLocalDateTime(value) {
     `${jvghPad2(date.getHours())}:` +
     `${jvghPad2(date.getMinutes())}:` +
     `${jvghPad2(date.getSeconds())}`
+  );
+}
+
+function formatInstantForBrusselsCalendar(value) {
+  const date = value instanceof Date ? value : new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return null;
+  }
+
+  const formatter = new Intl.DateTimeFormat("en-CA", {
+    timeZone: JVGH_CALENDAR_TIME_ZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hourCycle: "h23",
+  });
+  const parts = Object.fromEntries(
+    formatter
+      .formatToParts(date)
+      .filter((part) => part.type !== "literal")
+      .map((part) => [part.type, part.value])
+  );
+
+  return `${parts.year}-${parts.month}-${parts.day}T${parts.hour}:${parts.minute}:${parts.second}`;
+}
+
+function formatFloatingICalDateTime(year, month, day, hour, minute, second = 0) {
+  return (
+    `${year}-${jvghPad2(month)}-${jvghPad2(day)}T` +
+    `${jvghPad2(hour)}:${jvghPad2(minute)}:${jvghPad2(second)}`
+  );
+}
+
+function taskDateTimeToCalendarValue(dateStr, timeStr, seconds = 0) {
+  return `${dateStr}T${timeStr}:${jvghPad2(seconds)}`;
+}
+
+// Calendar values are wall-clock components. UTC is used here only as a
+// timezone-neutral component calculator; the result remains a string without Z.
+function addMinutesToCalendarValue(calendarValue, minutes) {
+  const match = String(calendarValue || "").match(
+    /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?$/
+  );
+  if (!match) return null;
+  const date = new Date(
+    Date.UTC(+match[1], +match[2] - 1, +match[3], +match[4], +match[5], +(match[6] || 0)) +
+      minutes * 60 * 1000
+  );
+  return formatFloatingICalDateTime(
+    date.getUTCFullYear(),
+    date.getUTCMonth() + 1,
+    date.getUTCDate(),
+    date.getUTCHours(),
+    date.getUTCMinutes(),
+    date.getUTCSeconds()
   );
 }
 
@@ -481,57 +541,37 @@ document.addEventListener("DOMContentLoaded", function () {
     return enabled;
   }
 
-  function parseICalDate(line) {
+  function parseICalCalendarValue(line) {
     if (!line) return null;
-    const raw = line.split(":").slice(-1)[0].trim();
+    const separator = line.indexOf(":");
+    const parameters = separator >= 0 ? line.slice(0, separator) : "";
+    const raw = (separator >= 0 ? line.slice(separator + 1) : line).trim();
 
-    // YYYYMMDD (all-day)
     if (/^\d{8}$/.test(raw)) {
-      const y = +raw.slice(0, 4),
-        m = +raw.slice(4, 6),
-        d = +raw.slice(4 + 2, 4 + 2 + 2);
-      return new Date(y, m - 1, d, 0, 0, 0);
+      return {
+        calendarValue: `${raw.slice(0, 4)}-${raw.slice(4, 6)}-${raw.slice(6, 8)}`,
+        instant: null,
+        isUtc: false,
+        isAllDay: true,
+      };
     }
-    // YYYYMMDDTHHMM  (lokale tijd, zonder seconden)
-    if (/^\d{8}T\d{4}$/.test(raw)) {
-      const y = +raw.slice(0, 4),
-        m = +raw.slice(4, 6),
-        d = +raw.slice(6, 8),
-        H = +raw.slice(9, 11),
-        M = +raw.slice(11, 13);
-      return new Date(y, m - 1, d, H, M, 0);
-    }
-    // YYYYMMDDTHHMMZ (UTC, zonder seconden)
-    if (/^\d{8}T\d{4}Z$/.test(raw)) {
-      const y = +raw.slice(0, 4),
-        m = +raw.slice(4, 6),
-        d = +raw.slice(6, 8),
-        H = +raw.slice(9, 11),
-        M = +raw.slice(11, 13);
-      return new Date(Date.UTC(y, m - 1, d, H, M, 0));
-    }
-    // YYYYMMDDTHHMMSS (lokaal)
-    if (/^\d{8}T\d{6}$/.test(raw)) {
-      const y = +raw.slice(0, 4),
-        m = +raw.slice(4, 6),
-        d = +raw.slice(6, 8),
-        H = +raw.slice(9, 11),
-        M = +raw.slice(11, 13),
-        S = +raw.slice(13, 15);
-      return new Date(y, m - 1, d, H, M, S);
-    }
-    // YYYYMMDDTHHMMSSZ (UTC)
-    if (/^\d{8}T\d{6}Z$/.test(raw)) {
-      const y = +raw.slice(0, 4),
-        m = +raw.slice(4, 6),
-        d = +raw.slice(6, 8),
-        H = +raw.slice(9, 11),
-        M = +raw.slice(11, 13),
-        S = +raw.slice(13, 15);
-      return new Date(Date.UTC(y, m - 1, d, H, M, S));
-    }
-    const d = new Date(raw);
-    return isNaN(d) ? null : d;
+
+    const match = raw.match(/^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})?(Z)?$/i);
+    if (!match) return null;
+    const [, year, month, day, hour, minute, seconds = "00", utcMarker] = match;
+    const isUtc = Boolean(utcMarker);
+    const instant = isUtc
+      ? new Date(Date.UTC(+year, +month - 1, +day, +hour, +minute, +seconds))
+      : null;
+
+    return {
+      calendarValue: isUtc
+        ? formatInstantForBrusselsCalendar(instant)
+        : formatFloatingICalDateTime(+year, +month, +day, +hour, +minute, +seconds),
+      instant,
+      isUtc,
+      isAllDay: /(?:^|;)VALUE=DATE(?:;|$)/i.test(parameters),
+    };
   }
 
   function parseICS(text, options = {}) {
@@ -549,22 +589,22 @@ document.addEventListener("DOMContentLoaded", function () {
     while ((m = regex.exec(unfolded)) !== null) {
       const block = m[1];
 
-      function pick(name) {
+      function pick(name, includeProperty = false) {
         // take the last match if multiple lines exist
         const re = new RegExp(name + "(:|;[^\\n]*:)([^\\n]*)", "i");
         const mm = block.match(re);
-        return mm ? mm[2].trim() : "";
+        return mm ? (includeProperty ? mm[0].trim() : mm[2].trim()) : "";
       }
 
-      const dtStartRaw = pick("DTSTART");
-      const dtEndRaw = pick("DTEND");
+      const dtStartRaw = pick("DTSTART", true);
+      const dtEndRaw = pick("DTEND", true);
       const summary = pick("SUMMARY");
       const location = pick("LOCATION");
 
-      const start = parseICalDate(dtStartRaw);
-      const end = parseICalDate(dtEndRaw);
+      const start = parseICalCalendarValue(dtStartRaw);
+      const end = parseICalCalendarValue(dtEndRaw);
 
-      if (!start || isNaN(start)) continue;
+      if (!start || !start.calendarValue) continue;
 
       if (homeTeamFilter) {
         // Only keep home matches where "home/away" summary
@@ -587,16 +627,18 @@ document.addEventListener("DOMContentLoaded", function () {
         }
       }
 
-      const finalEnd =
-        end && !isNaN(end)
-          ? end
-          : new Date(start.getTime() + 60 * 60 * 1000);
+      const finalEndValue =
+        end && end.calendarValue
+          ? end.calendarValue
+          : start.isAllDay
+            ? start.calendarValue
+            : addMinutesToCalendarValue(start.calendarValue, 60);
 
       events.push({
-        id: "ical-" + start.getTime() + "-" + Math.random().toString(16).slice(2),
+        id: "ical-" + start.calendarValue + "-" + Math.random().toString(16).slice(2),
         title: summary || "Externe gebeurtenis",
-        start: formatEventCalendarLocalDateTime(start),
-        end: formatEventCalendarLocalDateTime(finalEnd),
+        start: start.calendarValue,
+        end: finalEndValue,
         resourceId: "kantine", // 🔹 this is what puts it in the Kantine lane
         extendedProps: {
           type: "ical",
@@ -1438,23 +1480,20 @@ document.addEventListener("DOMContentLoaded", function () {
     if (shiftsEnabled && allExternalEvents.length) {
       allExternalEvents.forEach((ev, idx) => {
         try {
-          const start = new Date(ev.start);
-          const endRaw = new Date(ev.end);
-          if (!start || isNaN(start)) return;
-          const end =
-            !endRaw || isNaN(endRaw)
-              ? new Date(start.getTime() + 60 * 60 * 1000)
-              : endRaw;
+          if (!ev.start || !ev.start.includes("T")) return;
+          const end = ev.end && ev.end.includes("T")
+            ? ev.end
+            : addMinutesToCalendarValue(ev.start, 60);
+          const shiftStart = addMinutesToCalendarValue(ev.start, -60); // 1h before match
+          const shiftEnd = addMinutesToCalendarValue(end, 120); // 2h after match
+          if (!shiftStart || !shiftEnd) return;
 
-          const shiftStart = new Date(start.getTime() - 60 * 60 * 1000); // 1h before match
-          const shiftEnd = new Date(end.getTime() + 2 * 60 * 60 * 1000); // 2h after match
-
-          const shiftId = `shift-${start.getTime()}-${idx}`;
+          const shiftId = `shift-${ev.start}-${idx}`;
 
           slots.push({
             id: shiftId,
-            start: formatEventCalendarLocalDateTime(shiftStart),
-            end: formatEventCalendarLocalDateTime(shiftEnd),
+            start: shiftStart,
+            end: shiftEnd,
             required: 5,
             resourceId: "kantine",
           });
@@ -1705,21 +1744,15 @@ document.addEventListener("DOMContentLoaded", function () {
 
           if (!slot) {
             try {
-              const year = parseInt(dateStr.slice(0, 4), 10);
-              const month = parseInt(dateStr.slice(5, 7), 10);
-              const day = parseInt(dateStr.slice(8, 10), 10);
-              const hour = parseInt(timeStr.slice(0, 2), 10) || 0;
-              const minute = parseInt(timeStr.slice(3, 5), 10) || 0;
-
-              const slotStartDate = new Date(year, month - 1, day, hour, minute, 0);
               const qty = Number(task.qty) || 1;
               const durationMinutes = qty >= 60 ? qty : DEFAULT_ASSIGNMENT_DURATION_MINUTES;
-              const slotEndDate = new Date(slotStartDate.getTime() + durationMinutes * 60 * 1000);
+              const slotStartValue = taskDateTimeToCalendarValue(dateStr, timeStr);
+              const slotEndValue = addMinutesToCalendarValue(slotStartValue, durationMinutes);
 
               slot = {
                 id: "shift-task-" + String(task.id),
-                start: formatEventCalendarLocalDateTime(slotStartDate),
-                end: formatEventCalendarLocalDateTime(slotEndDate),
+                start: slotStartValue,
+                end: slotEndValue,
                 required: 5,
                 resourceId: "kantine",
                 manual: true,
@@ -1748,16 +1781,9 @@ document.addEventListener("DOMContentLoaded", function () {
           const signupsArr = Array.isArray(task?.signups) ? task.signups : [];
           if (!signupsArr.length) continue;
 
-          const startYear = parseInt(dateStr.slice(0, 4), 10);
-          const startMonth = parseInt(dateStr.slice(5, 7), 10);
-          const startDay = parseInt(dateStr.slice(8, 10), 10);
-          const startHour = parseInt(timeStr.slice(0, 2), 10) || 0;
-          const startMinute = parseInt(timeStr.slice(3, 5), 10) || 0;
-          const assignmentStartDate = new Date(startYear, startMonth - 1, startDay, startHour, startMinute, 0);
           const durationMinutes = getTaskDurationMinutes(task.qty);
-          const assignmentEndDate = new Date(assignmentStartDate.getTime() + durationMinutes * 60 * 1000);
-          const assignmentStartValue = formatEventCalendarLocalDateTime(assignmentStartDate);
-          const assignmentEndValue = formatEventCalendarLocalDateTime(assignmentEndDate);
+          const assignmentStartValue = taskDateTimeToCalendarValue(dateStr, timeStr);
+          const assignmentEndValue = addMinutesToCalendarValue(assignmentStartValue, durationMinutes);
 
           signupsArr.forEach((su) => {
             const firstName = su.firstName || su.firstname || su.first_name || "";
