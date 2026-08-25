@@ -1254,92 +1254,14 @@ document.addEventListener("DOMContentLoaded", function () {
 
   async function loadAvailabilityStatusForMonth(monthKey) {
     if (!monthKey) return new Map();
-    if (availabilityStatusByMonth.has(monthKey)) {
-      return availabilityStatusByMonth.get(monthKey);
-    }
-
+    if (availabilityStatusByMonth.has(monthKey)) return availabilityStatusByMonth.get(monthKey);
     const result = new Map();
     try {
-      const plannerData = await loadPlannerMonthData(monthKey);
-      console.log(
-        "[JVGH][planner-month-data]",
-        monthKey,
-        plannerData
-      );
-
-      const schedules = Array.isArray(plannerData?.schedules)
-        ? plannerData.schedules
-        : [];
-
-      for (const schedule of schedules) {
-        const tasks = Array.isArray(schedule?.tasks)
-          ? schedule.tasks
-          : [];
-
-        for (const task of tasks) {
-          const normalizedTitle = String(task?.title || "")
-            .trim()
-            .toLowerCase();
-
-          const isUnavailableTask =
-            normalizedTitle === "niet beschikbaar deze maand" ||
-            normalizedTitle === "ik ben niet beschikbaar deze maand";
-
-          const isKantineTask =
-            normalizedTitle.includes("kantinedienst");
-
-          const isAvailabilityTask =
-            isUnavailableTask ||
-            isKantineTask;
-
-          if (!isAvailabilityTask) {
-            continue;
-          }
-
-          const signups = Array.isArray(task?.signups)
-            ? task.signups
-            : [];
-
-          console.log(
-            "[JVGH][AVAILABILITY] task",
-            task.id,
-            normalizedTitle,
-            signups
-          );
-
-          signups.forEach((signup) => {
-            const rawUserId =
-              signup?.userId ??
-              signup?.user_id;
-
-            const userId = Number(rawUserId);
-
-            console.log(
-              "[JVGH][AVAILABILITY] signup user",
-              rawUserId,
-              userId,
-              signup
-            );
-
-            if (
-              Number.isFinite(userId) &&
-              isAvailabilityTask
-            ) {
-              result.set(userId, true);
-            }
-          });
-        }
-      }
+      const submitted = JVGHCore.getUsersWithSubmittedAvailability(await loadPlannerMonthData(monthKey));
+      submitted.forEach((userId) => result.set(userId, true));
     } catch (err) {
       console.error("[JVGH] Failed to load availability status", err);
     }
-
-    console.log(
-      "[JVGH][AVAILABILITY][FINAL]",
-      monthKey,
-      Array.from(result.entries())
-    );
-
     availabilityStatusByMonth.set(monthKey, result);
     return result;
   }
@@ -2571,103 +2493,14 @@ ${getAvailabilityLinkForUser(userId)}`;
     statusEl.textContent = successText;
   }
 
-  function getTodayBrusselsDateKey() {
-    const formatter = new Intl.DateTimeFormat('en-CA', {
-      timeZone: JVGH_CALENDAR_TIME_ZONE,
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-    });
-    const parts = Object.fromEntries(
-      formatter.formatToParts(new Date())
-        .filter((part) => part.type !== 'literal')
-        .map((part) => [part.type, part.value])
-    );
-    return `${parts.year}-${parts.month}-${parts.day}`;
-  }
+  const getTodayBrusselsDateKey = () => JVGHCore.getBrusselsDateKey(new Date());
+  const normalizeScheduledVolunteersResponse = JVGHCore.normalizeScheduledVolunteersResponse;
+  const getScheduledShiftDisplayData = JVGHCore.getScheduledShiftDisplayData;
+  const buildScheduledVolunteerContentVariables = JVGHCore.buildScheduledVolunteerContentVariables;
 
-  function formatScheduledDateLabel(dateKey, options = {
-    weekday: 'long',
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric',
-  }) {
+  function formatScheduledDateLabel(dateKey, options = { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }) {
     const [year, month, day] = String(dateKey).split('-').map(Number);
-    if (!year || !month || !day) return String(dateKey || '');
-    return new Date(year, month - 1, day).toLocaleDateString('nl-BE', options);
-  }
-
-  function normalizeScheduledVolunteersResponse(payload) {
-    if (Array.isArray(payload)) return payload;
-    if (Array.isArray(payload?.assignments)) return payload.assignments;
-    if (Array.isArray(payload?.volunteers)) return payload.volunteers;
-    if (Array.isArray(payload?.scheduledVolunteers)) return payload.scheduledVolunteers;
-    if (Array.isArray(payload?.scheduled_volunteers)) return payload.scheduled_volunteers;
-    if (Array.isArray(payload?.data)) return payload.data;
-    return [];
-  }
-
-  function normalizeScheduledVolunteer(item) {
-    const sourceUser = item?.user || item?.volunteer || item?.systemuser || item || {};
-    const userId = sourceUser.id ?? sourceUser.user_id ?? item?.userId ?? item?.user_id;
-    return {
-      ...sourceUser,
-      id: userId,
-      name: sourceUser.name || sourceUser.display_name || sourceUser.full_name || item?.name || item?.volunteer_name || '',
-      phone: sourceUser.phone || sourceUser.phone_number || sourceUser.mobile || sourceUser.telefoon || item?.phone || item?.phone_number || item?.mobile || item?.telefoon || '',
-      scheduledShift: item,
-    };
-  }
-
-  function getScheduledShiftDisplayData(shift) {
-    const start = shift?.time || shift?.start_time || shift?.startTime || shift?.start || shift?.from || '';
-    const end = shift?.end_time || shift?.endTime || shift?.end || shift?.to || '';
-    const task = shift?.task || shift?.shift || shift?.task_name || shift?.role || 'Kantinedienst';
-
-    return {
-      start: String(start || '').slice(0, 5),
-      end: String(end || '').slice(0, 5),
-      task: String(task || '').trim(),
-    };
-  }
-
-  function formatScheduledMessageDate(dateKey) {
-    const [year, month, day] = String(dateKey || '').split('-').map(Number);
-    if (!year || !month || !day) return String(dateKey || '');
-
-    const date = new Date(year, month - 1, day, 12, 0, 0);
-    return date.toLocaleDateString('nl-BE', {
-      weekday: 'long',
-      day: 'numeric',
-      month: 'long',
-    });
-  }
-
-  function buildScheduledVolunteerPlanningText(dateKey, shifts) {
-    const dateLabel = formatScheduledMessageDate(dateKey);
-    const shiftList = Array.isArray(shifts) ? shifts : [];
-    const times = shiftList.map((shift) => {
-      const start = shift?.time || shift?.start_time || shift?.startTime || shift?.start || shift?.from || '';
-      const end = shift?.end_time || shift?.endTime || shift?.end || shift?.to || '';
-      const startTime = String(start || '').slice(0, 5);
-      const endTime = String(end || '').slice(0, 5);
-
-      if (!startTime) return '';
-      if (endTime) return `van ${startTime} tot ${endTime}`;
-      return `om ${startTime}`;
-    }).filter(Boolean);
-
-    if (!times.length) return dateLabel;
-    if (times.length === 1) return `${dateLabel} ${times[0]}`;
-    return `${dateLabel} ${times.slice(0, -1).join(', ')} en ${times[times.length - 1]}`;
-  }
-
-  function buildScheduledVolunteerContentVariables({ user, userId, dateKey, shifts }) {
-    return {
-      "1": getUserFirstName(user),
-      "2": buildScheduledVolunteerPlanningText(dateKey, shifts),
-      "3": String(userId),
-    };
+    return year && month && day ? new Date(year, month - 1, day).toLocaleDateString('nl-BE', options) : String(dateKey || '');
   }
 
   function setupScheduledVolunteersPanel(overlay, statusEl) {
@@ -2703,27 +2536,9 @@ ${getAvailabilityLinkForUser(userId)}`;
 
     const renderScheduledVolunteers = (items, dateKey) => {
       results.replaceChildren();
-      const uniqueByUser = new Map();
-      items.map(normalizeScheduledVolunteer).forEach((user) => {
-        const phoneInfo = getUserPhoneInfo(user);
-        const numericUserId = Number(user.id);
-        const hasUserId = Number.isFinite(numericUserId) && numericUserId > 0;
-        const fallbackKey = `${phoneInfo.normalized}|${String(user.name || '').trim().toLocaleLowerCase('nl-BE')}`;
-        const key = hasUserId ? `id:${numericUserId}` : `fallback:${fallbackKey}`;
-        const existing = uniqueByUser.get(key);
-        if (existing) {
-          existing.shifts.push(user.scheduledShift);
-        } else {
-          uniqueByUser.set(key, {
-            user,
-            userId: hasUserId ? numericUserId : '',
-            phoneInfo,
-            shifts: [user.scheduledShift],
-          });
-        }
-      });
+      const groupedUsers = JVGHCore.groupScheduledVolunteers(items);
 
-      if (uniqueByUser.size === 0) {
+      if (groupedUsers.length === 0) {
         const empty = document.createElement('p');
         empty.className = 'small-muted';
         empty.textContent = `Geen ingeplande vrijwilligers gevonden voor ${formatScheduledDateLabel(dateKey, {
@@ -2735,7 +2550,7 @@ ${getAvailabilityLinkForUser(userId)}`;
         return;
       }
 
-      uniqueByUser.forEach(({ user, userId, phoneInfo, shifts }) => {
+      groupedUsers.forEach(({ user, userId, phoneInfo, shifts }) => {
         const row = document.createElement('div');
         row.className = 'jvgh-scheduled-user-card';
         const details = document.createElement('div');
@@ -3013,71 +2828,9 @@ ${getAvailabilityLinkForUser(userId)}`;
     return String(user.email || user.user_email || user.mail || "").trim();
   }
 
-  function getUserPhoneInfo(user) {
-    if (!user || typeof user !== "object") {
-      return { normalized: "", reason: "Geen gebruikersdata beschikbaar." };
-    }
-
-    const sources = [
-      user.phone,
-      user.mobile,
-      user.whatsapp,
-      user.tel,
-      user.telefoon,
-      user.gsm,
-      user.user_phone,
-      user.phone_number,
-      user?.meta?.phone,
-      user?.meta?.mobile,
-      user?.meta?.telefoon,
-      user?.acf?.phone,
-      user?.acf?.mobile,
-      user?.acf?.telefoon,
-      user?.systemuser?.phone,
-      user?.systemuser?.mobile,
-      user?.systemuser?.telefoon,
-    ];
-
-    const raw = sources.find((value) => String(value || "").trim()) || "";
-    const rawPhone = String(raw).trim();
-    if (!rawPhone) {
-      return {
-        normalized: "",
-        reason: "Geen telefoonnummer gevonden in de API-respons voor deze gebruiker.",
-      };
-    }
-
-    const normalized = normalizePhoneNumber(rawPhone);
-    if (!normalized) {
-      return {
-        normalized: "",
-        reason: `Ongeldig telefoonnummer: ${rawPhone}`,
-      };
-    }
-
-    return { normalized, reason: "" };
-  }
-
-  function normalizePhoneNumber(rawPhone) {
-    const raw = String(rawPhone || "").trim();
-    if (!raw) return "";
-
-    let digits = raw.replace(/[^\d+]/g, "");
-    if (!digits) return "";
-
-    if (digits.startsWith("00")) digits = `+${digits.slice(2)}`;
-    else if (!digits.startsWith("+") && digits.startsWith("0")) digits = `+32${digits.slice(1)}`;
-    else if (!digits.startsWith("+")) digits = `+${digits}`;
-
-    const numberPart = digits.replace(/^\+/, "");
-    if (!/^\d{8,15}$/.test(numberPart)) return "";
-    return `+${numberPart}`;
-  }
-
-  function getUserFirstName(user) {
-    const name = String(user?.name || "").trim();
-    return name ? name.split(/\s+/)[0] : "";
-  }
+  const getUserPhoneInfo = JVGHCore.getUserPhoneInfo;
+  const normalizePhoneNumber = JVGHCore.normalizePhoneNumber;
+  const getUserFirstName = JVGHCore.getUserFirstName;
 
   function getAvailabilityLinkForUser(userId) {
     const url = new URL("availability.html", window.location.href);
