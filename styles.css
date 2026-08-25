@@ -1105,6 +1105,36 @@ body {
   display: none !important;
 }
 
+.jvgh-free-entry-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.jvgh-free-entry-form .jvgh-whatsapp-field {
+  margin: 0;
+}
+
+.jvgh-free-entry-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.jvgh-free-entry-error {
+  color: #b91c1c;
+  min-height: 1.25em;
+}
+
+.jvgh-free-entry-label {
+  font-weight: 700;
+}
+
+.resource-card-free {
+  background: #f8fafc;
+}
+
 .jvgh-availability-overlay {
   position: fixed;
   inset: 0;
