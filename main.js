@@ -2619,14 +2619,16 @@ ${getAvailabilityLinkForUser(userId)}`;
     };
   }
 
-  function formatScheduledVolunteerShifts(shifts) {
-    return shifts.map((shift) => {
-      const start = shift?.start_time || shift?.startTime || shift?.start || shift?.from;
-      const end = shift?.end_time || shift?.endTime || shift?.end || shift?.to;
-      const task = shift?.task || shift?.shift || shift?.task_name || shift?.role;
-      const time = start && end ? `${String(start).slice(0, 5)}–${String(end).slice(0, 5)}` : '';
-      return [time, task].filter(Boolean).join(' · ');
-    }).filter(Boolean).join(', ');
+  function getScheduledShiftDisplayData(shift) {
+    const start = shift?.time || shift?.start_time || shift?.startTime || shift?.start || shift?.from || '';
+    const end = shift?.end_time || shift?.endTime || shift?.end || shift?.to || '';
+    const task = shift?.task || shift?.shift || shift?.task_name || shift?.role || 'Kantinedienst';
+
+    return {
+      start: String(start || '').slice(0, 5),
+      end: String(end || '').slice(0, 5),
+      task: String(task || '').trim(),
+    };
   }
 
   function formatScheduledMessageDate(dateKey) {
@@ -2735,19 +2737,36 @@ ${getAvailabilityLinkForUser(userId)}`;
 
       uniqueByUser.forEach(({ user, userId, phoneInfo, shifts }) => {
         const row = document.createElement('div');
-        row.className = 'jvgh-availability-user-row jvgh-scheduled-user-row';
-        const details = document.createElement('span');
-        const name = document.createElement('span');
-        name.className = 'resource-name';
+        row.className = 'jvgh-scheduled-user-card';
+        const details = document.createElement('div');
+        details.className = 'jvgh-scheduled-user-details';
+        const name = document.createElement('div');
+        name.className = 'jvgh-scheduled-user-name';
         name.textContent = user.name || '-';
         details.appendChild(name);
-        const shiftText = formatScheduledVolunteerShifts(shifts);
-        if (shiftText) {
-          const shiftInfo = document.createElement('span');
-          shiftInfo.className = 'small-muted';
-          shiftInfo.textContent = shiftText;
-          details.appendChild(shiftInfo);
-        }
+
+        const shiftList = document.createElement('div');
+        shiftList.className = 'jvgh-scheduled-shifts';
+        shifts.map(getScheduledShiftDisplayData).forEach(({ start, end, task }) => {
+          const shift = document.createElement('div');
+          shift.className = 'jvgh-scheduled-shift';
+
+          const time = document.createElement('span');
+          time.className = 'jvgh-scheduled-shift-time';
+          time.textContent = start && end ? `${start}–${end}` : start;
+
+          const title = document.createElement('span');
+          title.className = 'jvgh-scheduled-shift-title';
+          title.textContent = task;
+
+          shift.appendChild(time);
+          shift.appendChild(title);
+          shiftList.appendChild(shift);
+        });
+        details.appendChild(shiftList);
+
+        const action = document.createElement('div');
+        action.className = 'jvgh-scheduled-user-action';
 
         const button = document.createElement('button');
         button.type = 'button';
@@ -2781,8 +2800,9 @@ ${getAvailabilityLinkForUser(userId)}`;
             button.disabled = false;
           }
         });
+        action.appendChild(button);
         row.appendChild(details);
-        row.appendChild(button);
+        row.appendChild(action);
         results.appendChild(row);
       });
     };

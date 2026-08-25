@@ -1217,10 +1217,9 @@ body {
 .jvgh-scheduled-date-controls {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
-  gap: 10px;
   align-items: end;
-  margin-top: 10px;
-  margin-bottom: 12px;
+  gap: 10px;
+  margin: 12px 0;
 }
 
 .jvgh-scheduled-date-controls .jvgh-whatsapp-field {
@@ -1234,17 +1233,18 @@ body {
 }
 
 .jvgh-scheduled-date-controls .jvgh-calendar-control-btn {
-  width: auto;
+  width: auto !important;
   min-height: 42px;
-  white-space: nowrap;
 }
 
 .jvgh-scheduled-volunteers-results {
-  margin-top: 14px;
-  border: 1px solid #e2e8f0;
-  border-radius: 12px;
-  padding: 0 12px;
-  background: #fff;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+  padding: 0;
+  border: 0;
+  background: transparent;
 }
 
 .jvgh-scheduled-volunteers-results > .small-muted:only-child {
@@ -1252,46 +1252,80 @@ body {
   padding: 14px 2px;
 }
 
-.jvgh-scheduled-user-row {
+.jvgh-scheduled-user-card {
+  display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
-  gap: 12px;
-  margin: 0;
-  padding: 12px 0;
-  border-bottom: 1px solid #e5e7eb;
+  gap: 14px;
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #f8fafc;
 }
 
-.jvgh-scheduled-user-row:last-child {
-  border-bottom: 0;
-}
-
-.jvgh-scheduled-user-row > * {
+.jvgh-scheduled-user-details {
   min-width: 0;
 }
 
-.jvgh-scheduled-user-row .resource-name {
-  display: block;
-  margin: 0;
+.jvgh-scheduled-user-name {
+  margin-bottom: 6px;
   color: #0f172a;
   font-size: 15px;
   font-weight: 700;
-  line-height: 1.25;
+  line-height: 1.2;
 }
 
-.jvgh-scheduled-user-row .small-muted {
-  display: block;
-  margin-top: 3px;
+.jvgh-scheduled-shifts {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.jvgh-scheduled-shift {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  min-width: 0;
   color: #64748b;
   font-size: 13px;
   line-height: 1.35;
 }
 
-.jvgh-scheduled-user-row .jvgh-calendar-control-btn {
-  width: auto;
-  min-width: 92px;
-  padding: 7px 14px;
-  align-self: center;
+.jvgh-scheduled-shift-time {
+  flex: 0 0 auto;
+  color: #334155;
+  font-weight: 600;
   white-space: nowrap;
+}
+
+.jvgh-scheduled-shift-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.jvgh-scheduled-user-action {
+  flex: 0 0 auto;
+}
+
+.jvgh-scheduled-user-action .jvgh-calendar-control-btn {
+  width: auto !important;
+  min-width: 88px;
+  max-width: none;
+  padding: 7px 13px;
+  white-space: nowrap;
+}
+
+.jvgh-scheduled-user-action .jvgh-calendar-control-btn:disabled {
+  width: auto !important;
+  min-width: 88px;
+  opacity: 0.55;
+}
+
+#jvgh-send-whatsapp-status {
+  margin-top: 10px;
 }
 
 .jvgh-availability-legend {
@@ -1313,24 +1347,27 @@ body {
   gap: 6px;
 }
 
-@media (max-width: 420px) {
-  .jvgh-scheduled-user-row {
+@media (max-width: 520px) {
+  .jvgh-scheduled-user-card {
     grid-template-columns: minmax(0, 1fr) auto;
     gap: 8px;
+    padding: 10px;
   }
 
-  .jvgh-scheduled-user-row .jvgh-calendar-control-btn {
-    min-width: 78px;
-    padding: 7px 10px;
+  .jvgh-scheduled-user-action .jvgh-calendar-control-btn {
+    min-width: 76px;
+    padding: 7px 9px;
     font-size: 13px;
   }
+}
 
-  .jvgh-scheduled-date-controls {
+@media (max-width: 340px) {
+  .jvgh-scheduled-user-card {
     grid-template-columns: 1fr;
   }
 
-  .jvgh-scheduled-date-controls .jvgh-calendar-control-btn {
-    justify-self: start;
+  .jvgh-scheduled-user-action .jvgh-calendar-control-btn {
+    width: 100% !important;
   }
 }
 
