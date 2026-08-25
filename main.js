@@ -2581,6 +2581,7 @@ ${getAvailabilityLinkForUser(userId)}`;
 
   function normalizeScheduledVolunteersResponse(payload) {
     if (Array.isArray(payload)) return payload;
+    if (Array.isArray(payload?.assignments)) return payload.assignments;
     if (Array.isArray(payload?.volunteers)) return payload.volunteers;
     if (Array.isArray(payload?.scheduledVolunteers)) return payload.scheduledVolunteers;
     if (Array.isArray(payload?.scheduled_volunteers)) return payload.scheduled_volunteers;
