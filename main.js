@@ -2661,10 +2661,10 @@ ${getAvailabilityLinkForUser(userId)}`;
   }
 
   function buildScheduledVolunteerContentVariables({ user, userId, dateKey, shifts }) {
-    void userId;
     return {
       "1": getUserFirstName(user),
       "2": buildScheduledVolunteerPlanningText(dateKey, shifts),
+      "3": String(userId),
     };
   }
 
