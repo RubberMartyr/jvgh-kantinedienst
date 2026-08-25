@@ -1,0 +1,18 @@
+{
+  "IsEncrypted": false,
+  "Values": {
+    "AzureWebJobsStorage": "UseDevelopmentStorage=true",
+    "FUNCTIONS_WORKER_RUNTIME": "node",
+    "JVGH_DAILY_SCHEDULE": "<NCRONTAB schedule>",
+    "JVGH_AUTOMATION_ENABLED": "false",
+    "JVGH_BASE_URL": "https://jeugdherk.be",
+    "WP_API_USER": "<WordPress API user>",
+    "WP_API_APP_PASSWORD": "<WordPress application password>",
+    "TWILIO_ACCOUNT_SID": "<Twilio account SID>",
+    "TWILIO_AUTH_TOKEN": "<Twilio auth token>",
+    "TWILIO_WHATSAPP_FROM": "<whatsapp:+number>",
+    "TWILIO_CONTENT_SID": "<availability content SID>",
+    "TWILIO_REMINDER_CONTENT_SID": "<reminder content SID>",
+    "TWILIO_SCHEDULED_CONTENT_SID": "<scheduled content SID>"
+  }
+}
