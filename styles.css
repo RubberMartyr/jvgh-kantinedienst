@@ -1120,7 +1120,10 @@ body {
 }
 
 .jvgh-availability-modal {
-  width: min(92vw, 520px);
+  width: min(92vw, 560px);
+  max-height: calc(100vh - 32px);
+  overflow-y: auto;
+  box-sizing: border-box;
   background: #fff;
   border-radius: 14px;
   padding: 20px;
@@ -1156,6 +1159,7 @@ body {
 
 .jvgh-whatsapp-tabs {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
   margin: 12px 0;
 }
@@ -1210,6 +1214,86 @@ body {
   min-width: 0;
 }
 
+.jvgh-scheduled-date-controls {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: end;
+  margin-top: 10px;
+  margin-bottom: 12px;
+}
+
+.jvgh-scheduled-date-controls .jvgh-whatsapp-field {
+  margin: 0;
+}
+
+.jvgh-scheduled-date-controls input[type="date"] {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 42px;
+}
+
+.jvgh-scheduled-date-controls .jvgh-calendar-control-btn {
+  width: auto;
+  min-height: 42px;
+  white-space: nowrap;
+}
+
+.jvgh-scheduled-volunteers-results {
+  margin-top: 14px;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 0 12px;
+  background: #fff;
+}
+
+.jvgh-scheduled-volunteers-results > .small-muted:only-child {
+  display: block;
+  padding: 14px 2px;
+}
+
+.jvgh-scheduled-user-row {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  margin: 0;
+  padding: 12px 0;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.jvgh-scheduled-user-row:last-child {
+  border-bottom: 0;
+}
+
+.jvgh-scheduled-user-row > * {
+  min-width: 0;
+}
+
+.jvgh-scheduled-user-row .resource-name {
+  display: block;
+  margin: 0;
+  color: #0f172a;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+.jvgh-scheduled-user-row .small-muted {
+  display: block;
+  margin-top: 3px;
+  color: #64748b;
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.jvgh-scheduled-user-row .jvgh-calendar-control-btn {
+  width: auto;
+  min-width: 92px;
+  padding: 7px 14px;
+  align-self: center;
+  white-space: nowrap;
+}
+
 .jvgh-availability-legend {
   display: flex;
   flex-wrap: wrap;
@@ -1219,10 +1303,35 @@ body {
   color: #475569;
 }
 
+.jvgh-availability-legend.hidden {
+  display: none;
+}
+
 .jvgh-availability-legend > span {
   display: inline-flex;
   align-items: center;
   gap: 6px;
+}
+
+@media (max-width: 420px) {
+  .jvgh-scheduled-user-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px;
+  }
+
+  .jvgh-scheduled-user-row .jvgh-calendar-control-btn {
+    min-width: 78px;
+    padding: 7px 10px;
+    font-size: 13px;
+  }
+
+  .jvgh-scheduled-date-controls {
+    grid-template-columns: 1fr;
+  }
+
+  .jvgh-scheduled-date-controls .jvgh-calendar-control-btn {
+    justify-self: start;
+  }
 }
 
 .jvgh-visually-hidden {
