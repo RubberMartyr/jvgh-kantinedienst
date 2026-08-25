@@ -65,7 +65,7 @@ function ensureAvailabilityOverlay() {
       <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
         <h2 style="margin:0;">Beschikbaarheid versturen</h2>
       </div>
-      <p>Klik op Verstuur om het eerste beschikbaarheidsbericht te sturen of op Herinner om een herinnering te sturen.</p>
+      <p id="jvgh-whatsapp-help-text">Klik op Verstuur om het eerste beschikbaarheidsbericht te sturen of op Herinner om een herinnering te sturen.</p>
       <div class="jvgh-whatsapp-tabs" role="tablist" aria-label="WhatsApp secties">
         <button type="button" class="jvgh-whatsapp-tab is-active" data-tab="bestuur" aria-selected="true">Bestuur</button>
         <button type="button" class="jvgh-whatsapp-tab" data-tab="vrijwilligers" aria-selected="false">Vrijwilligers</button>
@@ -170,6 +170,24 @@ function ensureAvailabilityOverlay() {
     panels.forEach((panel) => {
       panel.classList.toggle('hidden', panel.dataset.panel !== tabName);
     });
+
+    const legend = overlay.querySelector('.jvgh-availability-legend');
+    if (legend) {
+      const showLegend = tabName === 'bestuur' || tabName === 'vrijwilligers';
+      legend.classList.toggle('hidden', !showLegend);
+    }
+
+    const helpText = overlay.querySelector('#jvgh-whatsapp-help-text');
+    if (helpText) {
+      if (tabName === 'ingepland') {
+        helpText.textContent = 'Selecteer een datum en stuur een bericht naar de vrijwilligers die die dag ingepland zijn.';
+      } else if (tabName === 'instellingen') {
+        helpText.textContent = 'Beheer hier de instellingen voor de WhatsApp-berichten.';
+      } else {
+        helpText.textContent = 'Klik op Verstuur om het eerste beschikbaarheidsbericht te sturen of op Herinner om een herinnering te sturen.';
+      }
+    }
+
     if (tabName === 'ingepland') {
       overlay.dispatchEvent(new CustomEvent('jvgh:scheduled-tab-activated'));
     }
@@ -2657,9 +2675,6 @@ ${getAvailabilityLinkForUser(userId)}`;
 
     const controls = document.createElement('div');
     controls.className = 'jvgh-scheduled-date-controls';
-    controls.style.display = 'flex';
-    controls.style.alignItems = 'end';
-    controls.style.gap = '8px';
 
     const label = document.createElement('label');
     label.className = 'jvgh-whatsapp-field';
@@ -2720,7 +2735,7 @@ ${getAvailabilityLinkForUser(userId)}`;
 
       uniqueByUser.forEach(({ user, userId, phoneInfo, shifts }) => {
         const row = document.createElement('div');
-        row.className = 'jvgh-availability-user-row';
+        row.className = 'jvgh-availability-user-row jvgh-scheduled-user-row';
         const details = document.createElement('span');
         const name = document.createElement('span');
         name.className = 'resource-name';
@@ -2730,7 +2745,6 @@ ${getAvailabilityLinkForUser(userId)}`;
         if (shiftText) {
           const shiftInfo = document.createElement('span');
           shiftInfo.className = 'small-muted';
-          shiftInfo.style.display = 'block';
           shiftInfo.textContent = shiftText;
           details.appendChild(shiftInfo);
         }
