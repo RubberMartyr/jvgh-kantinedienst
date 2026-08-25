@@ -87,6 +87,7 @@
     <button class="people-tab is-active" type="button" role="tab" aria-selected="true" data-tab="bestuur">Bestuur · 4,5u</button>
     <button class="people-tab" type="button" role="tab" aria-selected="false" data-tab="vrijwilligers">Vrijwilligers · 4u</button>
     <button class="people-tab" type="button" role="tab" aria-selected="false" data-tab="ouders">Ouders</button>
+    <button class="people-tab" type="button" role="tab" aria-selected="false" data-tab="vrij">Vrije ingave</button>
   </div>
 
   <div class="people-panels">
@@ -115,6 +116,28 @@
           <div id="ouders-team-pillhost" class="ouders-pillhost"></div>
           <div id="ouders-player-pillhost" class="ouders-pillhost"></div>
         </div>
+      </div>
+    </div>
+
+    <div class="people-panel" role="tabpanel" data-panel="vrij" hidden>
+      <div id="jvgh-free-entry-panel">
+        <div class="jvgh-free-entry-form">
+          <label class="jvgh-whatsapp-field">
+            Voornaam
+            <input id="jvgh-free-first-name" type="text" autocomplete="given-name" />
+          </label>
+          <label class="jvgh-whatsapp-field">
+            Naam
+            <input id="jvgh-free-last-name" type="text" autocomplete="family-name" />
+          </label>
+          <label class="jvgh-whatsapp-field">
+            Gsm-nummer
+            <input id="jvgh-free-phone" type="tel" autocomplete="tel" placeholder="0476 12 34 56" />
+          </label>
+          <button id="jvgh-free-create" type="button" class="jvgh-calendar-control-btn">Maak persoon</button>
+          <div id="jvgh-free-entry-error" class="small-muted jvgh-free-entry-error" role="alert"></div>
+        </div>
+        <div id="jvgh-free-entry-preview" class="jvgh-free-entry-preview"></div>
       </div>
     </div>
   </div>
