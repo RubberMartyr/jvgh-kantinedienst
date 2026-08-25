@@ -2034,16 +2034,13 @@ document.addEventListener("DOMContentLoaded", function () {
           const taskId = await ensureTaskForSlot(slot);
 
           // 3) inschrijving voor deze vrijwilliger op die taak
-          const resolvedFirstName =
-            data.firstName || name.split(" ")[0] || "";
-          const resolvedLastName =
-            data.lastName || name.split(" ").slice(1).join(" ");
+          const [firstName, ...rest] = name.split(" ");
+          const lastName = rest.join(" ");
 
           const createdSignup = await JVGHApi.createSignup(taskId, {
-            firstName: resolvedFirstName,
-            lastName: resolvedLastName,
+            firstName,
+            lastName,
             email: data.email || "",
-            phone: data.phone || "",
             userId: data.userId || null,
           });
 
@@ -2101,24 +2098,6 @@ document.addEventListener("DOMContentLoaded", function () {
       card.dataset.teamTitle = payload.teamTitle;
     } else {
       delete card.dataset.teamTitle;
-    }
-
-    if (payload.firstName) {
-      card.dataset.firstName = payload.firstName;
-    } else {
-      delete card.dataset.firstName;
-    }
-
-    if (payload.lastName) {
-      card.dataset.lastName = payload.lastName;
-    } else {
-      delete card.dataset.lastName;
-    }
-
-    if (payload.phone) {
-      card.dataset.phone = payload.phone;
-    } else {
-      delete card.dataset.phone;
     }
   }
 
@@ -2273,9 +2252,6 @@ document.addEventListener("DOMContentLoaded", function () {
         ? parseInt(card.dataset.teamId, 10)
         : null,
       teamTitle: card.dataset.teamTitle || null,
-      firstName: card.dataset.firstName || null,
-      lastName: card.dataset.lastName || null,
-      phone: card.dataset.phone || null,
     };
     if (e.dataTransfer) {
       e.dataTransfer.setData("text/plain", JSON.stringify(payload));
@@ -2296,72 +2272,6 @@ document.addEventListener("DOMContentLoaded", function () {
   if (oudersPlayerHost) oudersPlayerHost.addEventListener("dragstart", handleDragStart);
   if (parentsListEl) {
     parentsListEl.addEventListener("dragstart", handleDragStart);
-  }
-  const freeEntryPreviewEl = document.getElementById("jvgh-free-entry-preview");
-  if (freeEntryPreviewEl) {
-    freeEntryPreviewEl.addEventListener("dragstart", handleDragStart);
-  }
-
-  const freeEntryCreateEl = document.getElementById("jvgh-free-create");
-  if (freeEntryCreateEl && freeEntryPreviewEl) {
-    const firstNameInput = document.getElementById("jvgh-free-first-name");
-    const lastNameInput = document.getElementById("jvgh-free-last-name");
-    const phoneInput = document.getElementById("jvgh-free-phone");
-    const errorEl = document.getElementById("jvgh-free-entry-error");
-
-    freeEntryCreateEl.addEventListener("click", () => {
-      const firstName = firstNameInput.value.trim();
-      const lastName = lastNameInput.value.trim();
-      const normalizedPhone = normalizePhoneNumber(phoneInput.value);
-
-      if (!firstName || !lastName) {
-        errorEl.textContent = "Vul voornaam en naam in.";
-        return;
-      }
-      if (!normalizedPhone) {
-        errorEl.textContent = "Geef een geldig gsm-nummer in.";
-        return;
-      }
-
-      const fullName = `${firstName} ${lastName}`.trim();
-      const card = document.createElement("div");
-      card.className = "resource-card resource-card-free";
-
-      const resourceLine = document.createElement("div");
-      resourceLine.className = "resource-line";
-      const resourceName = document.createElement("span");
-      resourceName.className = "resource-name";
-      resourceName.textContent = fullName;
-      resourceLine.appendChild(resourceName);
-
-      const phoneLine = document.createElement("div");
-      phoneLine.className = "small-muted";
-      phoneLine.textContent = normalizedPhone;
-      card.append(resourceLine, phoneLine);
-
-      JVGH_makeResourceDraggable(card, {
-        title: fullName,
-        duration: 240,
-        role: "vrij",
-        userId: null,
-        phone: normalizedPhone,
-        firstName,
-        lastName,
-      });
-
-      if (!freeEntryPreviewEl.childElementCount) {
-        const label = document.createElement("div");
-        label.className = "small-muted jvgh-free-entry-label";
-        label.textContent = "Vrije personen";
-        freeEntryPreviewEl.appendChild(label);
-      }
-      freeEntryPreviewEl.appendChild(card);
-      firstNameInput.value = "";
-      lastNameInput.value = "";
-      phoneInput.value = "";
-      errorEl.textContent = "";
-      firstNameInput.focus();
-    });
   }
   const teamSelect = document.querySelector('#jvgh-team-select') || parentsTeamSelectEl;
 
