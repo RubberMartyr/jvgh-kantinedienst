@@ -2611,13 +2611,42 @@ ${getAvailabilityLinkForUser(userId)}`;
     }).filter(Boolean).join(', ');
   }
 
+  function formatScheduledMessageDate(dateKey) {
+    const [year, month, day] = String(dateKey || '').split('-').map(Number);
+    if (!year || !month || !day) return String(dateKey || '');
+
+    const date = new Date(year, month - 1, day, 12, 0, 0);
+    return date.toLocaleDateString('nl-BE', {
+      weekday: 'long',
+      day: 'numeric',
+      month: 'long',
+    });
+  }
+
+  function buildScheduledVolunteerPlanningText(dateKey, shifts) {
+    const dateLabel = formatScheduledMessageDate(dateKey);
+    const shiftList = Array.isArray(shifts) ? shifts : [];
+    const times = shiftList.map((shift) => {
+      const start = shift?.time || shift?.start_time || shift?.startTime || shift?.start || shift?.from || '';
+      const end = shift?.end_time || shift?.endTime || shift?.end || shift?.to || '';
+      const startTime = String(start || '').slice(0, 5);
+      const endTime = String(end || '').slice(0, 5);
+
+      if (!startTime) return '';
+      if (endTime) return `van ${startTime} tot ${endTime}`;
+      return `om ${startTime}`;
+    }).filter(Boolean);
+
+    if (!times.length) return dateLabel;
+    if (times.length === 1) return `${dateLabel} ${times[0]}`;
+    return `${dateLabel} ${times.slice(0, -1).join(', ')} en ${times[times.length - 1]}`;
+  }
+
   function buildScheduledVolunteerContentVariables({ user, userId, dateKey, shifts }) {
-    // TODO: adjust ContentVariables when the final scheduled-volunteer Twilio template is supplied.
-    void dateKey;
-    void shifts;
+    void userId;
     return {
       "1": getUserFirstName(user),
-      "2": String(userId || ''),
+      "2": buildScheduledVolunteerPlanningText(dateKey, shifts),
     };
   }
 
