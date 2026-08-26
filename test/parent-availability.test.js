@@ -22,3 +22,22 @@ test('delegate phone and availability variables reuse shared core behavior', () 
   assert.equal(Core.getUserPhoneInfo({ phone: '' }).normalized, '');
   assert.deepEqual(Core.buildAvailabilityContentVariables({ name: 'Jan Peeters' }, 22), { '1': 'Jan', '2': '22' });
 });
+
+test('parent availability preserves independent primary selections per team', () => {
+  const teams = Core.normalizeParentAvailabilityTeams({ teams: [
+    { teamId: 1, primaryDelegateStaffId: 12, delegates: [
+      { staffId: 11, name: 'Jan', isPrimary: false },
+      { staffId: 12, name: 'Peter', isPrimary: true },
+    ] },
+    { teamId: 2, primaryDelegateStaffId: 21, delegates: [
+      { staffId: 21, name: 'Els', isPrimary: true, userId: 0, phone: '' },
+    ] },
+  ] });
+
+  assert.deepEqual(teams[0].delegates.map(({ name, isPrimary }) => ({ name, isPrimary })), [
+    { name: 'Jan', isPrimary: false },
+    { name: 'Peter', isPrimary: true },
+  ]);
+  assert.equal(teams[1].delegates[0].isPrimary, true);
+  assert.equal(teams[1].delegates[0].userId, 0);
+});
