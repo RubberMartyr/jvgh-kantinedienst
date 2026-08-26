@@ -35,8 +35,16 @@ function jvgh_rest_team_delegates() {
 
     $teams = array();
     foreach ($team_posts as $team_post) {
-        $teams[(int) $team_post->ID] = array(
-            'teamId'    => (int) $team_post->ID,
+        $team_id = (int) $team_post->ID;
+
+        // Zelfde selectie als [sp_teams_timeline]:
+        // alleen JVGH/eigen ploegen met een Summary/excerpt.
+        if (!has_excerpt($team_id)) {
+            continue;
+        }
+
+        $teams[$team_id] = array(
+            'teamId'    => $team_id,
             'teamName'  => get_the_title($team_post),
             'delegates' => array(),
         );
