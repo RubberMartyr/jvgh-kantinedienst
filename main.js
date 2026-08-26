@@ -2606,15 +2606,28 @@ ${getAvailabilityLinkForUser(userId)}`;
       <div class="jvgh-availability-modal jvgh-parent-availability-modal">
         <button type="button" class="jvgh-availability-close" aria-label="Sluiten">×</button>
         <h2>Beschikbaarheid ouders versturen</h2>
-        <p>Per ploeg worden de gekoppelde afgevaardigden weergegeven.<br>
-        Alleen afgevaardigden met een gekoppelde gebruiker en geldig gsm-nummer kunnen een bericht ontvangen.</p>
-        <div class="jvgh-parent-availability-results" aria-live="polite"></div>
+        <div class="jvgh-whatsapp-tabs" role="tablist" aria-label="Beschikbaarheid ouders secties">
+          <button type="button" class="jvgh-whatsapp-tab is-active" data-parent-tab="primary" aria-selected="true">Primaire afgevaardigden</button>
+          <button type="button" class="jvgh-whatsapp-tab" data-parent-tab="settings" aria-selected="false">Primaire afgevaardigde instellen</button>
+        </div>
+        <div class="jvgh-parent-availability-results" data-parent-panel="primary" aria-live="polite"></div>
+        <div class="jvgh-parent-availability-settings hidden" data-parent-panel="settings" aria-live="polite"></div>
         <div class="jvgh-parent-availability-status small-muted" aria-live="polite"></div>
       </div>`;
     document.body.appendChild(overlay);
     const close = () => overlay.classList.add('hidden');
     overlay.querySelector('.jvgh-availability-close').addEventListener('click', close);
     overlay.addEventListener('click', (event) => { if (event.target === overlay) close(); });
+    overlay.querySelectorAll('[data-parent-tab]').forEach((tab) => tab.addEventListener('click', () => {
+      overlay.querySelectorAll('[data-parent-tab]').forEach((item) => {
+        const active = item === tab;
+        item.classList.toggle('is-active', active);
+        item.setAttribute('aria-selected', String(active));
+      });
+      overlay.querySelectorAll('[data-parent-panel]').forEach((panel) => {
+        panel.classList.toggle('hidden', panel.dataset.parentPanel !== tab.dataset.parentTab);
+      });
+    }));
     return overlay;
   }
 
@@ -2624,7 +2637,9 @@ ${getAvailabilityLinkForUser(userId)}`;
 
   function renderParentAvailabilityTeams(overlay, payload) {
     const results = overlay.querySelector('.jvgh-parent-availability-results');
+    const settings = overlay.querySelector('.jvgh-parent-availability-settings');
     results.replaceChildren();
+    settings.replaceChildren();
     const teams = JVGHCore.normalizeParentAvailabilityTeams(payload);
     teams.forEach((team) => {
       const section = document.createElement('section');
@@ -2632,13 +2647,20 @@ ${getAvailabilityLinkForUser(userId)}`;
       const heading = document.createElement('h3');
       heading.textContent = team.teamName || `Ploeg #${team.teamId}`;
       section.appendChild(heading);
-      if (!team.delegates.length) {
+      const primaryDelegates = team.delegates.filter((delegate) => delegate.isPrimary === true);
+      if (team.primaryConfigurationError || primaryDelegates.length > 1) {
+        console.warn('[JVGH][PARENT AVAILABILITY] Meerdere primaire afgevaardigden.', { teamId: team.teamId });
+        const empty = document.createElement('p');
+        empty.className = 'jvgh-parent-configuration-error';
+        empty.textContent = team.primaryConfigurationError || 'Configuratiefout: meerdere primaire afgevaardigden gevonden.';
+        section.appendChild(empty);
+      } else if (!primaryDelegates.length) {
         const empty = document.createElement('p');
         empty.className = 'small-muted';
-        empty.textContent = 'Geen afgevaardigde gevonden.';
+        empty.textContent = 'Geen primaire afgevaardigde ingesteld.';
         section.appendChild(empty);
       }
-      team.delegates.forEach((delegate) => {
+      primaryDelegates.slice(0, 1).forEach((delegate) => {
         try {
           const userId = Number(delegate.authorId ?? delegate.userId);
           const user = { id: userId, name: delegate.userName || delegate.name, phone: delegate.phone };
@@ -2686,7 +2708,88 @@ ${getAvailabilityLinkForUser(userId)}`;
         }
       });
       results.appendChild(section);
+
+      const settingsSection = document.createElement('section');
+      settingsSection.className = 'jvgh-parent-availability-team';
+      const settingsHeading = document.createElement('h3');
+      settingsHeading.textContent = team.teamName || `Ploeg #${team.teamId}`;
+      settingsSection.appendChild(settingsHeading);
+      if (!team.delegates.length) {
+        const empty = document.createElement('p');
+        empty.className = 'small-muted';
+        empty.textContent = 'Geen afgevaardigde gevonden.';
+        settingsSection.appendChild(empty);
+      }
+      team.delegates.forEach((delegate) => {
+        const label = document.createElement('label');
+        label.className = 'jvgh-primary-delegate-option';
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.checked = delegate.isPrimary === true;
+        checkbox.dataset.teamId = String(team.teamId);
+        checkbox.value = String(delegate.staffId);
+        checkbox.addEventListener('change', () => {
+          if (!checkbox.checked) return;
+          settingsSection.querySelectorAll(`input[data-team-id="${team.teamId}"]`).forEach((other) => {
+            if (other !== checkbox) other.checked = false;
+          });
+        });
+        const details = document.createElement('span');
+        const name = document.createElement('strong');
+        name.textContent = delegate.name || '-';
+        const meta = document.createElement('span');
+        meta.className = 'small-muted';
+        const userId = Number(delegate.authorId ?? delegate.userId);
+        const phoneInfo = getUserPhoneInfo({ phone: delegate.phone });
+        meta.textContent = !(Number.isFinite(userId) && userId > 0)
+          ? 'Geen gebruiker gekoppeld'
+          : !phoneInfo.normalized ? 'Geen gsm-nummer' : `Gebruiker #${userId}`;
+        details.append(name, meta);
+        label.append(checkbox, details);
+        settingsSection.appendChild(label);
+      });
+      const saveButton = document.createElement('button');
+      saveButton.type = 'button';
+      saveButton.className = 'jvgh-calendar-control-btn jvgh-primary-delegate-save';
+      saveButton.textContent = 'Opslaan';
+      saveButton.disabled = !team.delegates.length;
+      saveButton.addEventListener('click', async () => {
+        const selected = settingsSection.querySelector(`input[data-team-id="${team.teamId}"]:checked`);
+        const status = overlay.querySelector('.jvgh-parent-availability-status');
+        if (!selected) {
+          status.textContent = 'Selecteer eerst een primaire afgevaardigde.';
+          return;
+        }
+        saveButton.disabled = true;
+        saveButton.textContent = 'Opslaan...';
+        status.textContent = '';
+        try {
+          const headers = { 'Content-Type': 'application/json' };
+          if (window.wpApiSettings?.nonce) headers['X-WP-Nonce'] = window.wpApiSettings.nonce;
+          const response = await fetch('/wp-json/jvgh/v1/team-primary-delegate', {
+            method: 'POST', credentials: 'same-origin', headers,
+            body: JSON.stringify({ teamId: Number(team.teamId), staffId: Number(selected.value) }),
+          });
+          if (!response.ok) throw new Error(`Opslaan mislukt (${response.status}).`);
+          status.textContent = 'Primaire afgevaardigde opgeslagen.';
+          await loadParentAvailabilityTeams(overlay);
+        } catch (error) {
+          console.error('[JVGH][PARENT AVAILABILITY] Primaire afgevaardigde kon niet worden opgeslagen.', { teamId: team.teamId, error });
+          status.textContent = 'Kon primaire afgevaardigde niet opslaan.';
+        } finally {
+          saveButton.disabled = false;
+          saveButton.textContent = 'Opslaan';
+        }
+      });
+      settingsSection.appendChild(saveButton);
+      settings.appendChild(settingsSection);
     });
+  }
+
+  async function loadParentAvailabilityTeams(overlay) {
+    const response = await fetch('/wp-json/jvgh/v1/team-delegates', { credentials: 'same-origin', cache: 'no-store' });
+    if (!response.ok) throw new Error(`Ophalen mislukt (${response.status}).`);
+    renderParentAvailabilityTeams(overlay, await response.json());
   }
 
   async function openParentAvailability() {
@@ -2697,9 +2800,7 @@ ${getAvailabilityLinkForUser(userId)}`;
     status.textContent = '';
     overlay.classList.remove('hidden');
     try {
-      const response = await fetch('/wp-json/jvgh/v1/team-delegates', { credentials: 'same-origin', cache: 'no-store' });
-      if (!response.ok) throw new Error(`Ophalen mislukt (${response.status}).`);
-      renderParentAvailabilityTeams(overlay, await response.json());
+      await loadParentAvailabilityTeams(overlay);
     } catch (error) {
       console.error('[JVGH][PARENT AVAILABILITY] Endpoint kon niet worden geladen.', { error });
       results.textContent = 'Kon de afgevaardigden niet laden.';
