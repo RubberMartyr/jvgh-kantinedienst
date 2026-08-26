@@ -101,6 +101,22 @@
     return { '1': getUserFirstName(user), '2': String(userId) };
   }
 
+  function normalizeParentAvailabilityTeams(payload) {
+    const teams = Array.isArray(payload?.teams) ? payload.teams : [];
+    return teams.map((team) => {
+      const seen = new Set();
+      const delegates = (Array.isArray(team?.delegates) ? team.delegates : [])
+        .filter((delegate) => {
+          const key = String(delegate?.staffId ?? '');
+          if (!key || seen.has(key)) return false;
+          seen.add(key);
+          return true;
+        })
+        .sort((a, b) => String(a?.name || '').localeCompare(String(b?.name || ''), 'nl-BE'));
+      return { ...team, delegates };
+    });
+  }
+
   function getUsersWithSubmittedAvailability(plannerData) {
     const result = new Set();
     for (const schedule of (Array.isArray(plannerData?.schedules) ? plannerData.schedules : [])) {
@@ -129,6 +145,6 @@
 
   return { normalizePhoneNumber, getUserPhoneInfo, getUserFirstName, normalizeScheduledVolunteersResponse,
     normalizeScheduledVolunteer, groupScheduledVolunteers, getScheduledShiftDisplayData, formatScheduledMessageDate,
-    buildScheduledVolunteerPlanningText, buildScheduledVolunteerContentVariables, buildAvailabilityContentVariables,
+    buildScheduledVolunteerPlanningText, buildScheduledVolunteerContentVariables, buildAvailabilityContentVariables, normalizeParentAvailabilityTeams,
     getUsersWithSubmittedAvailability, getBrusselsDateKey, addDaysToDateKey, getNextMonthKey, getDaysUntilMonthEnd };
 }));
