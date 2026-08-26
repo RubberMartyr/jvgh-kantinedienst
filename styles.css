@@ -1244,6 +1244,36 @@ body {
   min-width: 0;
 }
 
+.jvgh-parent-availability-modal {
+  width: min(92vw, 680px);
+}
+
+.jvgh-parent-availability-team {
+  margin-top: 14px;
+  padding: 12px 14px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #f8fafc;
+}
+
+.jvgh-parent-availability-team h3 {
+  margin: 0 0 8px;
+  padding-bottom: 7px;
+  border-bottom: 1px solid #cbd5e1;
+}
+
+.jvgh-parent-delegate-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+  padding: 8px 0;
+}
+
+.jvgh-parent-delegate-row + .jvgh-parent-delegate-row {
+  border-top: 1px solid #e2e8f0;
+}
+
 .jvgh-scheduled-date-controls {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
