@@ -1,6 +1,6 @@
 <?php
 /**
- * REST support for the parent availability popup.
+ * REST support for volunteers and the parent availability popup.
  *
  * `sp_role` belongs to a staff post, not to a staff/team relation. A staff post
  * can serve several teams, so the selected staff ID is also stored on each team.
@@ -10,10 +10,19 @@
 define('JVGH_PRIMARY_DELEGATE_META_KEY', '_jvgh_primary_delegate_staff_id');
 
 add_action('rest_api_init', function () {
+    register_rest_route('jvgh/v1', '/volunteers', array(
+        'methods'             => WP_REST_Server::READABLE,
+        'callback'            => 'jvgh_rest_volunteers',
+        'permission_callback' => '__return_true',
+        'args'                => array(
+            'role' => array('required' => false, 'type' => 'string'),
+        ),
+    ));
+
     register_rest_route('jvgh/v1', '/team-delegates', array(
         'methods'             => WP_REST_Server::READABLE,
         'callback'            => 'jvgh_rest_team_delegates',
-        'permission_callback' => function () { return current_user_can('edit_posts'); },
+        'permission_callback' => '__return_true',
     ));
 
     register_rest_route('jvgh/v1', '/team-primary-delegate', array(
@@ -27,6 +36,28 @@ add_action('rest_api_init', function () {
         ),
     ));
 });
+
+/** Return the shared phone field used by all JVGH people endpoints. */
+function jvgh_get_user_phone($user_id) {
+    return (string) get_user_meta($user_id, 'billing_phone', true);
+}
+
+function jvgh_rest_volunteers(WP_REST_Request $request) {
+    $requested_role = (string) $request->get_param('role');
+    $wordpress_role = $requested_role === 'bestuur' ? 'bestuur' : 'eventadmin_volunteer';
+    $volunteers = array();
+
+    foreach (get_users(array('role' => $wordpress_role)) as $user) {
+        $volunteers[] = array(
+            'id'    => (int) $user->ID,
+            'name'  => $user->display_name,
+            'email' => $user->user_email,
+            'phone' => jvgh_get_user_phone($user->ID),
+        );
+    }
+
+    return rest_ensure_response($volunteers);
+}
 
 /** Resolve the installed terms by name; never rely on a guessed slug. */
 function jvgh_team_delegate_role_terms() {
@@ -49,9 +80,7 @@ function jvgh_team_delegate_team_ids($staff_id) {
 }
 
 function jvgh_team_delegate_user_phone($user_id) {
-    return function_exists('jvgh_get_user_phone')
-        ? (string) jvgh_get_user_phone($user_id)
-        : (string) get_user_meta($user_id, 'billing_phone', true);
+    return jvgh_get_user_phone($user_id);
 }
 
 function jvgh_team_delegate_home_teams() {
@@ -186,9 +215,13 @@ function jvgh_rest_update_team_primary_delegate(WP_REST_Request $request) {
 
     $staff_id = (int) $request->get_param('staffId');
     $user_id = (int) $request->get_param('userId');
-    $staff = $staff_id ? get_post($staff_id) : null;
-    if ($staff && ($staff->post_type !== 'sp_staff' || !in_array($team_id, jvgh_team_delegate_team_ids($staff_id), true)))
-        return new WP_Error('jvgh_invalid_staff', 'Deze medewerker is niet aan de ploeg gekoppeld.', array('status' => 400));
+    $staff = null;
+    if ($staff_id) {
+        $staff = get_post($staff_id);
+        if (!$staff || $staff->post_type !== 'sp_staff' ||
+            !in_array($team_id, jvgh_team_delegate_team_ids($staff_id), true))
+            return new WP_Error('jvgh_invalid_staff', 'Deze medewerker is niet aan de ploeg gekoppeld.', array('status' => 400));
+    }
 
     if (!$staff) {
         $user = $user_id ? get_userdata($user_id) : false;
