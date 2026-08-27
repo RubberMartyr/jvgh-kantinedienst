@@ -41,3 +41,12 @@ test('parent availability preserves independent primary selections per team', ()
   assert.equal(teams[1].delegates[0].isPrimary, true);
   assert.equal(teams[1].delegates[0].userId, 0);
 });
+
+test('parent availability deduplicates a coordinator and staff record by WordPress user', () => {
+  const [team] = Core.normalizeParentAvailabilityTeams({ teams: [{ teamId: 1, delegates: [
+    { staffId: 12, userId: 37, name: 'Marc', isDelegate: true },
+    { staffId: null, userId: 37, name: 'Marc duplicate', isCoordinator: true },
+    { staffId: null, userId: 38, name: 'Els', isCoordinator: true },
+  ] }] });
+  assert.deepEqual(team.delegates.map((delegate) => delegate.name), ['Els', 'Marc']);
+});

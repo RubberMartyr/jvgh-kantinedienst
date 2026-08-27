@@ -1288,6 +1288,7 @@ body {
 
 .jvgh-primary-delegate-option input {
   margin-top: 3px;
+  accent-color: #1d4ed8;
 }
 
 .jvgh-primary-delegate-option span,
@@ -1297,6 +1298,8 @@ body {
 
 .jvgh-primary-delegate-save {
   margin-top: 10px;
+  display: block;
+  margin-left: auto;
 }
 
 .jvgh-parent-configuration-error {

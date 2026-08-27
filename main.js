@@ -2717,33 +2717,29 @@ ${getAvailabilityLinkForUser(userId)}`;
       if (!team.delegates.length) {
         const empty = document.createElement('p');
         empty.className = 'small-muted';
-        empty.textContent = 'Geen afgevaardigde gevonden.';
+        empty.textContent = 'Geen mogelijke afgevaardigden gevonden.';
         settingsSection.appendChild(empty);
       }
       team.delegates.forEach((delegate) => {
         const label = document.createElement('label');
         label.className = 'jvgh-primary-delegate-option';
         const checkbox = document.createElement('input');
-        checkbox.type = 'checkbox';
+        checkbox.type = 'radio';
+        checkbox.name = `jvgh-primary-delegate-${team.teamId}`;
         checkbox.checked = delegate.isPrimary === true;
         checkbox.dataset.teamId = String(team.teamId);
-        checkbox.value = String(delegate.staffId);
-        checkbox.addEventListener('change', () => {
-          if (!checkbox.checked) return;
-          settingsSection.querySelectorAll(`input[data-team-id="${team.teamId}"]`).forEach((other) => {
-            if (other !== checkbox) other.checked = false;
-          });
-        });
+        checkbox.dataset.staffId = delegate.staffId == null ? '' : String(delegate.staffId);
+        checkbox.dataset.userId = delegate.userId == null ? '' : String(delegate.userId);
         const details = document.createElement('span');
         const name = document.createElement('strong');
         name.textContent = delegate.name || '-';
         const meta = document.createElement('span');
         meta.className = 'small-muted';
-        const userId = Number(delegate.authorId ?? delegate.userId);
-        const phoneInfo = getUserPhoneInfo({ phone: delegate.phone });
-        meta.textContent = !(Number.isFinite(userId) && userId > 0)
-          ? 'Geen gebruiker gekoppeld'
-          : !phoneInfo.normalized ? 'Geen gsm-nummer' : `Gebruiker #${userId}`;
+        const sources = [];
+        if (delegate.isDelegate) sources.push('Afgevaardigde');
+        if (delegate.isCoordinator) sources.push('Coordinator');
+        if (delegate.isPrimary) sources.push('huidige primaire');
+        meta.textContent = sources.join(' · ');
         details.append(name, meta);
         label.append(checkbox, details);
         settingsSection.appendChild(label);
@@ -2768,7 +2764,11 @@ ${getAvailabilityLinkForUser(userId)}`;
           if (window.wpApiSettings?.nonce) headers['X-WP-Nonce'] = window.wpApiSettings.nonce;
           const response = await fetch('/wp-json/jvgh/v1/team-primary-delegate', {
             method: 'POST', credentials: 'same-origin', headers,
-            body: JSON.stringify({ teamId: Number(team.teamId), staffId: Number(selected.value) }),
+            body: JSON.stringify({
+              teamId: Number(team.teamId),
+              userId: Number(selected.dataset.userId) || undefined,
+              staffId: Number(selected.dataset.staffId) || undefined,
+            }),
           });
           if (!response.ok) throw new Error(`Opslaan mislukt (${response.status}).`);
           status.textContent = 'Primaire afgevaardigde opgeslagen.';
