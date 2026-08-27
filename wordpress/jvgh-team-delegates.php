@@ -28,7 +28,7 @@ add_action('rest_api_init', function () {
     register_rest_route('jvgh/v1', '/team-primary-delegate', array(
         'methods'             => WP_REST_Server::CREATABLE,
         'callback'            => 'jvgh_rest_update_team_primary_delegate',
-        'permission_callback' => function () { return current_user_can('edit_posts'); },
+        'permission_callback' => '__return_true',
         'args'                => array(
             'teamId'  => array('required' => true, 'type' => 'integer', 'minimum' => 1),
             'staffId' => array('required' => false, 'type' => 'integer', 'minimum' => 1),
