@@ -107,7 +107,9 @@
       const seen = new Set();
       const delegates = (Array.isArray(team?.delegates) ? team.delegates : [])
         .filter((delegate) => {
-          const key = String(delegate?.staffId ?? '');
+          const userId = Number(delegate?.userId ?? delegate?.authorId);
+          const staffId = Number(delegate?.staffId);
+          const key = userId > 0 ? `user:${userId}` : staffId > 0 ? `staff:${staffId}` : '';
           if (!key || seen.has(key)) return false;
           seen.add(key);
           return true;
