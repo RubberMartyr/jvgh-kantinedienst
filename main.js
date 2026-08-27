@@ -2620,14 +2620,32 @@ ${getAvailabilityLinkForUser(userId)}`;
     overlay.addEventListener('click', (event) => { if (event.target === overlay) close(); });
     const sendPanel = overlay.querySelector('#jvgh-parent-primary-send-panel');
     const setupPanel = overlay.querySelector('#jvgh-parent-primary-setup-panel');
+    sendPanel.hidden = false;
+    setupPanel.hidden = true;
     const activateParentTab = (tabName) => {
       overlay.querySelectorAll('[data-parent-tab]').forEach((item) => {
         const active = item.dataset.parentTab === tabName;
+
         item.classList.toggle('is-active', active);
         item.setAttribute('aria-selected', String(active));
       });
-      sendPanel.classList.toggle('hidden', tabName !== 'send');
-      setupPanel.classList.toggle('hidden', tabName !== 'setup');
+
+      const showSend = tabName === 'send';
+      const showSetup = tabName === 'setup';
+
+      sendPanel.hidden = !showSend;
+      setupPanel.hidden = !showSetup;
+
+      // Class behouden voor bestaande styling,
+      // maar hidden attribute is authoritative.
+      sendPanel.classList.toggle('hidden', !showSend);
+      setupPanel.classList.toggle('hidden', !showSetup);
+
+      console.debug('[JVGH][PARENT TAB]', {
+        tabName,
+        sendHidden: sendPanel.hidden,
+        setupHidden: setupPanel.hidden,
+      });
     };
     overlay.querySelectorAll('[data-parent-tab]').forEach((tab) =>
       tab.addEventListener('click', () => activateParentTab(tab.dataset.parentTab)));
