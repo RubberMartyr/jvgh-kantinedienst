@@ -2641,75 +2641,81 @@ ${getAvailabilityLinkForUser(userId)}`;
   function renderPrimaryDelegatesSendTab(teams, overlay) {
     const sendPanel = overlay.querySelector('#jvgh-parent-primary-send-panel');
     sendPanel.replaceChildren();
-    teams.forEach((team) => {
+    const teamsWithPrimary = teams.filter((team) =>
+      Array.isArray(team.delegates)
+      && team.delegates.some((delegate) => delegate.isPrimary === true));
+
+    if (!teamsWithPrimary.length) {
+      const empty = document.createElement('p');
+      empty.className = 'small-muted';
+      empty.textContent = 'Er zijn nog geen primaire afgevaardigden ingesteld.';
+      sendPanel.appendChild(empty);
+      return;
+    }
+
+    teamsWithPrimary.forEach((team) => {
+      const primaryDelegates = team.delegates.filter(
+        (delegate) => delegate.isPrimary === true,
+      );
+      if (primaryDelegates.length !== 1) {
+        console.warn('[JVGH][PARENT AVAILABILITY] multiple primary delegates', {
+          teamId: team.teamId,
+          teamName: team.teamName,
+        });
+        return;
+      }
+
+      const delegate = primaryDelegates[0];
       const section = document.createElement('section');
       section.className = 'jvgh-parent-availability-team';
       const heading = document.createElement('h3');
       heading.textContent = team.teamName || `Ploeg #${team.teamId}`;
       section.appendChild(heading);
-      const primaryDelegates = team.delegates.filter((delegate) => delegate.isPrimary === true);
-      if (primaryDelegates.length > 1) {
-        console.warn('[JVGH][PARENT AVAILABILITY] multiple primary delegates', {
-          teamId: team.teamId,
-          teamName: team.teamName,
+      try {
+        const userId = Number(delegate.authorId ?? delegate.userId);
+        const user = { id: userId, name: delegate.userName || delegate.name, phone: delegate.phone };
+        const phoneInfo = getUserPhoneInfo(user);
+        const canSend = Number.isFinite(userId) && userId > 0 && Boolean(phoneInfo.normalized);
+        const row = document.createElement('div');
+        row.className = 'jvgh-parent-primary-send-row';
+        const details = document.createElement('div');
+        const name = document.createElement('strong');
+        name.textContent = delegate.name || '-';
+        const meta = document.createElement('div');
+        meta.className = 'small-muted';
+        meta.textContent = !(Number.isFinite(userId) && userId > 0)
+          ? 'Geen gebruiker gekoppeld'
+          : phoneInfo.normalized
+            ? formatParentPhone(phoneInfo.normalized)
+            : 'Geen geldig gsm-nummer';
+        details.append(name, meta);
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'jvgh-calendar-control-btn';
+        button.textContent = 'Verstuur';
+        button.disabled = !canSend;
+        button.title = canSend ? '' : userId > 0
+          ? 'Geen geldig gsm-nummer beschikbaar voor deze gebruiker.'
+          : 'Geen WordPress-gebruiker gekoppeld aan deze afgevaardigde.';
+        button.addEventListener('click', async () => {
+          if (button.disabled) return;
+          const statusEl = overlay.querySelector('.jvgh-parent-availability-status');
+          button.disabled = true;
+          try {
+            await sendWhatsAppMessage({ statusEl, user, phone: phoneInfo.normalized, userId,
+              contentSidSelector: '#jvgh-whatsapp-parent-content-sid',
+              contentVariables: JVGHCore.buildAvailabilityContentVariables(user, userId),
+              progressText: 'Versturen...', successText: `WhatsApp verzonden via Twilio naar ${delegate.name || '-'}.`,
+              missingContentSidLabel: 'Ouders Template SID' });
+          } catch (error) {
+            statusEl.textContent = `Verzenden mislukt: ${error.message}`;
+          } finally { button.disabled = false; }
         });
-        const empty = document.createElement('p');
-        empty.className = 'jvgh-parent-configuration-error';
-        empty.textContent = 'Configuratiefout: meerdere primaire afgevaardigden ingesteld.';
-        section.appendChild(empty);
-      } else if (!primaryDelegates.length) {
-        const empty = document.createElement('p');
-        empty.className = 'small-muted';
-        empty.textContent = 'Geen primaire afgevaardigde ingesteld.';
-        section.appendChild(empty);
+        row.append(details, button);
+        section.appendChild(row);
+      } catch (error) {
+        console.error('[JVGH][PARENT AVAILABILITY] Afgevaardigde kon niet worden weergegeven.', { teamId: team.teamId, staffId: delegate?.staffId, error });
       }
-      (primaryDelegates.length === 1 ? primaryDelegates : []).forEach((delegate) => {
-        try {
-          const userId = Number(delegate.authorId ?? delegate.userId);
-          const user = { id: userId, name: delegate.userName || delegate.name, phone: delegate.phone };
-          const phoneInfo = getUserPhoneInfo(user);
-          const canSend = Number.isFinite(userId) && userId > 0 && Boolean(phoneInfo.normalized);
-          const row = document.createElement('div');
-          row.className = 'jvgh-parent-primary-send-row';
-          const details = document.createElement('div');
-          const name = document.createElement('strong');
-          name.textContent = delegate.name || '-';
-          const meta = document.createElement('div');
-          meta.className = 'small-muted';
-          meta.textContent = !(Number.isFinite(userId) && userId > 0)
-            ? 'Geen gebruiker gekoppeld'
-            : phoneInfo.normalized
-              ? formatParentPhone(phoneInfo.normalized)
-              : 'Geen geldig gsm-nummer';
-          details.append(name, meta);
-          const button = document.createElement('button');
-          button.type = 'button';
-          button.className = 'jvgh-calendar-control-btn';
-          button.textContent = 'Verstuur';
-          button.disabled = !canSend;
-          button.title = canSend ? '' : userId > 0
-            ? 'Geen geldig gsm-nummer beschikbaar voor deze gebruiker.'
-            : 'Geen WordPress-gebruiker gekoppeld aan deze afgevaardigde.';
-          button.addEventListener('click', async () => {
-            if (button.disabled) return;
-            const statusEl = overlay.querySelector('.jvgh-parent-availability-status');
-            button.disabled = true;
-            try {
-              await sendWhatsAppMessage({ statusEl, user, phone: phoneInfo.normalized, userId,
-                contentSidSelector: '#jvgh-whatsapp-parent-content-sid',
-                contentVariables: JVGHCore.buildAvailabilityContentVariables(user, userId),
-                progressText: 'Versturen...', successText: `WhatsApp verzonden via Twilio naar ${delegate.name || '-'}.`,
-                missingContentSidLabel: 'Ouders Template SID' });
-            } catch (error) {
-              statusEl.textContent = `Verzenden mislukt: ${error.message}`;
-            } finally { button.disabled = false; }
-          });
-          row.append(details, button);
-          section.appendChild(row);
-        } catch (error) {
-          console.error('[JVGH][PARENT AVAILABILITY] Afgevaardigde kon niet worden weergegeven.', { teamId: team.teamId, staffId: delegate?.staffId, error });
-        }
-      });
       sendPanel.appendChild(section);
     });
   }
