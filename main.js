@@ -2659,36 +2659,39 @@ ${getAvailabilityLinkForUser(userId)}`;
   function renderPrimaryDelegatesSendTab(teams, overlay) {
     const sendPanel = overlay.querySelector('#jvgh-parent-primary-send-panel');
     sendPanel.replaceChildren();
-    const teamsWithPrimary = teams.filter((team) =>
-      Array.isArray(team.delegates)
-      && team.delegates.some((delegate) => delegate.isPrimary === true));
-
-    if (!teamsWithPrimary.length) {
-      const empty = document.createElement('p');
-      empty.className = 'small-muted';
-      empty.textContent = 'Er zijn nog geen primaire afgevaardigden ingesteld.';
-      sendPanel.appendChild(empty);
-      return;
-    }
-
-    teamsWithPrimary.forEach((team) => {
+    teams.forEach((team) => {
       const primaryDelegates = team.delegates.filter(
         (delegate) => delegate.isPrimary === true,
       );
-      if (primaryDelegates.length !== 1) {
-        console.warn('[JVGH][PARENT AVAILABILITY] multiple primary delegates', {
-          teamId: team.teamId,
-          teamName: team.teamName,
-        });
-        return;
-      }
-
-      const delegate = primaryDelegates[0];
       const section = document.createElement('section');
       section.className = 'jvgh-parent-availability-team';
       const heading = document.createElement('h3');
       heading.textContent = team.teamName || `Ploeg #${team.teamId}`;
       section.appendChild(heading);
+
+      if (primaryDelegates.length === 0) {
+        const empty = document.createElement('p');
+        empty.className = 'small-muted';
+        empty.textContent = 'Geen primaire afgevaardigde ingesteld.';
+        section.appendChild(empty);
+        sendPanel.appendChild(section);
+        return;
+      }
+
+      if (primaryDelegates.length > 1) {
+        console.warn('[JVGH][PARENT AVAILABILITY] multiple primary delegates', {
+          teamId: team.teamId,
+          teamName: team.teamName,
+        });
+        const error = document.createElement('p');
+        error.className = 'small-muted';
+        error.textContent = 'Configuratiefout: meerdere primaire afgevaardigden ingesteld.';
+        section.appendChild(error);
+        sendPanel.appendChild(section);
+        return;
+      }
+
+      const delegate = primaryDelegates[0];
       try {
         const userId = Number(delegate.authorId ?? delegate.userId);
         const user = { id: userId, name: delegate.userName || delegate.name, phone: delegate.phone };

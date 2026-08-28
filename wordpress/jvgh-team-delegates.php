@@ -117,7 +117,11 @@ function jvgh_team_delegate_dto($staff, $coordinator_user_ids, $roles) {
 function jvgh_rest_team_delegates() {
     $roles = jvgh_team_delegate_role_terms();
     $home_teams = jvgh_team_delegate_home_teams();
-    $coordinators = get_users(array('role' => 'coordinator'));
+    $coordinators = get_users(array(
+        'role'    => 'coordinator',
+        'orderby' => 'display_name',
+        'order'   => 'ASC',
+    ));
     $coordinator_ids = array();
     foreach ($coordinators as $user) $coordinator_ids[(int) $user->ID] = true;
 
