@@ -277,6 +277,9 @@ function ensureAvailabilityToast() {
   if (!toast) {
     toast = document.createElement("div");
     toast.id = "availability-save-toast";
+    toast.setAttribute("role", "status");
+    toast.setAttribute("aria-live", "polite");
+    toast.setAttribute("aria-atomic", "true");
     document.body.appendChild(toast);
   }
 
@@ -1192,7 +1195,7 @@ function renderList({
     return;
   }
 
-  visibleTasks.forEach((task) => {
+  visibleTasks.forEach((task, taskIndex) => {
     const state = findStateForTask(stateByTask, task);
     if (!state) return;
 
@@ -1212,6 +1215,7 @@ function renderList({
 
     const checkbox = document.createElement("input");
     checkbox.type = "checkbox";
+    checkbox.id = `availability-shift-${taskIndex}`;
     checkbox.checked = Boolean(state.currentChecked);
     checkbox.title =
       checkboxHoverTitle(
@@ -1221,8 +1225,9 @@ function renderList({
       );
     checkbox.dataset.shiftKey = shiftKey(task);
 
-    const textWrap = document.createElement("div");
+    const textWrap = document.createElement("label");
     textWrap.className = "availability-item-main";
+    textWrap.htmlFor = checkbox.id;
 
     const label = document.createElement("span");
     label.textContent = formatShiftLabel(task);
@@ -1239,9 +1244,12 @@ function renderList({
     expandButton.className = "availability-expand-btn";
     expandButton.textContent = "+";
     expandButton.title = "Details tonen";
+    expandButton.setAttribute("aria-expanded", "false");
 
     const details = document.createElement("div");
     details.className = "availability-details";
+    details.id = `availability-details-${taskIndex}`;
+    expandButton.setAttribute("aria-controls", details.id);
 
     const otherUsers = state.signups.filter(
       (signup) =>
@@ -1273,6 +1281,7 @@ function renderList({
       const open = details.classList.toggle("is-open");
       expandButton.textContent = open ? "−" : "+";
       expandButton.title = open ? "Details verbergen" : "Details tonen";
+      expandButton.setAttribute("aria-expanded", String(open));
     });
 
     checkbox.addEventListener("change", () => {

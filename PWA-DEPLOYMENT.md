@@ -39,19 +39,21 @@ melding; pas na een klik op **Bijwerken** wordt `SKIP_WAITING` verstuurd en eenm
 Installatie, safe areas en het Apple Touch Icon moeten finaal op echte iOS- en Android-
 apparaten worden gecontroleerd; browseremulatie kan het beginschermgedrag niet volledig testen.
 
-## PNG-iconen handmatig toevoegen
+## Tijdelijk tekstgebaseerd app-icoon
 
-Deze commit gebruikt tijdelijk het tekstgebaseerde `icons/app-icon.svg`; daardoor bevat de
-commit geen binaire bestanden en zijn er geen ontbrekende icon-URLs. Voor optimale ondersteuning,
-vooral voor het Apple Touch Icon, uploadt een beheerder later de volgende PNG-bestanden via de
-GitHub-interface naar exact de map `icons/`:
+Deze tekst-only wijziging gebruikt voorlopig opnieuw `icons/app-icon.svg` voor de favicon,
+headers en het PWA-manifest. Daardoor verwijzen HTML, manifest en serviceworker niet naar
+ontbrekende binaire bestanden.
 
-- `favicon-32.png`
-- `icon-48.png`, `icon-72.png`, `icon-96.png`, `icon-128.png`, `icon-144.png`, `icon-152.png`
-- `apple-touch-icon-180.png`
-- `icon-192.png`, `icon-384.png`, `icon-512.png`
-- `maskable-192.png`, `maskable-512.png`
+Het aangeleverde rasterlogo en de afgeleide bestanden moeten afzonderlijk worden toegevoegd
+wanneer de commitomgeving binaire bestanden ondersteunt, met exact deze paden:
 
-Pas in dezelfde vervolgwijziging de manifest-iconen en de favicon/Apple Touch Icon-tags aan en
-voeg de PNG-bestanden pas dan aan `APP_SHELL` toe. Tot die tijd blijven manifest, HTML en
-serviceworker bewust uitsluitend naar het aanwezige SVG-bestand verwijzen.
+- `icons/jvgh-logo.jpg`
+- `icons/icon-192.png`
+- `icons/icon-512.png`
+- `icons/icon-maskable-512.png`
+- `icons/apple-touch-icon.png`
+
+Werk pas in diezelfde binaire vervolgwijziging de verwijzingen opnieuw bij. Het maskable formaat
+moet het volledige logo op ongeveer 79% van een zwart canvas tonen, zodat de witte buitenring
+binnen gangbare Android-maskers veilig blijft.

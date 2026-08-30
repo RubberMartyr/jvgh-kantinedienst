@@ -1,8 +1,8 @@
 // Increase this version for every release that changes a cached shell file.
-const STATIC_CACHE = 'jvgh-planning-static-v3-responsive';
+const STATIC_CACHE = 'jvgh-planning-static-v4-availability-icon';
 const CACHE_PREFIX = 'jvgh-planning-static-';
 const APP_SHELL = [
-  './index.html', './styles.css', './pwa.css', './pwa.js', './main.js',
+  './index.html', './availability.html', './availability.js', './styles.css', './pwa.css', './pwa.js', './main.js',
   './jvgh-api.js', './jvgh-access-control.js', './shared/jvgh-core.js',
   './vendor/event-calendar.min.css', './vendor/event-calendar.min.js',
   './manifest.webmanifest', './icons/app-icon.svg'
@@ -39,7 +39,9 @@ self.addEventListener('fetch', (event) => {
     event.respondWith(fetch(request).then((response) => {
       if (!response.ok) throw new Error('Navigation response was not successful');
       return response;
-    }).catch(() => caches.match('./index.html')));
+    }).catch(() => caches.match(url.pathname.endsWith('/availability.html')
+      ? './availability.html'
+      : './index.html')));
     return;
   }
 
