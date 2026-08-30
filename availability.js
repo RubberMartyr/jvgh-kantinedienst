@@ -1316,6 +1316,12 @@ async function saveChanges({
   userName,
   scheduleByDay
 }) {
+  if (!navigator.onLine) {
+    setStatus("Geen internetverbinding. Uw wijzigingen zijn nog niet opgeslagen.", true);
+    showAvailabilityToast("Geen internetverbinding. Probeer later opnieuw.", true);
+    return;
+  }
+
   const saveButtons = document.querySelectorAll(".availability-save-btn");
   saveButtons.forEach((saveButton) => {
     saveButton.disabled = true;
@@ -1509,7 +1515,8 @@ document.addEventListener("DOMContentLoaded", async () => {
   const { userRaw, userId, monthRaw, monthKey, userName: providedName } = getQueryParams();
 
   if (!userRaw || userId === null) {
-    setStatus("Parameter userId ontbreekt of is ongeldig.", true);
+    setStatus("Open de persoonlijke link die u via WhatsApp of e-mail ontvangen heeft om uw beschikbaarheid door te geven.");
+    document.querySelector(".availability-month-unavailable")?.setAttribute("hidden", "");
     return;
   }
 

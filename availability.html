@@ -4,14 +4,14 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>JVGH – Beschikbaarheid</title>
-  <link rel="manifest" href="./manifest.webmanifest" />
+  <link rel="manifest" href="./availability.webmanifest" />
   <link rel="icon" type="image/png" sizes="192x192" href="./icons/icon-192.png" />
   <link rel="apple-touch-icon" sizes="180x180" href="./icons/apple-touch-icon.png" />
   <meta name="theme-color" content="#002b5c" />
-  <meta name="application-name" content="JVGH Kantineplanning" />
+  <meta name="application-name" content="JVGH Beschikbaarheid" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-  <meta name="apple-mobile-web-app-title" content="JVGH Planning" />
+  <meta name="apple-mobile-web-app-title" content="Beschikbaarheid" />
   <meta name="mobile-web-app-capable" content="yes" />
   <link rel="stylesheet" href="./styles.css" />
   <link rel="stylesheet" href="./pwa.css" />
@@ -412,6 +412,12 @@
       </div>
     </div>
   </div>
+  <div class="jvgh-header-actions availability-header-actions">
+    <button id="pwa-install-button" class="jvgh-action-button jvgh-action-button--secondary" type="button" hidden>
+      <svg class="jvgh-action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12m0 0 4-4m-4 4-4-4M5 21h14"/></svg>
+      <span>App installeren</span>
+    </button>
+  </div>
   <div class="jvgh-header-tag">Intern clubgebruik</div>
 </header>
 
@@ -435,6 +441,18 @@
     </div>
   </section>
 </main>
+
+<div id="pwa-ios-dialog" class="pwa-dialog-backdrop" hidden>
+  <section class="pwa-dialog" role="dialog" aria-modal="true" aria-labelledby="pwa-ios-title" tabindex="-1">
+    <button id="pwa-ios-close" class="pwa-dialog-close" type="button" aria-label="Sluiten">×</button>
+    <h2 id="pwa-ios-title">Installeer Beschikbaarheid op uw iPhone of iPad</h2>
+    <ol>
+      <li>Tik op de deelknop <span aria-hidden="true">⬆︎</span>.</li>
+      <li>Kies “Zet op beginscherm”.</li>
+      <li>Tik op “Voeg toe”.</li>
+    </ol>
+  </section>
+</div>
 
 <script src="jvgh-api.js"></script>
 <script src="jvgh-access-control.js"></script>

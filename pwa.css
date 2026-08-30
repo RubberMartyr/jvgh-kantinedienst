@@ -7,6 +7,7 @@ body {
   padding-right: env(safe-area-inset-right);
   padding-bottom: env(safe-area-inset-bottom);
 }
+body.pwa-dialog-open { overflow: hidden; }
 
 .jvgh-header { padding-top: max(6px, env(safe-area-inset-top)); }
 .pwa-banner {
