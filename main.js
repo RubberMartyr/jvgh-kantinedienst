@@ -140,17 +140,17 @@ function ensureAvailabilityOverlay() {
   overlay.id = 'jvgh-availability-overlay';
   overlay.className = 'jvgh-availability-overlay hidden';
   overlay.innerHTML = `
-    <div class="jvgh-availability-modal">
+    <div class="jvgh-availability-modal" role="dialog" aria-modal="true" aria-labelledby="jvgh-availability-title">
       <button type="button" class="jvgh-availability-close" aria-label="Sluiten">×</button>
       <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
-        <h2 style="margin:0;">Beschikbaarheid versturen</h2>
+        <h2 id="jvgh-availability-title" style="margin:0;">Beschikbaarheid versturen</h2>
       </div>
       <p id="jvgh-whatsapp-help-text">Klik op Verstuur om het eerste beschikbaarheidsbericht te sturen of op Herinner om een herinnering te sturen.</p>
       <div class="jvgh-whatsapp-tabs" role="tablist" aria-label="WhatsApp secties">
-        <button type="button" class="jvgh-whatsapp-tab is-active" data-tab="bestuur" aria-selected="true">Bestuur</button>
-        <button type="button" class="jvgh-whatsapp-tab" data-tab="vrijwilligers" aria-selected="false">Vrijwilligers</button>
-        <button type="button" class="jvgh-whatsapp-tab" data-tab="ingepland" aria-selected="false">Ingepland</button>
-        <button type="button" class="jvgh-whatsapp-tab" data-tab="instellingen" aria-selected="false">Instellingen</button>
+        <button type="button" role="tab" class="jvgh-whatsapp-tab is-active" data-tab="bestuur" aria-selected="true">Bestuur</button>
+        <button type="button" role="tab" class="jvgh-whatsapp-tab" data-tab="vrijwilligers" aria-selected="false">Vrijwilligers</button>
+        <button type="button" role="tab" class="jvgh-whatsapp-tab" data-tab="ingepland" aria-selected="false">Ingepland</button>
+        <button type="button" role="tab" class="jvgh-whatsapp-tab" data-tab="instellingen" aria-selected="false">Instellingen</button>
       </div>
       <div id="jvgh-whatsapp-bestuur-panel" class="jvgh-whatsapp-panel" data-panel="bestuur"></div>
       <div id="jvgh-whatsapp-vrijwilligers-panel" class="jvgh-whatsapp-panel hidden" data-panel="vrijwilligers"></div>
@@ -2609,13 +2609,13 @@ ${getAvailabilityLinkForUser(userId)}`;
     overlay.id = 'jvgh-parent-availability-overlay';
     overlay.className = 'jvgh-availability-overlay hidden';
     overlay.innerHTML = `
-      <div class="jvgh-availability-modal jvgh-parent-availability-modal">
+      <div class="jvgh-availability-modal jvgh-parent-availability-modal" role="dialog" aria-modal="true" aria-labelledby="jvgh-parent-availability-title">
         <button type="button" class="jvgh-availability-close" aria-label="Sluiten">×</button>
-        <h2>Beschikbaarheid ouders versturen</h2>
+        <h2 id="jvgh-parent-availability-title">Beschikbaarheid ouders versturen</h2>
         <div class="jvgh-whatsapp-tabs" role="tablist" aria-label="Beschikbaarheid ouders secties">
-          <button type="button" class="jvgh-whatsapp-tab is-active" data-parent-tab="send" aria-selected="true">Primaire afgevaardigden</button>
-          <button type="button" class="jvgh-whatsapp-tab" data-parent-tab="setup" aria-selected="false">Primaire afgevaardigde instellen</button>
-          <button type="button" class="jvgh-whatsapp-tab" data-parent-tab="settings" aria-selected="false">Instellingen</button>
+          <button type="button" role="tab" class="jvgh-whatsapp-tab is-active" data-parent-tab="send" aria-selected="true">Primaire afgevaardigden</button>
+          <button type="button" role="tab" class="jvgh-whatsapp-tab" data-parent-tab="setup" aria-selected="false">Primaire afgevaardigde instellen</button>
+          <button type="button" role="tab" class="jvgh-whatsapp-tab" data-parent-tab="settings" aria-selected="false">Instellingen</button>
         </div>
         <div id="jvgh-parent-primary-send-panel" class="jvgh-parent-tab-panel" aria-live="polite"></div>
         <div id="jvgh-parent-primary-setup-panel" class="jvgh-parent-tab-panel hidden" aria-live="polite"></div>
