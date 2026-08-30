@@ -1,0 +1,37 @@
+{
+  "id": "./",
+  "name": "JVGH Kantineplanning",
+  "short_name": "JVGH Planning",
+  "description": "Planning en beschikbaarheden voor de kantinediensten van Jeugdvoetbal Groot Herk.",
+  "lang": "nl-BE",
+  "dir": "ltr",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "display_override": [
+    "standalone",
+    "minimal-ui"
+  ],
+  "orientation": "any",
+  "theme_color": "#002b5c",
+  "background_color": "#f4f7fb",
+  "categories": [
+    "productivity",
+    "sports"
+  ],
+  "prefer_related_applications": false,
+  "icons": [
+    {
+      "src": "./icons/app-icon.svg",
+      "sizes": "192x192 512x512",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "./icons/app-icon.svg",
+      "sizes": "192x192 512x512",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ]
+}
