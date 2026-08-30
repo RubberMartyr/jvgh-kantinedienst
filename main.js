@@ -52,8 +52,85 @@ const DEFAULT_TWILIO_REMINDER_CONTENT_SID =
 // TODO: fill with Twilio Content SID for scheduled-volunteer message
 const DEFAULT_TWILIO_SCHEDULED_CONTENT_SID = "";
 
-// TODO: fill with Twilio Content SID for parent/delegate availability message
-const DEFAULT_TWILIO_PARENT_CONTENT_SID = "";
+const WHATSAPP_SETTING_FIELDS = [
+  { key: 'accountSid', label: 'Account SID (Twilio)', type: 'text', placeholder: 'ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx' },
+  { key: 'from', label: 'Afzender (Twilio WhatsApp nummer)', type: 'text', placeholder: 'whatsapp:+32460215323' },
+  { key: 'contentSid', label: 'Template SID (Twilio ContentSid)', type: 'text', placeholder: 'HXxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx' },
+  { key: 'reminderContentSid', label: 'Herinnering Template SID (Twilio ContentSid)', type: 'text', placeholder: 'HXxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx' },
+  { key: 'scheduledContentSid', label: 'Ingepland Template SID (Twilio ContentSid)', type: 'text', placeholder: 'HXxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx' },
+  { key: 'authToken', label: 'Auth token (Twilio)', type: 'password', placeholder: 'Twilio API-token' },
+];
+const whatsappSettingsState = { loaded: false, loading: null, values: {} };
+
+function whatsappSettingsHeaders() {
+  const headers = { 'Content-Type': 'application/json' };
+  if (window.wpApiSettings?.nonce) headers['X-WP-Nonce'] = window.wpApiSettings.nonce;
+  return headers;
+}
+
+async function loadWhatsAppSettings() {
+  if (whatsappSettingsState.loaded) return whatsappSettingsState.values;
+  if (!whatsappSettingsState.loading) whatsappSettingsState.loading = fetch('/wp-json/jvgh/v1/whatsapp-settings', {
+    credentials: 'same-origin', cache: 'no-store', headers: whatsappSettingsHeaders(),
+  }).then(async (response) => {
+    if (!response.ok) throw new Error(`Instellingen ophalen mislukt (${response.status}).`);
+    const payload = await response.json();
+    whatsappSettingsState.values = {
+      accountSid: DEFAULT_TWILIO_ACCOUNT_SID,
+      from: DEFAULT_TWILIO_WHATSAPP_FROM,
+      contentSid: DEFAULT_TWILIO_CONTENT_SID,
+      reminderContentSid: DEFAULT_TWILIO_REMINDER_CONTENT_SID,
+      scheduledContentSid: DEFAULT_TWILIO_SCHEDULED_CONTENT_SID,
+      ...(payload?.settings || payload || {}),
+    };
+    whatsappSettingsState.loaded = true;
+    return whatsappSettingsState.values;
+  }).finally(() => { whatsappSettingsState.loading = null; });
+  return whatsappSettingsState.loading;
+}
+
+function renderWhatsAppSettings(container, { includePrimaryDelegateTemplate = false } = {}) {
+  container.replaceChildren();
+  const fields = [...WHATSAPP_SETTING_FIELDS];
+  if (includePrimaryDelegateTemplate) fields.push({ key: 'primaryDelegateWhatsappTemplateId',
+    label: 'WhatsApp-template-ID primaire afgevaardigden', type: 'text', placeholder: 'HXxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx' });
+  fields.forEach((field) => {
+    const label = document.createElement('label');
+    label.className = 'jvgh-whatsapp-field';
+    label.append(document.createTextNode(field.label));
+    const input = document.createElement('input');
+    input.type = field.type;
+    input.placeholder = field.placeholder;
+    input.dataset.whatsappSetting = field.key;
+    input.value = String(whatsappSettingsState.values[field.key] || '');
+    label.appendChild(input);
+    container.appendChild(label);
+  });
+  const help = document.createElement('p');
+  help.className = 'small-muted';
+  help.textContent = 'Deze instellingen worden gedeeld met Vraag beschikbaarheid; alleen de template-ID voor primaire afgevaardigden is apart.';
+  const save = document.createElement('button');
+  save.type = 'button'; save.className = 'jvgh-calendar-control-btn'; save.textContent = 'Opslaan';
+  const feedback = document.createElement('div');
+  feedback.className = 'small-muted'; feedback.setAttribute('aria-live', 'polite');
+  save.addEventListener('click', async () => {
+    const changes = {};
+    container.querySelectorAll('[data-whatsapp-setting]').forEach((input) => { changes[input.dataset.whatsappSetting] = input.value.trim(); });
+    save.disabled = true; feedback.textContent = 'Opslaan...';
+    try {
+      const response = await fetch('/wp-json/jvgh/v1/whatsapp-settings', { method: 'POST', credentials: 'same-origin',
+        headers: whatsappSettingsHeaders(), body: JSON.stringify({ ...whatsappSettingsState.values, ...changes }) });
+      if (!response.ok) throw new Error(`Opslaan mislukt (${response.status}).`);
+      const payload = await response.json();
+      whatsappSettingsState.values = payload?.settings || payload;
+      document.querySelectorAll('[data-whatsapp-setting]').forEach((input) => {
+        if (Object.hasOwn(whatsappSettingsState.values, input.dataset.whatsappSetting)) input.value = whatsappSettingsState.values[input.dataset.whatsappSetting] || '';
+      });
+      feedback.textContent = 'Instellingen opgeslagen.';
+    } catch (error) { feedback.textContent = error.message; } finally { save.disabled = false; }
+  });
+  container.append(help, save, feedback);
+}
 
 function ensureAvailabilityOverlay() {
   let overlay = document.getElementById('jvgh-availability-overlay');
@@ -78,35 +155,15 @@ function ensureAvailabilityOverlay() {
       <div id="jvgh-whatsapp-bestuur-panel" class="jvgh-whatsapp-panel" data-panel="bestuur"></div>
       <div id="jvgh-whatsapp-vrijwilligers-panel" class="jvgh-whatsapp-panel hidden" data-panel="vrijwilligers"></div>
       <div id="jvgh-whatsapp-scheduled-panel" class="jvgh-whatsapp-panel hidden" data-panel="ingepland"></div>
-      <div id="jvgh-whatsapp-settings-panel" class="jvgh-whatsapp-panel hidden" data-panel="instellingen">
-      <label class="jvgh-whatsapp-field">Account SID (Twilio)
-        <input id="jvgh-whatsapp-account-sid" type="text" placeholder="ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" />
-      </label>
-      <label class="jvgh-whatsapp-field">Afzender (Twilio WhatsApp nummer)
-        <input id="jvgh-whatsapp-from" type="text" placeholder="whatsapp:+32460215323" />
-      </label>
-      <label class="jvgh-whatsapp-field">Template SID (Twilio ContentSid)
-        <input id="jvgh-whatsapp-content-sid" type="text" placeholder="HXxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" />
-      </label>
-      <label class="jvgh-whatsapp-field">Herinnering Template SID (Twilio ContentSid)
-        <input id="jvgh-whatsapp-reminder-content-sid" type="text" placeholder="HXxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" />
-      </label>
-      <label class="jvgh-whatsapp-field">Ingepland Template SID (Twilio ContentSid)
-        <input id="jvgh-whatsapp-scheduled-content-sid" type="text" placeholder="HXxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" />
-      </label>
-      <label class="jvgh-whatsapp-field">Ouders Template SID (Twilio ContentSid)
-        <input id="jvgh-whatsapp-parent-content-sid" type="text" placeholder="HXxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" />
-      </label>
-      <label class="jvgh-whatsapp-field">Auth token (Twilio)
-        <input id="jvgh-twilio-auth-token" type="password" placeholder="Alleen nodig voor server-side Twilio API" />
-      </label>
-      <p class="small-muted" style="margin-top:6px;">WhatsApp verzenden gebeurt rechtstreeks vanuit de browser via de Twilio API.</p>
-      </div>
+      <div id="jvgh-whatsapp-settings-panel" class="jvgh-whatsapp-panel hidden" data-panel="instellingen"></div>
       <div id="jvgh-send-whatsapp-status" class="small-muted"></div>
     </div>
   `;
 
   document.body.appendChild(overlay);
+
+  const settingsPanel = overlay.querySelector('#jvgh-whatsapp-settings-panel');
+  loadWhatsAppSettings().then(() => renderWhatsAppSettings(settingsPanel)).catch((error) => { settingsPanel.textContent = error.message; });
 
   overlay.querySelector('.jvgh-availability-close')?.addEventListener('click', () => {
     overlay.classList.add('hidden');
@@ -118,57 +175,6 @@ function ensureAvailabilityOverlay() {
 
   const bestuurPanel = overlay.querySelector('#jvgh-whatsapp-bestuur-panel');
   const vrijwilligersPanel = overlay.querySelector('#jvgh-whatsapp-vrijwilligers-panel');
-  const accountSidInput = overlay.querySelector('#jvgh-whatsapp-account-sid');
-  const fromInput = overlay.querySelector('#jvgh-whatsapp-from');
-  const contentSidInput = overlay.querySelector('#jvgh-whatsapp-content-sid');
-  const reminderContentSidInput = overlay.querySelector('#jvgh-whatsapp-reminder-content-sid');
-  const scheduledContentSidInput = overlay.querySelector('#jvgh-whatsapp-scheduled-content-sid');
-  const parentContentSidInput = overlay.querySelector('#jvgh-whatsapp-parent-content-sid');
-
-  if (
-    accountSidInput &&
-    !accountSidInput.value
-  ) {
-    accountSidInput.value =
-      DEFAULT_TWILIO_ACCOUNT_SID;
-  }
-
-  if (
-    fromInput &&
-    !fromInput.value
-  ) {
-    fromInput.value =
-      DEFAULT_TWILIO_WHATSAPP_FROM;
-  }
-
-  if (
-    contentSidInput &&
-    !contentSidInput.value
-  ) {
-    contentSidInput.value =
-      DEFAULT_TWILIO_CONTENT_SID;
-  }
-
-  if (
-    reminderContentSidInput &&
-    !reminderContentSidInput.value
-  ) {
-    reminderContentSidInput.value =
-      DEFAULT_TWILIO_REMINDER_CONTENT_SID;
-  }
-
-  if (
-    scheduledContentSidInput &&
-    !scheduledContentSidInput.value &&
-    DEFAULT_TWILIO_SCHEDULED_CONTENT_SID
-  ) {
-    scheduledContentSidInput.value =
-      DEFAULT_TWILIO_SCHEDULED_CONTENT_SID;
-  }
-  if (parentContentSidInput && !parentContentSidInput.value && DEFAULT_TWILIO_PARENT_CONTENT_SID) {
-    parentContentSidInput.value = DEFAULT_TWILIO_PARENT_CONTENT_SID;
-  }
-  
   const tabs = Array.from(overlay.querySelectorAll('.jvgh-whatsapp-tab'));
   const panels = Array.from(overlay.querySelectorAll('.jvgh-whatsapp-panel'));
   const activateTab = (tabName) => {
@@ -2554,16 +2560,16 @@ ${getAvailabilityLinkForUser(userId)}`;
   }) {
     if (!statusEl) return;
     statusEl.textContent = progressText;
-    const overlayEl = ensureAvailabilityOverlay();
-    const accountSidInput = overlayEl.querySelector('#jvgh-whatsapp-account-sid');
-    const fromInput = overlayEl.querySelector('#jvgh-whatsapp-from');
-    const contentSidInput = overlayEl.querySelector(contentSidSelector);
-    const authTokenInput = overlayEl.querySelector('#jvgh-twilio-auth-token');
-
-    const accountSid = String(accountSidInput?.value || '').trim();
-    const from = String(fromInput?.value || '').trim();
-    const contentSid = String(contentSidInput?.value || '').trim();
-    const authToken = String(authTokenInput?.value || '').trim();
+    await loadWhatsAppSettings();
+    const contentSetting = ({
+      '#jvgh-whatsapp-content-sid': 'contentSid',
+      '#jvgh-whatsapp-reminder-content-sid': 'reminderContentSid',
+      '#jvgh-whatsapp-scheduled-content-sid': 'scheduledContentSid',
+    })[contentSidSelector];
+    const accountSid = String(whatsappSettingsState.values.accountSid || '').trim();
+    const from = String(whatsappSettingsState.values.from || '').trim();
+    const contentSid = String(whatsappSettingsState.values[contentSetting] || '').trim();
+    const authToken = String(whatsappSettingsState.values.authToken || '').trim();
 
     if (!accountSid || !from || !contentSid || !authToken) {
       throw new Error(`Vul Account SID, From, ${missingContentSidLabel} en Auth token in via Instellingen.`);
@@ -2609,9 +2615,11 @@ ${getAvailabilityLinkForUser(userId)}`;
         <div class="jvgh-whatsapp-tabs" role="tablist" aria-label="Beschikbaarheid ouders secties">
           <button type="button" class="jvgh-whatsapp-tab is-active" data-parent-tab="send" aria-selected="true">Primaire afgevaardigden</button>
           <button type="button" class="jvgh-whatsapp-tab" data-parent-tab="setup" aria-selected="false">Primaire afgevaardigde instellen</button>
+          <button type="button" class="jvgh-whatsapp-tab" data-parent-tab="settings" aria-selected="false">Instellingen</button>
         </div>
         <div id="jvgh-parent-primary-send-panel" class="jvgh-parent-tab-panel" aria-live="polite"></div>
         <div id="jvgh-parent-primary-setup-panel" class="jvgh-parent-tab-panel hidden" aria-live="polite"></div>
+        <div id="jvgh-parent-settings-panel" class="jvgh-parent-tab-panel hidden" aria-live="polite"></div>
         <div class="jvgh-parent-availability-status small-muted" aria-live="polite"></div>
       </div>`;
     document.body.appendChild(overlay);
@@ -2620,6 +2628,9 @@ ${getAvailabilityLinkForUser(userId)}`;
     overlay.addEventListener('click', (event) => { if (event.target === overlay) close(); });
     const sendPanel = overlay.querySelector('#jvgh-parent-primary-send-panel');
     const setupPanel = overlay.querySelector('#jvgh-parent-primary-setup-panel');
+    const settingsPanel = overlay.querySelector('#jvgh-parent-settings-panel');
+    loadWhatsAppSettings().then(() => renderWhatsAppSettings(settingsPanel, { includePrimaryDelegateTemplate: true }))
+      .catch((error) => { settingsPanel.textContent = error.message; });
     sendPanel.hidden = false;
     setupPanel.hidden = true;
     const activateParentTab = (tabName) => {
@@ -2632,14 +2643,17 @@ ${getAvailabilityLinkForUser(userId)}`;
 
       const showSend = tabName === 'send';
       const showSetup = tabName === 'setup';
+      const showSettings = tabName === 'settings';
 
       sendPanel.hidden = !showSend;
       setupPanel.hidden = !showSetup;
+      settingsPanel.hidden = !showSettings;
 
       // Class behouden voor bestaande styling,
       // maar hidden attribute is authoritative.
       sendPanel.classList.toggle('hidden', !showSend);
       setupPanel.classList.toggle('hidden', !showSetup);
+      settingsPanel.classList.toggle('hidden', !showSettings);
 
       console.debug('[JVGH][PARENT TAB]', {
         tabName,
@@ -2660,38 +2674,32 @@ ${getAvailabilityLinkForUser(userId)}`;
     const sendPanel = overlay.querySelector('#jvgh-parent-primary-send-panel');
     sendPanel.replaceChildren();
     teams.forEach((team) => {
-      const primaryDelegates = team.delegates.filter(
-        (delegate) => delegate.isPrimary === true,
-      );
+      const primaryDelegate = JVGHCore.findPrimaryDelegate(team);
       const section = document.createElement('section');
       section.className = 'jvgh-parent-availability-team';
       const heading = document.createElement('h3');
       heading.textContent = team.teamName || `Ploeg #${team.teamId}`;
       section.appendChild(heading);
 
-      if (primaryDelegates.length === 0) {
+      if (!Number(team.primaryDelegateStaffId)) {
         const empty = document.createElement('p');
         empty.className = 'small-muted';
-        empty.textContent = 'Geen primaire afgevaardigde ingesteld.';
+        empty.textContent = `${team.teamName || `Ploeg #${team.teamId}`}: geen primaire afgevaardigde ingesteld.`;
         section.appendChild(empty);
         sendPanel.appendChild(section);
         return;
       }
 
-      if (primaryDelegates.length > 1) {
-        console.warn('[JVGH][PARENT AVAILABILITY] multiple primary delegates', {
-          teamId: team.teamId,
-          teamName: team.teamName,
-        });
+      if (!primaryDelegate) {
         const error = document.createElement('p');
         error.className = 'small-muted';
-        error.textContent = 'Configuratiefout: meerdere primaire afgevaardigden ingesteld.';
+        error.textContent = `${team.teamName || `Ploeg #${team.teamId}`}: de primaire afgevaardigde kon niet worden gevonden.`;
         section.appendChild(error);
         sendPanel.appendChild(section);
         return;
       }
 
-      const delegate = primaryDelegates[0];
+      const delegate = primaryDelegate;
       try {
         const userId = Number(delegate.authorId ?? delegate.userId);
         const user = { id: userId, name: delegate.userName || delegate.name, phone: delegate.phone };
@@ -2723,11 +2731,12 @@ ${getAvailabilityLinkForUser(userId)}`;
           const statusEl = overlay.querySelector('.jvgh-parent-availability-status');
           button.disabled = true;
           try {
-            await sendWhatsAppMessage({ statusEl, user, phone: phoneInfo.normalized, userId,
-              contentSidSelector: '#jvgh-whatsapp-parent-content-sid',
-              contentVariables: JVGHCore.buildAvailabilityContentVariables(user, userId),
-              progressText: 'Versturen...', successText: `WhatsApp verzonden via Twilio naar ${delegate.name || '-'}.`,
-              missingContentSidLabel: 'Ouders Template SID' });
+            statusEl.textContent = 'Versturen...';
+            const response = await fetch('/wp-json/jvgh/v1/send-primary-delegate-whatsapp', { method: 'POST', credentials: 'same-origin',
+              headers: whatsappSettingsHeaders(), body: JSON.stringify({ teamId: Number(team.teamId), staffId: Number(delegate.staffId) }) });
+            const payload = await response.json();
+            if (!response.ok) throw new Error(payload?.message || `Verzenden mislukt (${response.status}).`);
+            statusEl.textContent = `WhatsApp verzonden naar ${delegate.name || '-'}.`;
           } catch (error) {
             statusEl.textContent = `Verzenden mislukt: ${error.message}`;
           } finally { button.disabled = false; }

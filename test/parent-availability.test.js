@@ -88,3 +88,13 @@ test('parent availability retains teams with identical visible names and their i
 
   assert.deepEqual(sorted.map((team) => team.teamId), [3, 2, 1]);
 });
+
+test('primary delegate resolution prefers the configured staff id over list order', () => {
+  const team = { primaryDelegateStaffId: 22, delegates: [
+    { staffId: 11, name: 'Coordinator', isPrimary: false },
+    { staffId: 22, name: 'Primary', isPrimary: true },
+  ] };
+  assert.equal(Core.findPrimaryDelegate(team).name, 'Primary');
+  assert.equal(Core.findPrimaryDelegate({ ...team, primaryDelegateStaffId: 0 }), null);
+  assert.equal(Core.findPrimaryDelegate({ ...team, primaryDelegateStaffId: 99 }), null);
+});
