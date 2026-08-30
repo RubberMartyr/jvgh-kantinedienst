@@ -1638,3 +1638,155 @@ html.jvgh-access-locked .jvgh-main {
   font-size: 14px;
   font-weight: 700;
 }
+
+/* Responsive shell: desktop rules above remain the visual baseline. */
+:where(button, [role="button"], [role="switch"], input, select, textarea, [tabindex]):focus-visible {
+  outline: 3px solid #f2b400 !important;
+  outline-offset: 2px !important;
+}
+
+.planning-table-scroll {
+  min-width: 0;
+  max-width: 100%;
+}
+
+body:has(.jvgh-availability-overlay:not(.hidden)) { overflow: hidden; }
+
+@media (max-width: 1199px) {
+  .jvgh-main { padding-inline: 12px; }
+  .jvgh-content { gap: 14px; }
+  .jvgh-sidebar,
+  .sidebar,
+  .sidebar-card { min-width: 0; }
+
+  .planning-table-scroll {
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-gutter: stable;
+    background: linear-gradient(to right, transparent calc(100% - 14px), rgba(0, 43, 92, .12));
+  }
+
+  .planning-table-scroll > #ec { min-width: 720px; }
+  .jvgh-availability-overlay {
+    padding: max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right))
+      max(16px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+  }
+  .jvgh-availability-modal {
+    width: min(94vw, 680px);
+    max-height: calc(100vh - 32px);
+    max-height: calc(100dvh - 32px);
+  }
+  .jvgh-parent-availability-modal { width: min(94vw, 820px); }
+  .jvgh-whatsapp-tabs,
+  .people-tabs {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scrollbar-width: thin;
+    white-space: nowrap;
+  }
+  .jvgh-whatsapp-tab,
+  .people-tab { flex: 0 0 auto; min-height: 44px; }
+  .jvgh-parent-primary-candidate input { width: 24px; height: 24px; }
+}
+
+@media (max-width: 767px) {
+  body { font-size: 16px; }
+  .jvgh-header {
+    gap: 8px;
+    padding: max(8px, env(safe-area-inset-top)) max(10px, env(safe-area-inset-right))
+      10px max(10px, env(safe-area-inset-left));
+  }
+  .jvgh-header-left { min-width: 0; }
+  .jvgh-header-title { font-size: clamp(1rem, 5vw, 1.25rem); }
+  .jvgh-header-subtitle { font-size: .8rem; }
+  .jvgh-header > div:nth-child(2) { width: 100%; }
+  .jvgh-header > div:nth-child(2) .jvgh-print-btn { flex: 1 1 calc(50% - 6px); margin: 0; }
+  .jvgh-header-tag { display: none; }
+  .jvgh-main { padding: 6px max(6px, env(safe-area-inset-right)) max(10px, env(safe-area-inset-bottom)) max(6px, env(safe-area-inset-left)); }
+  .jvgh-content { gap: 10px; }
+  .jvgh-calendar-card { border-radius: 10px; }
+  .jvgh-calendar-header { align-items: stretch; flex-wrap: wrap; gap: 6px; }
+  .jvgh-calendar-header .jvgh-calendar-control-btn { flex: 1 1 180px; }
+  .planning-table-scroll > #ec { min-width: 680px; }
+  .ec .ec-button { min-height: 44px; padding-inline: 12px; }
+
+  .jvgh-sidebar { padding: 12px 10px; border-radius: 10px; }
+  .people-wrapper,
+  .ouders-grid { grid-template-columns: minmax(0, 1fr); }
+  .ouders-left,
+  .ouders-right { display: block; margin-top: 0; }
+  .ouders-pillhost { margin: 6px 0 10px; }
+  .resource-name,
+  .jvgh-parent-availability-team h3 { overflow-wrap: anywhere; }
+
+  .jvgh-availability-overlay {
+    align-items: stretch;
+    padding: 0;
+  }
+  .jvgh-availability-modal,
+  .jvgh-parent-availability-modal {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    max-width: none;
+    height: 100vh;
+    height: 100dvh;
+    max-height: none;
+    margin: 0;
+    padding: max(16px, env(safe-area-inset-top)) max(14px, env(safe-area-inset-right))
+      max(16px, env(safe-area-inset-bottom)) max(14px, env(safe-area-inset-left));
+    overflow-y: auto;
+    border-radius: 0;
+  }
+  .jvgh-availability-modal > h2,
+  .jvgh-availability-modal > div:first-of-type { padding-right: 44px; }
+  .jvgh-availability-close {
+    position: fixed;
+    top: max(6px, env(safe-area-inset-top));
+    right: max(6px, env(safe-area-inset-right));
+    z-index: 2;
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    background: #fff;
+  }
+  .jvgh-whatsapp-tabs {
+    position: sticky;
+    top: calc(-1 * max(16px, env(safe-area-inset-top)));
+    z-index: 1;
+    margin-inline: -14px;
+    padding: 8px 14px;
+    background: #fff;
+    border-bottom: 1px solid #e2e8f0;
+  }
+  .jvgh-parent-primary-send-row,
+  .jvgh-scheduled-user-card { grid-template-columns: minmax(0, 1fr); }
+  .jvgh-parent-primary-send-row button,
+  .jvgh-scheduled-user-action .jvgh-calendar-control-btn,
+  .jvgh-primary-delegate-save { width: 100% !important; }
+  .jvgh-scheduled-date-controls { grid-template-columns: 1fr; }
+  .jvgh-scheduled-shift-title { overflow: visible; text-overflow: clip; white-space: normal; overflow-wrap: anywhere; }
+  .jvgh-whatsapp-field input,
+  .jvgh-whatsapp-field textarea,
+  .jvgh-select { font-size: 16px; }
+  .jvgh-parent-availability-team { padding: 10px; }
+}
+
+@media (max-width: 479px) {
+  .jvgh-header > div:nth-child(2) .jvgh-print-btn { flex-basis: 100%; }
+  .jvgh-calendar-header .jvgh-calendar-control-btn { flex-basis: 100%; }
+  .planning-table-scroll > #ec { min-width: 640px; }
+  .pwa-update-banner { display: flex; align-items: center; gap: 8px; text-align: left; }
+  .pwa-update-banner button { flex: 0 0 auto; margin-left: 0; }
+}
+
+@media print {
+  .planning-table-scroll { overflow: visible !important; background: none !important; }
+  .planning-table-scroll > #ec { min-width: 0 !important; }
+  .jvgh-availability-overlay,
+  .pwa-dialog-backdrop,
+  .pwa-banner { display: none !important; }
+  .ec * { position: static !important; }
+}
