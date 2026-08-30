@@ -101,9 +101,26 @@
     return { '1': getUserFirstName(user), '2': String(userId) };
   }
 
+  const teamCollator = new Intl.Collator('nl', {
+    numeric: true,
+    sensitivity: 'base',
+  });
+
+  function getParentAvailabilityTeamName(team) {
+    return String(team?.teamName || `Ploeg #${team?.teamId ?? ''}`);
+  }
+
+  function sortParentAvailabilityTeams(teams) {
+    return [...(Array.isArray(teams) ? teams : [])]
+      .sort((a, b) => teamCollator.compare(
+        getParentAvailabilityTeamName(a),
+        getParentAvailabilityTeamName(b),
+      ));
+  }
+
   function normalizeParentAvailabilityTeams(payload) {
     const teams = Array.isArray(payload?.teams) ? payload.teams : [];
-    return teams.map((team) => {
+    const normalizedTeams = teams.map((team) => {
       const seen = new Set();
       const delegates = (Array.isArray(team?.delegates) ? team.delegates : [])
         .filter((delegate) => {
@@ -117,6 +134,7 @@
         .sort((a, b) => String(a?.name || '').localeCompare(String(b?.name || ''), 'nl-BE'));
       return { ...team, delegates };
     });
+    return sortParentAvailabilityTeams(normalizedTeams);
   }
 
   function getUsersWithSubmittedAvailability(plannerData) {
@@ -147,6 +165,7 @@
 
   return { normalizePhoneNumber, getUserPhoneInfo, getUserFirstName, normalizeScheduledVolunteersResponse,
     normalizeScheduledVolunteer, groupScheduledVolunteers, getScheduledShiftDisplayData, formatScheduledMessageDate,
-    buildScheduledVolunteerPlanningText, buildScheduledVolunteerContentVariables, buildAvailabilityContentVariables, normalizeParentAvailabilityTeams,
+    buildScheduledVolunteerPlanningText, buildScheduledVolunteerContentVariables, buildAvailabilityContentVariables,
+    sortParentAvailabilityTeams, normalizeParentAvailabilityTeams,
     getUsersWithSubmittedAvailability, getBrusselsDateKey, addDaysToDateKey, getNextMonthKey, getDaysUntilMonthEnd };
 }));
