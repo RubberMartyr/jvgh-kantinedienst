@@ -6,7 +6,6 @@
  * can serve several teams, so the selected staff ID is also stored on each team.
  * The SportsPress role remains synchronised and visible in WordPress.
  */
-
 define('JVGH_PRIMARY_DELEGATE_META_KEY', '_jvgh_primary_delegate_staff_id');
 
 add_action('rest_api_init', function () {
@@ -63,9 +62,11 @@ function jvgh_rest_volunteers(WP_REST_Request $request) {
 function jvgh_team_delegate_role_terms() {
     $delegate = get_term_by('name', 'Afgevaardigde', 'sp_role');
     $primary = get_term_by('name', 'Primaire Afgevaardigde', 'sp_role');
+    $coordinator = get_term_by('slug', 'coordinator', 'sp_role');
     return array(
         'delegate' => $delegate && !is_wp_error($delegate) ? $delegate : null,
         'primary'  => $primary && !is_wp_error($primary) ? $primary : null,
+        'coordinator' => $coordinator && !is_wp_error($coordinator) ? $coordinator : null,
     );
 }
 
@@ -98,7 +99,7 @@ function jvgh_team_delegate_has_role($staff_id, $term) {
     return $term && has_term((int) $term->term_id, 'sp_role', $staff_id);
 }
 
-function jvgh_team_delegate_dto($staff, $coordinator_user_ids, $roles) {
+function jvgh_team_delegate_dto($staff, $roles) {
     $user_id = (int) get_post_field('post_author', $staff->ID);
     $user = $user_id ? get_userdata($user_id) : false;
     return array(
@@ -109,7 +110,7 @@ function jvgh_team_delegate_dto($staff, $coordinator_user_ids, $roles) {
         'userName'     => $user ? $user->display_name : '',
         'phone'        => $user ? jvgh_team_delegate_user_phone($user_id) : '',
         'isDelegate'   => jvgh_team_delegate_has_role($staff->ID, $roles['delegate']),
-        'isCoordinator'=> $user_id > 0 && isset($coordinator_user_ids[$user_id]),
+        'isCoordinator'=> jvgh_team_delegate_has_role($staff->ID, $roles['coordinator']),
         'isPrimary'    => false,
     );
 }
@@ -117,20 +118,23 @@ function jvgh_team_delegate_dto($staff, $coordinator_user_ids, $roles) {
 function jvgh_rest_team_delegates() {
     $roles = jvgh_team_delegate_role_terms();
     $home_teams = jvgh_team_delegate_home_teams();
-    $coordinators = get_users(array(
-        'role'    => 'coordinator',
-        'orderby' => 'display_name',
-        'order'   => 'ASC',
-    ));
-    $coordinator_ids = array();
-    foreach ($coordinators as $user) $coordinator_ids[(int) $user->ID] = true;
 
     $staff_posts = get_posts(array('post_type' => 'sp_staff', 'post_status' => 'publish', 'posts_per_page' => -1));
     $staff_by_team = array();
+    $coordinator_staff = array();
     $legacy_primary_by_team = array();
     foreach ($staff_posts as $staff) {
         $is_delegate = jvgh_team_delegate_has_role($staff->ID, $roles['delegate']);
         $is_primary = jvgh_team_delegate_has_role($staff->ID, $roles['primary']);
+        $is_coordinator = jvgh_team_delegate_has_role($staff->ID, $roles['coordinator']);
+
+        // Coordinators are added to every team later, using their real staff ID.
+        if ($is_coordinator) {
+            $user_id = (int) get_post_field('post_author', $staff->ID);
+            $key = $user_id > 0 ? 'user:' . $user_id : 'staff:' . (int) $staff->ID;
+            $coordinator_staff[$key] = $staff;
+        }
+
         if (!$is_delegate && !$is_primary) continue;
         foreach (jvgh_team_delegate_team_ids($staff->ID) as $team_id) {
             if (!isset($home_teams[$team_id])) continue;
@@ -153,20 +157,24 @@ function jvgh_rest_team_delegates() {
         // Deduplicate on user ID first and staff ID otherwise.
         $delegates = array();
         foreach ($staff_by_team[$team_id] ?? array() as $staff) {
-            $dto = jvgh_team_delegate_dto($staff, $coordinator_ids, $roles);
+            $dto = jvgh_team_delegate_dto($staff, $roles);
             $key = $dto['userId'] > 0 ? 'user:' . $dto['userId'] : 'staff:' . $dto['staffId'];
             if (!isset($delegates[$key]) || (int) $dto['staffId'] === $primary_id) $delegates[$key] = $dto;
         }
-        foreach ($coordinators as $user) {
-            $key = 'user:' . (int) $user->ID;
+
+        // Every SportsPress coordinator must be selectable for every team.
+        foreach ($coordinator_staff as $key => $staff) {
+            $dto = jvgh_team_delegate_dto($staff, $roles);
+            $dto['isCoordinator'] = true;
+            $dto['isDelegate'] = true;
+
             if (isset($delegates[$key])) {
                 $delegates[$key]['isCoordinator'] = true;
+                $delegates[$key]['isDelegate'] = true;
                 continue;
             }
-            $delegates[$key] = array('staffId' => null, 'userId' => (int) $user->ID, 'authorId' => (int) $user->ID,
-                'name' => $user->display_name, 'userName' => $user->display_name,
-                'phone' => jvgh_team_delegate_user_phone($user->ID), 'isDelegate' => false,
-                'isCoordinator' => true, 'isPrimary' => false);
+
+            $delegates[$key] = $dto;
         }
         foreach ($delegates as &$delegate) {
             $delegate['isPrimary'] = $primary_id > 0
@@ -181,8 +189,19 @@ function jvgh_rest_team_delegates() {
             'delegates' => $delegates);
     }
 
-    return rest_ensure_response(array('ok' => true, 'primaryRole' => array(
-        'exists' => (bool) $roles['primary'], 'slug' => $roles['primary'] ? $roles['primary']->slug : null), 'teams' => $teams));
+    return rest_ensure_response(array(
+        'ok' => true,
+        'codeVersion' => 'sports-press-coordinator-v1',
+        'primaryRole' => array(
+            'exists' => (bool) $roles['primary'],
+            'slug' => $roles['primary'] ? $roles['primary']->slug : null,
+        ),
+        'coordinatorRole' => array(
+            'exists' => (bool) $roles['coordinator'],
+            'slug' => $roles['coordinator'] ? $roles['coordinator']->slug : null,
+        ),
+        'teams' => $teams,
+    ));
 }
 
 /** Find an existing staff person for a user, preferring one already on this team. */
@@ -222,22 +241,25 @@ function jvgh_rest_update_team_primary_delegate(WP_REST_Request $request) {
     $staff = null;
     if ($staff_id) {
         $staff = get_post($staff_id);
+        $is_coordinator = $staff && $staff->post_type === 'sp_staff'
+            && jvgh_team_delegate_has_role($staff_id, $roles['coordinator']);
         if (!$staff || $staff->post_type !== 'sp_staff' ||
-            !in_array($team_id, jvgh_team_delegate_team_ids($staff_id), true))
+            (!in_array($team_id, jvgh_team_delegate_team_ids($staff_id), true) && !$is_coordinator))
             return new WP_Error('jvgh_invalid_staff', 'Deze medewerker is niet aan de ploeg gekoppeld.', array('status' => 400));
+
+        // A coordinator can be chosen for every team. Persist that team link
+        // when the coordinator is actually selected as primary delegate.
+        if ($is_coordinator && !in_array($team_id, jvgh_team_delegate_team_ids($staff_id), true))
+            add_post_meta($staff_id, 'sp_team', $team_id);
     }
 
     if (!$staff) {
         $user = $user_id ? get_userdata($user_id) : false;
-        if (!$user || !in_array('coordinator', (array) $user->roles, true))
-            return new WP_Error('jvgh_invalid_coordinator', 'Selecteer een geldige coordinator.', array('status' => 400));
+        if (!$user)
+            return new WP_Error('jvgh_invalid_user', 'Selecteer een geldige gebruiker.', array('status' => 400));
         $staff = jvgh_team_delegate_find_staff($user_id, $team_id);
-        if (!$staff) {
-            $inserted = wp_insert_post(array('post_type' => 'sp_staff', 'post_status' => 'publish',
-                'post_title' => $user->display_name, 'post_author' => $user->ID), true);
-            if (is_wp_error($inserted)) return $inserted;
-            $staff = get_post($inserted);
-        }
+        if (!$staff || !jvgh_team_delegate_has_role($staff->ID, $roles['coordinator']))
+            return new WP_Error('jvgh_invalid_coordinator', 'Selecteer een geldige SportsPress-coordinator.', array('status' => 400));
         $staff_id = (int) $staff->ID;
         if (!in_array($team_id, jvgh_team_delegate_team_ids($staff_id), true)) add_post_meta($staff_id, 'sp_team', $team_id);
     }
@@ -248,7 +270,7 @@ function jvgh_rest_update_team_primary_delegate(WP_REST_Request $request) {
     $current_user = $current_user_id ? get_userdata($current_user_id) : false;
     if (!jvgh_team_delegate_has_role($staff_id, $roles['delegate']) &&
         !jvgh_team_delegate_has_role($staff_id, $roles['primary']) &&
-        !($current_user && in_array('coordinator', (array) $current_user->roles, true)))
+        !jvgh_team_delegate_has_role($staff_id, $roles['coordinator']))
         return new WP_Error('jvgh_invalid_delegate_role', 'Deze medewerker is geen afgevaardigde.', array('status' => 400));
 
     $previous_id = (int) get_post_meta($team_id, JVGH_PRIMARY_DELEGATE_META_KEY, true);
@@ -269,3 +291,4 @@ function jvgh_rest_update_team_primary_delegate(WP_REST_Request $request) {
 
     return rest_ensure_response(array('ok' => true, 'teamId' => $team_id, 'staffId' => $staff_id, 'userId' => $current_user_id));
 }
+
