@@ -1,15 +1,23 @@
 // Increase this version for every release that changes a cached shell file.
-const STATIC_CACHE = 'jvgh-planning-static-v4-availability-icon';
+const STATIC_CACHE = 'jvgh-planning-static-v5-availability-icon';
 const CACHE_PREFIX = 'jvgh-planning-static-';
 const APP_SHELL = [
   './index.html', './availability.html', './availability.js', './styles.css', './pwa.css', './pwa.js', './main.js',
   './jvgh-api.js', './jvgh-access-control.js', './shared/jvgh-core.js',
   './vendor/event-calendar.min.css', './vendor/event-calendar.min.js',
-  './manifest.webmanifest', './icons/app-icon.svg'
+  './manifest.webmanifest'
+];
+const OPTIONAL_ICON_ASSETS = [
+  './icons/jvgh-logo.jpg',
+  './icons/icon-192.png', './icons/icon-512.png', './icons/icon-maskable-512.png',
+  './icons/apple-touch-icon.png'
 ];
 
 self.addEventListener('install', (event) => {
-  event.waitUntil(caches.open(STATIC_CACHE).then((cache) => cache.addAll(APP_SHELL)));
+  event.waitUntil(caches.open(STATIC_CACHE).then(async (cache) => {
+    await cache.addAll(APP_SHELL);
+    await Promise.all(OPTIONAL_ICON_ASSETS.map((asset) => cache.add(asset).catch(() => undefined)));
+  }));
 });
 
 self.addEventListener('activate', (event) => {
@@ -45,7 +53,8 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  if (!APP_SHELL.some((asset) => new URL(asset, self.location.href).href === url.href)) return;
+  if (![...APP_SHELL, ...OPTIONAL_ICON_ASSETS]
+    .some((asset) => new URL(asset, self.location.href).href === url.href)) return;
   event.respondWith(caches.match(request).then((cached) => cached || fetch(request).then((response) => {
     if (!response.ok) return response;
     const copy = response.clone();
