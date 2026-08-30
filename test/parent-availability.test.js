@@ -50,3 +50,41 @@ test('parent availability deduplicates a coordinator and staff record by WordPre
   ] }] });
   assert.deepEqual(team.delegates.map((delegate) => delegate.name), ['Els', 'Marc']);
 });
+
+test('parent availability naturally sorts a copied team list by visible name', () => {
+  const teams = [
+    { teamId: 21, teamName: 'U21', selected: true },
+    { teamId: 122, teamName: 'U12 B' },
+    { teamId: 111, teamName: 'U11' },
+    { teamId: 62, teamName: 'U6 B' },
+    { teamId: 92, teamName: 'U9 B' },
+    { teamId: 171, teamName: 'U17 A' },
+    { teamId: 61, teamName: 'U6 A' },
+    { teamId: 121, teamName: 'U12 A' },
+    { teamId: 172, teamName: 'U17 B' },
+  ];
+  const originalOrder = teams.map((team) => team.teamId);
+
+  const sorted = Core.normalizeParentAvailabilityTeams({ teams });
+
+  assert.deepEqual(sorted.map((team) => team.teamName), [
+    'U6 A', 'U6 B', 'U9 B', 'U11', 'U12 A', 'U12 B', 'U17 A', 'U17 B', 'U21',
+  ]);
+  assert.deepEqual(teams.map((team) => team.teamId), originalOrder);
+  assert.deepEqual(sorted.find((team) => team.selected), {
+    teamId: 21,
+    teamName: 'U21',
+    selected: true,
+    delegates: [],
+  });
+});
+
+test('parent availability retains teams with identical visible names and their ids', () => {
+  const sorted = Core.normalizeParentAvailabilityTeams({ teams: [
+    { teamId: 2, teamName: 'U7 A' },
+    { teamId: 3, teamName: 'U6 B' },
+    { teamId: 1, teamName: 'U7 A' },
+  ] });
+
+  assert.deepEqual(sorted.map((team) => team.teamId), [3, 2, 1]);
+});
