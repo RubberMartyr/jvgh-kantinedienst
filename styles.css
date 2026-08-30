@@ -121,139 +121,109 @@ body {
   cursor: not-allowed;
 }
 
-/* Planning action bar */
-.jvgh-header-actions {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 8px;
-  margin-left: auto;
-}
-
-.jvgh-action-menu {
-  position: relative;
-}
-
-.jvgh-action-button,
-.jvgh-calendar-header .jvgh-calendar-control-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  min-height: 40px;
-  padding: 8px 13px;
-  border: 1px solid transparent;
-  border-radius: 9px;
-  font: inherit;
-  font-size: 0.875rem;
-  font-weight: 650;
-  line-height: 1.2;
-  white-space: nowrap;
-  cursor: pointer;
-  transition: background-color 150ms ease, border-color 150ms ease, color 150ms ease;
-}
-
-.jvgh-action-button--primary {
-  color: #fff;
-  background: var(--jvgh-blue);
-  border-color: rgba(255, 255, 255, 0.18);
-}
-
-.jvgh-action-button--primary:hover { background: #06437d; }
-
-.jvgh-action-button--secondary {
-  color: #fff;
-  background: rgba(255, 255, 255, 0.08);
-  border-color: rgba(255, 255, 255, 0.42);
-}
-
-.jvgh-action-button--secondary:hover {
-  background: rgba(255, 255, 255, 0.17);
-  border-color: rgba(255, 255, 255, 0.7);
-}
-
-.jvgh-action-icon {
+.jvgh-calendar-control-btn .jvgh-action-icon {
   flex: 0 0 18px;
   width: 18px;
   height: 18px;
 }
 
-.jvgh-action-chevron { transition: transform 150ms ease; }
-.jvgh-action-button[aria-expanded="true"] .jvgh-action-chevron { transform: rotate(180deg); }
-
-.jvgh-action-dropdown {
-  position: absolute;
-  z-index: 10000;
-  top: calc(100% + 7px);
-  right: 0;
-  width: min(320px, calc(100vw - 24px));
-  padding: 6px;
-  overflow: hidden;
-  color: #172033;
-  background: #fff;
-  border: 1px solid #d7deea;
-  border-radius: 10px;
-  box-shadow: 0 8px 22px rgba(15, 23, 42, 0.16);
-}
-
-.jvgh-action-dropdown[hidden] { display: none; }
-
-.jvgh-action-menu-item {
+/* Planning action bar: scoped to avoid affecting application buttons and icons. */
+.jvgh-header-actions {
+  margin-left: auto;
   display: flex;
-  flex-direction: column;
-  gap: 3px;
-  width: 100%;
-  min-height: 54px;
-  padding: 9px 11px;
-  color: var(--jvgh-blue);
-  text-align: left;
-  background: transparent;
-  border: 0;
-  border-radius: 7px;
-  cursor: pointer;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
-.jvgh-action-menu-item:hover,
-.jvgh-action-menu-item:focus-visible { background: #edf4fb; }
-.jvgh-action-menu-title { font-weight: 700; }
-.jvgh-action-menu-description { color: #58677b; font-size: 0.78rem; line-height: 1.35; }
+.jvgh-header-actions .jvgh-header-action {
+  appearance: none;
+  -webkit-appearance: none;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  width: auto;
+  min-width: 0;
+  max-width: none;
+  height: 40px;
+  min-height: 40px;
+  padding: 0 14px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 650;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color 150ms ease, border-color 150ms ease, color 150ms ease;
+}
 
-.jvgh-action-button:focus-visible,
-.jvgh-action-menu-item:focus-visible,
+.jvgh-header-actions .jvgh-header-action svg {
+  display: block;
+  flex: 0 0 auto;
+  width: 18px;
+  height: 18px;
+  max-width: 18px;
+  max-height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+}
+
+.jvgh-header-actions .jvgh-header-action--primary {
+  color: #fff;
+  background: var(--jvgh-blue);
+  border-color: var(--jvgh-blue);
+}
+
+.jvgh-header-actions .jvgh-header-action--primary:hover {
+  background: var(--jvgh-blue-light);
+  border-color: var(--jvgh-blue-light);
+}
+
+.jvgh-header-actions .jvgh-header-action--secondary {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.35);
+}
+
+.jvgh-header-actions .jvgh-header-action--secondary:hover {
+  background: rgba(255, 255, 255, 0.17);
+}
+
+.jvgh-header-actions .jvgh-header-action--quiet {
+  color: #fff;
+  background: transparent;
+  border-color: rgba(255, 255, 255, 0.22);
+  padding-inline: 12px;
+}
+
+.jvgh-header-actions .jvgh-header-action--quiet:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.4);
+}
+
+.jvgh-header-actions .jvgh-header-action:focus-visible {
+  outline: 3px solid #f5c542;
+  outline-offset: 2px;
+}
+
 .jvgh-calendar-header .jvgh-calendar-control-btn:focus-visible {
   outline: 3px solid #77bdf5;
   outline-offset: 2px;
 }
 
-.jvgh-calendar-header .jvgh-calendar-control-btn {
-  min-height: 38px;
-  padding: 7px 11px;
-  color: var(--jvgh-blue);
-  background: #f8fafc;
-  border-color: #cbd5e1;
-}
-
-.jvgh-calendar-header .jvgh-calendar-control-btn:hover:not(:disabled) {
-  background: #edf4fb;
-  border-color: #91a8c2;
-}
-
-.jvgh-calendar-header .jvgh-calendar-control-btn:disabled {
-  color: #718096;
-  background: #f1f5f9;
-  border-color: #d8dee8;
-  opacity: 0.7;
-}
-
 @media (max-width: 1100px) {
   .jvgh-header { flex-wrap: wrap; }
-  .jvgh-header-actions { flex-wrap: wrap; }
   .jvgh-header-tag { flex: 0 0 auto; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .jvgh-action-button,
-  .jvgh-action-chevron,
+  .jvgh-header-actions .jvgh-header-action,
   .jvgh-calendar-header .jvgh-calendar-control-btn { transition: none; }
 }
 
@@ -1931,46 +1901,28 @@ body:has(.jvgh-availability-overlay:not(.hidden)) { overflow: hidden; }
   .ec * { position: static !important; }
 }
 
-/* Keep the planning header controls compact after the general responsive rules. */
-@media (max-width: 900px) {
+/* Stack the essential availability actions without horizontal overflow. */
+@media (max-width: 767px) {
   .jvgh-header-actions {
     width: 100%;
     max-width: 100%;
-    justify-content: flex-start;
     margin-left: 0;
-  }
-}
-
-@media (max-width: 479px) {
-  .jvgh-header-actions {
-    display: grid !important;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     gap: 8px;
-    padding-inline: max(0px, env(safe-area-inset-left)) max(0px, env(safe-area-inset-right));
   }
 
-  .jvgh-action-menu {
+  .jvgh-header-actions #send-availability-mails-button,
+  .jvgh-header-actions #send-parent-availability-button {
     grid-column: 1 / -1;
     width: 100%;
   }
 
-  .jvgh-action-menu > .jvgh-action-button,
-  .jvgh-header-actions > .jvgh-action-button {
+  .jvgh-header-actions .jvgh-header-action--quiet {
     width: 100%;
-    min-height: 44px;
-    margin: 0;
   }
 
-  .jvgh-action-dropdown {
-    right: auto;
-    left: 0;
-    width: min(100%, calc(100vw - max(20px, env(safe-area-inset-left)) - max(20px, env(safe-area-inset-right))));
-  }
-
-  #pwa-install-button { grid-column: 1 / -1; }
-
-  .jvgh-calendar-header .jvgh-calendar-control-btn {
-    flex: 1 1 100%;
-    min-height: 44px;
+  .jvgh-header-actions #pwa-install-button {
+    grid-column: 1 / -1;
   }
 }
