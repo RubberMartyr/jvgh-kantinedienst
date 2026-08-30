@@ -101,6 +101,15 @@
     return { '1': getUserFirstName(user), '2': String(userId) };
   }
 
+  function findPrimaryDelegate(team) {
+    const primaryStaffId = Number(team?.primaryDelegateStaffId);
+    if (!Number.isInteger(primaryStaffId) || primaryStaffId <= 0) return null;
+    const delegates = Array.isArray(team?.delegates) ? team.delegates : [];
+    return delegates.find((delegate) => Number(delegate?.staffId) === primaryStaffId && delegate?.isPrimary === true)
+      || delegates.find((delegate) => Number(delegate?.staffId) === primaryStaffId)
+      || null;
+  }
+
   const teamCollator = new Intl.Collator('nl', {
     numeric: true,
     sensitivity: 'base',
@@ -166,6 +175,7 @@
   return { normalizePhoneNumber, getUserPhoneInfo, getUserFirstName, normalizeScheduledVolunteersResponse,
     normalizeScheduledVolunteer, groupScheduledVolunteers, getScheduledShiftDisplayData, formatScheduledMessageDate,
     buildScheduledVolunteerPlanningText, buildScheduledVolunteerContentVariables, buildAvailabilityContentVariables,
+    findPrimaryDelegate,
     sortParentAvailabilityTeams, normalizeParentAvailabilityTeams,
     getUsersWithSubmittedAvailability, getBrusselsDateKey, addDaysToDateKey, getNextMonthKey, getDaysUntilMonthEnd };
 }));

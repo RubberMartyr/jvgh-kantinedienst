@@ -7,6 +7,7 @@
  * The SportsPress role remains synchronised and visible in WordPress.
  */
 define('JVGH_PRIMARY_DELEGATE_META_KEY', '_jvgh_primary_delegate_staff_id');
+define('JVGH_WHATSAPP_SETTINGS_OPTION', 'jvgh_whatsapp_settings');
 
 add_action('rest_api_init', function () {
     register_rest_route('jvgh/v1', '/volunteers', array(
@@ -34,7 +35,98 @@ add_action('rest_api_init', function () {
             'userId'  => array('required' => false, 'type' => 'integer', 'minimum' => 1),
         ),
     ));
+    register_rest_route('jvgh/v1', '/whatsapp-settings', array(
+        array('methods' => WP_REST_Server::READABLE, 'callback' => 'jvgh_rest_whatsapp_settings',
+            'permission_callback' => 'jvgh_whatsapp_manage_permission'),
+        array('methods' => WP_REST_Server::CREATABLE, 'callback' => 'jvgh_rest_save_whatsapp_settings',
+            'permission_callback' => 'jvgh_whatsapp_manage_permission'),
+    ));
+    register_rest_route('jvgh/v1', '/send-primary-delegate-whatsapp', array(
+        'methods' => WP_REST_Server::CREATABLE,
+        'callback' => 'jvgh_rest_send_primary_delegate_whatsapp',
+        'permission_callback' => 'jvgh_whatsapp_manage_permission',
+        'args' => array(
+            'teamId' => array('required' => true, 'type' => 'integer', 'minimum' => 1),
+            'staffId' => array('required' => true, 'type' => 'integer', 'minimum' => 1),
+        ),
+    ));
 });
+
+function jvgh_whatsapp_manage_permission() {
+    return current_user_can('edit_posts');
+}
+
+function jvgh_whatsapp_setting_keys() {
+    return array('accountSid', 'from', 'contentSid', 'reminderContentSid', 'scheduledContentSid',
+        'authToken', 'primaryDelegateWhatsappTemplateId');
+}
+
+function jvgh_rest_whatsapp_settings() {
+    $settings = get_option(JVGH_WHATSAPP_SETTINGS_OPTION, array());
+    return rest_ensure_response(array('ok' => true, 'settings' => is_array($settings) ? $settings : array()));
+}
+
+function jvgh_rest_save_whatsapp_settings(WP_REST_Request $request) {
+    $settings = array();
+    foreach (jvgh_whatsapp_setting_keys() as $key) {
+        $value = $request->get_param($key);
+        $settings[$key] = sanitize_text_field(is_scalar($value) ? (string) $value : '');
+    }
+    update_option(JVGH_WHATSAPP_SETTINGS_OPTION, $settings, false);
+    return rest_ensure_response(array('ok' => true, 'settings' => $settings));
+}
+
+function jvgh_rest_send_primary_delegate_whatsapp(WP_REST_Request $request) {
+    $team_id = (int) $request->get_param('teamId');
+    $requested_staff_id = (int) $request->get_param('staffId');
+    $team = get_post($team_id);
+    if (!$team || $team->post_type !== 'sp_team' || !has_excerpt($team_id))
+        return new WP_Error('jvgh_invalid_home_team', 'Ongeldige thuisploeg.', array('status' => 400));
+
+    $primary_staff_id = (int) get_post_meta($team_id, JVGH_PRIMARY_DELEGATE_META_KEY, true);
+    if (!$primary_staff_id)
+        return new WP_Error('jvgh_missing_primary_delegate', get_the_title($team_id) . ': geen primaire afgevaardigde ingesteld.', array('status' => 400));
+    if ($requested_staff_id !== $primary_staff_id)
+        return new WP_Error('jvgh_primary_delegate_mismatch', 'De gekozen persoon is niet de primaire afgevaardigde van deze ploeg.', array('status' => 400));
+
+    $staff = get_post($primary_staff_id);
+    if (!$staff || $staff->post_type !== 'sp_staff')
+        return new WP_Error('jvgh_primary_delegate_not_found', get_the_title($team_id) . ': de primaire afgevaardigde kon niet worden gevonden.', array('status' => 400));
+    $user_id = (int) get_post_field('post_author', $primary_staff_id);
+    $phone = $user_id ? jvgh_get_user_phone($user_id) : '';
+    $digits = preg_replace('/[^0-9+]/', '', $phone);
+    if (!preg_match('/^\+?[0-9]{8,15}$/', $digits))
+        return new WP_Error('jvgh_primary_delegate_phone_missing', get_the_title($primary_staff_id) . ' heeft geen telefoonnummer.', array('status' => 400));
+    if (strpos($digits, '+') !== 0) $digits = strpos($digits, '0') === 0 ? '+32' . substr($digits, 1) : '+' . $digits;
+
+    $settings = get_option(JVGH_WHATSAPP_SETTINGS_OPTION, array());
+    $template_id = sanitize_text_field($settings['primaryDelegateWhatsappTemplateId'] ?? '');
+    if (!$template_id)
+        return new WP_Error('jvgh_primary_delegate_template_missing', 'De WhatsApp-template-ID voor primaire afgevaardigden is niet ingesteld.', array('status' => 400));
+    foreach (array('accountSid', 'authToken', 'from') as $key)
+        if (empty($settings[$key])) return new WP_Error('jvgh_whatsapp_setting_missing', 'Niet alle verplichte WhatsApp-instellingen zijn ingevuld.', array('status' => 400));
+    if (!$user_id)
+        return new WP_Error('jvgh_primary_delegate_user_missing', 'De primaire afgevaardigde heeft geen gekoppelde gebruiker.', array('status' => 400));
+
+    // Keep the exact variable order used by Vraag beschikbaarheid.
+    $user = get_userdata($user_id);
+    $first_name = trim((string) ($user ? $user->display_name : get_the_title($primary_staff_id)));
+    $first_name = preg_split('/\s+/', $first_name)[0] ?? '';
+    $variables = array('1' => $first_name, '2' => (string) $user_id);
+    if (!$variables['1'] || !$variables['2'])
+        return new WP_Error('jvgh_template_variables_missing', 'Niet alle verplichte templateparameters zijn beschikbaar.', array('status' => 400));
+
+    $endpoint = sprintf('https://api.twilio.com/2010-04-01/Accounts/%s/Messages.json', rawurlencode($settings['accountSid']));
+    $response = wp_remote_post($endpoint, array('timeout' => 20,
+        'headers' => array('Authorization' => 'Basic ' . base64_encode($settings['accountSid'] . ':' . $settings['authToken'])),
+        'body' => array('To' => 'whatsapp:' . $digits, 'From' => $settings['from'], 'ContentSid' => $template_id,
+            'ContentVariables' => wp_json_encode($variables))));
+    if (is_wp_error($response)) return new WP_Error('jvgh_whatsapp_failed', 'WhatsApp-verzending is mislukt.', array('status' => 502));
+    $status = (int) wp_remote_retrieve_response_code($response);
+    if ($status < 200 || $status >= 300)
+        return new WP_Error('jvgh_whatsapp_failed', 'WhatsApp-verzending is mislukt.', array('status' => 502));
+    return rest_ensure_response(array('ok' => true, 'teamId' => $team_id, 'staffId' => $primary_staff_id));
+}
 
 /** Return the shared phone field used by all JVGH people endpoints. */
 function jvgh_get_user_phone($user_id) {
@@ -291,4 +383,3 @@ function jvgh_rest_update_team_primary_delegate(WP_REST_Request $request) {
 
     return rest_ensure_response(array('ok' => true, 'teamId' => $team_id, 'staffId' => $staff_id, 'userId' => $current_user_id));
 }
-
