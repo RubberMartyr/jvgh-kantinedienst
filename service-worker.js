@@ -1,11 +1,11 @@
 // Increase this version for every release that changes a cached shell file.
-const STATIC_CACHE = 'jvgh-planning-static-v5-availability-icon';
+const STATIC_CACHE = 'jvgh-planning-static-v6-availability-pwa';
 const CACHE_PREFIX = 'jvgh-planning-static-';
 const APP_SHELL = [
   './index.html', './availability.html', './availability.js', './styles.css', './pwa.css', './pwa.js', './main.js',
   './jvgh-api.js', './jvgh-access-control.js', './shared/jvgh-core.js',
   './vendor/event-calendar.min.css', './vendor/event-calendar.min.js',
-  './manifest.webmanifest'
+  './manifest.webmanifest', './availability.webmanifest'
 ];
 const OPTIONAL_ICON_ASSETS = [
   './icons/jvgh-logo.jpg',

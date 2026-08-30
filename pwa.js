@@ -13,6 +13,7 @@
   let deferredInstallPrompt = null;
   let registration = null;
   let reloadingForUpdate = false;
+  let dialogReturnFocus = null;
 
   const isStandalone = () => window.matchMedia('(display-mode: standalone)').matches ||
     window.navigator.standalone === true;
@@ -22,12 +23,29 @@
 
   function setOnlineState() {
     const offline = !navigator.onLine;
-    offlineBanner.hidden = !offline;
+    if (offlineBanner) offlineBanner.hidden = !offline;
     document.documentElement.classList.toggle('is-offline', offline);
     networkButtons.forEach((button) => {
       button.disabled = offline;
       button.setAttribute('aria-disabled', String(offline));
     });
+  }
+
+  function openIosDialog() {
+    if (!iosDialog) return;
+    dialogReturnFocus = document.activeElement;
+    iosDialog.hidden = false;
+    document.body.classList.add('pwa-dialog-open');
+    iosClose?.focus();
+  }
+
+  function closeIosDialog() {
+    if (!iosDialog || iosDialog.hidden) return;
+    iosDialog.hidden = true;
+    document.body.classList.remove('pwa-dialog-open');
+    localStorage.setItem(IOS_HINT_KEY, '1');
+    (dialogReturnFocus instanceof HTMLElement ? dialogReturnFocus : installButton)?.focus();
+    dialogReturnFocus = null;
   }
 
   function updateInstallButton() {
@@ -55,8 +73,7 @@
 
   installButton?.addEventListener('click', async () => {
     if (isIos() && !deferredInstallPrompt) {
-      if (iosDialog) iosDialog.hidden = false;
-      iosClose?.focus();
+      openIosDialog();
       return;
     }
     if (!deferredInstallPrompt) return;
@@ -65,19 +82,23 @@
     deferredInstallPrompt = null;
     updateInstallButton();
   });
-  iosClose?.addEventListener('click', () => {
-    if (iosDialog) iosDialog.hidden = true;
-    localStorage.setItem(IOS_HINT_KEY, '1');
-    installButton?.focus();
-  });
+  iosClose?.addEventListener('click', closeIosDialog);
   iosDialog?.addEventListener('click', (event) => {
-    if (event.target === iosDialog) iosClose.click();
+    if (event.target === iosDialog) closeIosDialog();
+  });
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && iosDialog && !iosDialog.hidden) closeIosDialog();
+    if (event.key === 'Tab' && iosDialog && !iosDialog.hidden) {
+      // The instruction dialog has one interactive control; keep keyboard focus inside it.
+      event.preventDefault();
+      iosClose?.focus();
+    }
   });
 
   setOnlineState();
   updateInstallButton();
   if (isIos() && !isStandalone() && localStorage.getItem(IOS_HINT_KEY) !== '1') {
-    if (iosDialog) iosDialog.hidden = false;
+    openIosDialog();
   }
 
   // Covers send/save controls that existing application code creates dynamically.
@@ -89,7 +110,7 @@
     if (/(send|verstuur|verzend|bewaar|opslaan|save|beschikbaarheid|whatsapp)/i.test(action)) {
       event.preventDefault();
       event.stopImmediatePropagation();
-      offlineBanner.hidden = false;
+      if (offlineBanner) offlineBanner.hidden = false;
     }
   }, true);
 
