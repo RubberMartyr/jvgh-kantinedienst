@@ -66,12 +66,38 @@
     </div>
      
   </div>
-   <div>
-       <button id="send-availability-mails-button" class="jvgh-print-btn">Vraag beschikbaarheid</button>
-       <button id="send-parent-availability-button" class="jvgh-print-btn">Vraag beschikbaarheid ouders</button>
-       <button id="share-button" class="jvgh-print-btn">Share as Image</button>
-       <button id="print-button" class="jvgh-print-btn">Print</button>
-       <button id="pwa-install-button" class="jvgh-print-btn" type="button" hidden>App installeren</button>
+   <div class="jvgh-header-actions">
+      <div class="jvgh-action-menu">
+        <button id="availability-menu-trigger" class="jvgh-action-button jvgh-action-button--primary" type="button"
+          aria-haspopup="menu" aria-expanded="false" aria-controls="availability-actions-menu">
+          <span>Beschikbaarheid versturen</span>
+          <svg class="jvgh-action-icon jvgh-action-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="m7 10 5 5 5-5" />
+          </svg>
+        </button>
+        <div id="availability-actions-menu" class="jvgh-action-dropdown" role="menu" hidden>
+          <button id="send-availability-mails-button" class="jvgh-action-menu-item" type="button" role="menuitem">
+            <span class="jvgh-action-menu-title">Bestuur en vrijwilligers</span>
+            <span class="jvgh-action-menu-description">Vraag hun beschikbaarheid voor de planning</span>
+          </button>
+          <button id="send-parent-availability-button" class="jvgh-action-menu-item" type="button" role="menuitem">
+            <span class="jvgh-action-menu-title">Ouders</span>
+            <span class="jvgh-action-menu-description">Verstuur via de primaire afgevaardigde</span>
+          </button>
+        </div>
+      </div>
+      <button id="share-button" class="jvgh-action-button jvgh-action-button--secondary" type="button">
+        <svg class="jvgh-action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="m8.6 10.5 6.8-4M8.6 13.5l6.8 4"/></svg>
+        <span>Delen</span>
+      </button>
+      <button id="print-button" class="jvgh-action-button jvgh-action-button--secondary" type="button">
+        <svg class="jvgh-action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9V3h12v6M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><path d="M6 14h12v7H6z"/></svg>
+        <span>Afdrukken</span>
+      </button>
+      <button id="pwa-install-button" class="jvgh-action-button jvgh-action-button--secondary" type="button" hidden>
+        <svg class="jvgh-action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12m0 0 4-4m-4 4-4-4M5 21h14"/></svg>
+        <span>App installeren</span>
+      </button>
     </div>
   <div class="jvgh-header-tag">Intern clubgebruik</div>
 </header>
@@ -88,6 +114,7 @@
           aria-pressed="false"
           disabled
         >
+          <svg class="jvgh-action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
           Laat alle uren zien
         </button>
         <button
@@ -96,6 +123,7 @@
           type="button"
           disabled
         >
+          <svg class="jvgh-action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 4v7h-7"/></svg>
           Ververs huidige maand
         </button>
       </div>

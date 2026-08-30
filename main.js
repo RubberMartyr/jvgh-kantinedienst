@@ -1,3 +1,65 @@
+const availabilityMenuTrigger = document.getElementById("availability-menu-trigger");
+const availabilityActionsMenu = document.getElementById("availability-actions-menu");
+
+if (availabilityMenuTrigger && availabilityActionsMenu) {
+  const availabilityMenuItems = [...availabilityActionsMenu.querySelectorAll('[role="menuitem"]')];
+
+  function closeAvailabilityMenu({ returnFocus = false } = {}) {
+    availabilityActionsMenu.hidden = true;
+    availabilityMenuTrigger.setAttribute("aria-expanded", "false");
+    if (returnFocus) availabilityMenuTrigger.focus();
+  }
+
+  function openAvailabilityMenu({ focusFirst = false } = {}) {
+    availabilityActionsMenu.hidden = false;
+    availabilityMenuTrigger.setAttribute("aria-expanded", "true");
+    if (focusFirst) availabilityMenuItems[0]?.focus();
+  }
+
+  availabilityMenuTrigger.addEventListener("click", () => {
+    if (availabilityActionsMenu.hidden) openAvailabilityMenu();
+    else closeAvailabilityMenu();
+  });
+
+  availabilityMenuTrigger.addEventListener("keydown", (event) => {
+    if (event.key === "ArrowDown" || event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      openAvailabilityMenu({ focusFirst: true });
+    }
+  });
+
+  availabilityActionsMenu.addEventListener("click", (event) => {
+    if (event.target.closest('[role="menuitem"]')) closeAvailabilityMenu();
+  });
+
+  availabilityActionsMenu.addEventListener("keydown", (event) => {
+    const currentIndex = availabilityMenuItems.indexOf(document.activeElement);
+    let nextIndex = null;
+
+    if (event.key === "ArrowDown") nextIndex = (currentIndex + 1) % availabilityMenuItems.length;
+    if (event.key === "ArrowUp") nextIndex = (currentIndex - 1 + availabilityMenuItems.length) % availabilityMenuItems.length;
+    if (event.key === "Home") nextIndex = 0;
+    if (event.key === "End") nextIndex = availabilityMenuItems.length - 1;
+
+    if (nextIndex !== null) {
+      event.preventDefault();
+      availabilityMenuItems[nextIndex]?.focus();
+    }
+  });
+
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && !availabilityActionsMenu.hidden) {
+      closeAvailabilityMenu({ returnFocus: true });
+    }
+  });
+
+  document.addEventListener("click", (event) => {
+    if (!availabilityActionsMenu.hidden && !event.target.closest(".jvgh-action-menu")) {
+      closeAvailabilityMenu();
+    }
+  });
+}
+
 document.getElementById("share-button").addEventListener("click", async () => {
   const cal = document.querySelector("#ec");
   if (!cal) return;
