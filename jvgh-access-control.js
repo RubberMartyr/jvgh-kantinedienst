@@ -63,7 +63,7 @@
     overlay.innerHTML = `
       <div class="jvgh-access-card">
         <img
-          src="https://goldbug.be/wp-content/uploads/2024/11/cropped-logo-klein-zwart-2.png"
+          src="./icons/app-icon.svg"
           alt="JVGH logo"
           class="jvgh-access-logo"
         />

@@ -31,11 +31,12 @@
   }
 
   function updateInstallButton() {
-    installButton.hidden = isStandalone() || (!deferredInstallPrompt && !isIos());
+    if (installButton) installButton.hidden = isStandalone() || (!deferredInstallPrompt && !isIos());
   }
 
   function showWaitingWorker(worker) {
     if (!worker) return;
+    if (!updateBanner || !updateButton) return;
     updateBanner.hidden = false;
     updateButton.onclick = () => worker.postMessage({ type: 'SKIP_WAITING' });
   }
@@ -52,10 +53,10 @@
     updateInstallButton();
   });
 
-  installButton.addEventListener('click', async () => {
+  installButton?.addEventListener('click', async () => {
     if (isIos() && !deferredInstallPrompt) {
-      iosDialog.hidden = false;
-      iosClose.focus();
+      if (iosDialog) iosDialog.hidden = false;
+      iosClose?.focus();
       return;
     }
     if (!deferredInstallPrompt) return;
@@ -64,19 +65,19 @@
     deferredInstallPrompt = null;
     updateInstallButton();
   });
-  iosClose.addEventListener('click', () => {
-    iosDialog.hidden = true;
+  iosClose?.addEventListener('click', () => {
+    if (iosDialog) iosDialog.hidden = true;
     localStorage.setItem(IOS_HINT_KEY, '1');
-    installButton.focus();
+    installButton?.focus();
   });
-  iosDialog.addEventListener('click', (event) => {
+  iosDialog?.addEventListener('click', (event) => {
     if (event.target === iosDialog) iosClose.click();
   });
 
   setOnlineState();
   updateInstallButton();
   if (isIos() && !isStandalone() && localStorage.getItem(IOS_HINT_KEY) !== '1') {
-    iosDialog.hidden = false;
+    if (iosDialog) iosDialog.hidden = false;
   }
 
   // Covers send/save controls that existing application code creates dynamically.

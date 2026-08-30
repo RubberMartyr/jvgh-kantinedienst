@@ -2,9 +2,18 @@
 <html lang="nl">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>JVGH – Beschikbaarheid</title>
+  <link rel="manifest" href="./manifest.webmanifest" />
+  <link rel="icon" href="./icons/app-icon.svg" type="image/svg+xml" />
+  <meta name="theme-color" content="#002b5c" />
+  <meta name="application-name" content="JVGH Kantineplanning" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="JVGH Planning" />
+  <meta name="mobile-web-app-capable" content="yes" />
   <link rel="stylesheet" href="./styles.css" />
+  <link rel="stylesheet" href="./pwa.css" />
   <script>
     (function () {
       const storageKey = "jvgh_access_granted";
@@ -332,13 +341,66 @@
         padding: 13px 16px;
       }
     }
+
+
+    /* Availability-specific responsive layout; desktop rules above remain unchanged. */
+    @media (max-width: 1199px) {
+      .availability-wrap { width: 100%; margin-block: 14px; }
+      .availability-item-main, .availability-meta { min-width: 0; overflow-wrap: anywhere; }
+    }
+
+    @media (max-width: 767px) {
+      .jvgh-main {
+        padding-left: max(12px, env(safe-area-inset-left));
+        padding-right: max(12px, env(safe-area-inset-right));
+        padding-bottom: max(16px, env(safe-area-inset-bottom));
+      }
+      .availability-wrap { margin: 10px auto; padding: 14px; border-radius: 10px; }
+      .availability-month { font-size: clamp(24px, 8vw, 30px); overflow-wrap: anywhere; }
+      .availability-status { font-size: 18px; overflow-wrap: anywhere; }
+      .availability-month-nav, .availability-actions-wrap { flex-wrap: wrap; }
+      .availability-month-btn, .availability-calendar-btn, .availability-save-btn {
+        min-width: 44px;
+        min-height: 44px;
+      }
+      .availability-month-btn { flex: 1 1 180px; font-size: 14px; }
+      .availability-calendar-btn, .availability-save-btn { width: 100%; font-size: 18px; }
+      .availability-month-unavailable { align-items: flex-start; min-height: 44px; overflow-wrap: anywhere; }
+      .availability-month-unavailable input[type="checkbox"],
+      .availability-item input[type="checkbox"] { width: 24px; height: 24px; flex: 0 0 24px; }
+      .availability-item { grid-template-columns: 24px minmax(0, 1fr) 44px; align-items: start; padding: 12px 10px; }
+      .availability-item-main { align-items: flex-start; }
+      .availability-expand-btn { width: 44px; height: 44px; }
+      #availability-save-toast {
+        left: max(12px, env(safe-area-inset-left));
+        right: max(12px, env(safe-area-inset-right));
+        bottom: max(16px, env(safe-area-inset-bottom));
+        width: auto;
+        max-width: none;
+        transform: translateY(20px);
+      }
+      #availability-save-toast.is-visible { transform: translateY(0); }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .availability-calendar-btn, .availability-save-btn, #availability-save-toast {
+        transition: none;
+      }
+    }
   </style>
 </head>
 <body>
+<div id="pwa-offline-banner" class="pwa-banner" role="status" aria-live="polite" hidden>
+  Geen internetverbinding. Live gegevens en verzending zijn tijdelijk niet beschikbaar.
+</div>
+<div id="pwa-update-banner" class="pwa-banner pwa-update-banner" role="status" aria-live="polite" hidden>
+  <span>Er is een nieuwe versie beschikbaar.</span>
+  <button id="pwa-update-button" type="button">Bijwerken</button>
+</div>
 <header class="jvgh-header">
   <div class="jvgh-header-left">
     <img
-      src="https://goldbug.be/wp-content/uploads/2024/11/cropped-logo-klein-zwart-2.png"
+      src="./icons/app-icon.svg"
       alt="JVGH logo"
       class="jvgh-logo"
     />
@@ -355,7 +417,7 @@
 <main class="jvgh-main">
   <section class="availability-wrap">
     <div class="availability-meta" id="availability-meta"></div>
-    <div class="availability-status" id="availability-status">Laden…</div>
+    <div class="availability-status" id="availability-status" role="status" aria-live="polite">Laden…</div>
     <label class="availability-month-unavailable" for="availability-month-unavailable-checkbox">
       <input type="checkbox" id="availability-month-unavailable-checkbox" />
       Ik ben niet beschikbaar deze maand
@@ -383,5 +445,6 @@
   });
 </script>
 <script src="availability.js"></script>
+<script src="pwa.js"></script>
 </body>
 </html>
