@@ -1,0 +1,91 @@
+html, body { min-height: 100%; }
+body {
+  min-height: 100vh;
+  min-height: 100dvh;
+  overflow-x: hidden;
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+.jvgh-header { padding-top: max(6px, env(safe-area-inset-top)); }
+.pwa-banner {
+  position: sticky;
+  top: 0;
+  z-index: 10010;
+  padding: 10px max(16px, env(safe-area-inset-right)) 10px max(16px, env(safe-area-inset-left));
+  color: #fff;
+  background: #8a4b08;
+  text-align: center;
+  font-weight: 700;
+}
+.pwa-banner[hidden], .pwa-dialog-backdrop[hidden] { display: none !important; }
+.pwa-update-banner { background: #002b5c; }
+.pwa-update-banner button {
+  min-height: 44px;
+  margin-left: 12px;
+  padding: 8px 16px;
+  border: 2px solid #f2b400;
+  border-radius: 8px;
+  color: #fff;
+  background: transparent;
+  font: inherit;
+  cursor: pointer;
+}
+.pwa-dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 10020;
+  display: grid;
+  place-items: center;
+  padding: max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right))
+    max(16px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+  background: rgba(15, 23, 42, .72);
+}
+.pwa-dialog {
+  position: relative;
+  width: min(100%, 480px);
+  max-height: calc(100dvh - 32px);
+  overflow-y: auto;
+  padding: 24px;
+  border-top: 5px solid #f2b400;
+  border-radius: 14px;
+  background: #fff;
+  color: #1b2340;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, .3);
+}
+.pwa-dialog h2 { margin: 0 38px 12px 0; color: #002b5c; }
+.pwa-dialog li { margin: 10px 0; }
+.pwa-dialog-close {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 44px;
+  height: 44px;
+  border: 0;
+  background: transparent;
+  font-size: 30px;
+  cursor: pointer;
+}
+
+button, [role="button"], input, select, textarea { min-height: 44px; }
+input, select, textarea { font-size: max(16px, 1em); }
+.people-tabs { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.jvgh-calendar-card, #ec { min-width: 0; overflow-x: auto; }
+.jvgh-availability-modal { max-height: calc(100dvh - 32px); }
+
+@media (max-width: 900px) {
+  .jvgh-sidebar, .sidebar, .sidebar-card {
+    position: static;
+    min-width: 0;
+    max-width: 100%;
+    max-height: none;
+  }
+  .jvgh-header > div { max-width: 100%; }
+  .jvgh-header > div:nth-child(2) { display: flex; flex-wrap: wrap; gap: 6px; }
+}
+
+@media (display-mode: standalone) {
+  body { min-height: 100dvh; }
+  .jvgh-main { padding-bottom: max(10px, env(safe-area-inset-bottom)); }
+}

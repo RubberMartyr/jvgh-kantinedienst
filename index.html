@@ -1,12 +1,23 @@
 <!DOCTYPE html>
-<html lang="nl">
+<html lang="nl-BE">
 <head>
   <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>JVGH – Kantinedienst Planner</title>
+
+  <link rel="manifest" href="./manifest.webmanifest" />
+  <link rel="icon" href="./icons/app-icon.svg" type="image/svg+xml" />
+  <meta name="theme-color" content="#002b5c" />
+  <meta name="application-name" content="JVGH Kantineplanning" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="JVGH Planning" />
+  <meta name="mobile-web-app-capable" content="yes" />
 
   <!-- Local EventCalendar assets -->
   <link rel="stylesheet" href="./vendor/event-calendar.min.css" />
   <link rel="stylesheet" href="./styles.css" />
+  <link rel="stylesheet" href="./pwa.css" />
 
   <script>
     (function () {
@@ -32,10 +43,17 @@
   </script>
 </head>
 <body>
+<div id="pwa-offline-banner" class="pwa-banner" role="status" hidden>
+  Geen internetverbinding. Live gegevens en verzending zijn tijdelijk niet beschikbaar.
+</div>
+<div id="pwa-update-banner" class="pwa-banner pwa-update-banner" role="status" hidden>
+  <span>Er is een nieuwe versie beschikbaar.</span>
+  <button id="pwa-update-button" type="button">Bijwerken</button>
+</div>
 <header class="jvgh-header">
   <div class="jvgh-header-left">
     <img
-      src="https://goldbug.be/wp-content/uploads/2024/11/cropped-logo-klein-zwart-2.png"
+      src="./icons/app-icon.svg"
       alt="JVGH logo"
       class="jvgh-logo"
     />
@@ -52,6 +70,7 @@
        <button id="send-parent-availability-button" class="jvgh-print-btn">Vraag beschikbaarheid ouders</button>
        <button id="share-button" class="jvgh-print-btn">Share as Image</button>
        <button id="print-button" class="jvgh-print-btn">Print</button>
+       <button id="pwa-install-button" class="jvgh-print-btn" type="button" hidden>App installeren</button>
     </div>
   <div class="jvgh-header-tag">Intern clubgebruik</div>
 </header>
@@ -179,6 +198,18 @@
   </div>
 </main>
 
+<div id="pwa-ios-dialog" class="pwa-dialog-backdrop" hidden>
+  <section class="pwa-dialog" role="dialog" aria-modal="true" aria-labelledby="pwa-ios-title">
+    <button id="pwa-ios-close" class="pwa-dialog-close" type="button" aria-label="Sluiten">×</button>
+    <h2 id="pwa-ios-title">Installeer JVGH Planning op uw iPhone</h2>
+    <ol>
+      <li>Tik onderaan op de deelknop <span aria-hidden="true">⬆︎</span>.</li>
+      <li>Kies “Zet op beginscherm”.</li>
+      <li>Tik op “Voeg toe”.</li>
+    </ol>
+  </section>
+</div>
+
 <!-- External JS -->
 <script src="./vendor/event-calendar.min.js"></script>
 <script src="jvgh-api.js"></script>
@@ -193,5 +224,6 @@
 <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
 <script src="shared/jvgh-core.js"></script>
 <script src="main.js"></script>
+<script src="pwa.js"></script>
 </body>
 </html>
