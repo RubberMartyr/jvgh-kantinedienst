@@ -18,6 +18,18 @@
     (left, right) => right.length - left.length
   );
 
+  function getDefaultAvailabilityMonth(referenceDate = new Date()) {
+    const year = referenceDate.getFullYear();
+    const month = referenceDate.getMonth();
+    const day = referenceDate.getDate();
+    const lastDayOfMonth = new Date(year, month + 1, 0).getDate();
+    const remainingDays = lastDayOfMonth - day;
+
+    return remainingDays <= 10
+      ? new Date(year, month + 1, 1)
+      : new Date(year, month, 1);
+  }
+
   function splitMatchSummary(summary) {
     const parts = String(summary || "").split("/");
 
@@ -155,6 +167,7 @@
     decodeAndTrimIcsText,
     extractIcsTeamCode,
     filterHomeEventsByTeam,
+    getDefaultAvailabilityMonth,
     getAvailabilityDisplayTitle,
     homeSideMatchesTeam,
     matchBelongsToResolvedTeam,

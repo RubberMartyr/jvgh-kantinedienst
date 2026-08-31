@@ -5,6 +5,7 @@ const {
   decodeAndTrimIcsText,
   extractIcsTeamCode,
   filterHomeEventsByTeam,
+  getDefaultAvailabilityMonth,
   getAvailabilityDisplayTitle,
   homeSideMatchesTeam,
   matchBelongsToResolvedTeam,
@@ -15,6 +16,25 @@ const {
   parseTeamQueryParams,
   splitMatchSummary,
 } = require('../availability-filter.js');
+
+test('default availability month switches when ten calendar days remain', () => {
+  const cases = [
+    [new Date(2026, 8, 19), new Date(2026, 8, 1)],
+    [new Date(2026, 8, 20), new Date(2026, 9, 1)],
+    [new Date(2026, 8, 30), new Date(2026, 9, 1)],
+    [new Date(2026, 9, 20), new Date(2026, 9, 1)],
+    [new Date(2026, 9, 21), new Date(2026, 10, 1)],
+    [new Date(2027, 1, 17), new Date(2027, 1, 1)],
+    [new Date(2027, 1, 18), new Date(2027, 2, 1)],
+    [new Date(2028, 1, 18), new Date(2028, 1, 1)],
+    [new Date(2028, 1, 19), new Date(2028, 2, 1)],
+    [new Date(2026, 11, 21), new Date(2027, 0, 1)],
+  ];
+
+  for (const [referenceDate, expectedMonth] of cases) {
+    assert.deepEqual(getDefaultAvailabilityMonth(referenceDate), expectedMonth);
+  }
+});
 
 test('team query aliases resolve to one canonical positive numeric ID', () => {
   assert.deepEqual(parseTeamQueryParams('?teamId=13413'), { teamId: 13413, isTeamMode: true });

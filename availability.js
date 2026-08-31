@@ -1,6 +1,7 @@
 const DEFAULT_ASSIGNMENT_DURATION_MINUTES = 240;
 const {
   filterHomeEventsByTeam,
+  getDefaultAvailabilityMonth,
   getAvailabilityDisplayTitle,
   recognizedTeamName,
   splitMatchSummary,
@@ -267,9 +268,7 @@ function findStateForTask(stateByTask, task) {
 }
 
 function getDefaultAvailabilityMonthKey(now = new Date()) {
-  const monthOffset = now.getDate() <= 15 ? 0 : 1;
-
-  return monthKeyFromDate(addMonths(now, monthOffset));
+  return monthKeyFromDate(getDefaultAvailabilityMonth(now));
 }
 
 function getQueryParams() {
