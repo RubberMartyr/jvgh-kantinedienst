@@ -3,15 +3,34 @@ const assert = require('node:assert/strict');
 
 const {
   decodeAndTrimIcsText,
+  extractIcsTeamCode,
   filterHomeEventsByTeam,
   getAvailabilityDisplayTitle,
   homeSideMatchesTeam,
   matchBelongsToResolvedTeam,
   naturalSortTeamNames,
+  normalizeTeamCode,
   normalizeTeamText,
   recognizedTeamName,
+  parseTeamQueryParams,
   splitMatchSummary,
 } = require('../availability-filter.js');
+
+test('team query aliases resolve to one canonical positive numeric ID', () => {
+  assert.deepEqual(parseTeamQueryParams('?teamId=13413'), { teamId: 13413, isTeamMode: true });
+  assert.deepEqual(parseTeamQueryParams('?team=13413'), { teamId: 13413, isTeamMode: true });
+  assert.deepEqual(parseTeamQueryParams('?teamId=13413&team=13414'), { teamId: 13413, isTeamMode: true });
+  assert.deepEqual(parseTeamQueryParams('?team=U8%20A'), { teamId: null, isTeamMode: false });
+  assert.deepEqual(parseTeamQueryParams('?userId=1'), { teamId: null, isTeamMode: false });
+});
+
+test('ICS team codes normalize whitespace but preserve squad suffixes', () => {
+  assert.equal(normalizeTeamCode('U8 A'), 'U8A');
+  assert.equal(extractIcsTeamCode({ summary: 'U8A — Herk-De-Stad FC A / Tegenstander' }), 'U8A');
+  assert.equal(extractIcsTeamCode({ title: 'U12 B - Herk-De-Stad / Tegenstander' }), 'U12B');
+  assert.equal(extractIcsTeamCode({ summary: '' }), '');
+  assert.equal(extractIcsTeamCode({ summary: 'onverwacht' }), '');
+});
 
 test('availability titles identify the home team without a team query', () => {
   assert.equal(getAvailabilityDisplayTitle({
@@ -84,26 +103,37 @@ test('team recognition selects the longest known label', () => {
   assert.equal(recognizedTeamName('Herk-De-Stad U12 A'), 'U12 A');
 });
 
-test('team matching only inspects the home side accepted by availability', () => {
-  const summary = 'Herk-De-Stad U11 / Tegenstander U9 B';
+test('team matching uses only the exact code at the start of SUMMARY', () => {
+  const summary = 'U11 — Herk-De-Stad FC / Tegenstander U9 B';
   assert.equal(homeSideMatchesTeam(summary, 'U9 B'), false);
   assert.equal(homeSideMatchesTeam(summary, 'U11'), true);
 });
 
 test('base and lettered teams remain distinct', () => {
-  assert.equal(homeSideMatchesTeam('Herk-De-Stad U9 / Tegenstander', 'U9'), true);
-  assert.equal(homeSideMatchesTeam('Herk-De-Stad U9 A / Tegenstander', 'U9'), false);
-  assert.equal(homeSideMatchesTeam('Herk-De-Stad U9 B / Tegenstander', 'U9 A'), false);
-  assert.equal(homeSideMatchesTeam('Herk-De-Stad U12 B / Tegenstander', 'U12 A'), false);
+  assert.equal(homeSideMatchesTeam('U9 — Herk-De-Stad / Tegenstander', 'U9'), true);
+  assert.equal(homeSideMatchesTeam('U9A — Herk-De-Stad / Tegenstander', 'U9'), false);
+  assert.equal(homeSideMatchesTeam('U9B — Herk-De-Stad / Tegenstander', 'U9 A'), false);
+  assert.equal(homeSideMatchesTeam('U12B — Herk-De-Stad / Tegenstander', 'U12 A'), false);
 });
 
-test('WordPress squad names match the age prefix and Herk FC squad only', () => {
-  const fcA = 'U8 — Herk-De-Stad FC A 2-1 / ASV Geel A 1';
-  const fcB = 'U8 — Herk-De-Stad FC B 2-1 / Tegenstander U18 FC A';
+test('WordPress squad names exactly match the ICS SUMMARY team code', () => {
+  const fcA = 'U8A — Herk-De-Stad FC A 2-1 / ASV Geel A 1';
+  const fcB = 'U8B — Herk-De-Stad FC B 2-1 / Tegenstander U18 FC A';
   assert.equal(matchBelongsToResolvedTeam(fcA, 'U8 A'), true);
   assert.equal(matchBelongsToResolvedTeam(fcA, 'U8 B'), false);
   assert.equal(matchBelongsToResolvedTeam(fcB, 'U8 B'), true);
   assert.equal(matchBelongsToResolvedTeam(fcA, 'U18 A'), false);
+});
+
+test('September 2026 U8 A acceptance fixture excludes the simultaneous U8 B match', () => {
+  const homeEvents = [
+    { summary: 'U8A — Herk-De-Stad FC A 2-1 / Sparta Schaffen B 1', start: '2026-09-05T11:00:00' },
+    { summary: 'U8B — Herk-De-Stad FC B 2-1 / Juve Hasselt C 1', start: '2026-09-05T11:00:00' },
+    { summary: 'U8A — Herk-De-Stad FC A 2-1 / ASV Geel A 1', start: '2026-09-19T11:00:00' },
+  ];
+
+  assert.deepEqual(filterHomeEventsByTeam(homeEvents, 'U8 A'), [homeEvents[0], homeEvents[2]]);
+  assert.deepEqual(filterHomeEventsByTeam(homeEvents, 'U8 B'), [homeEvents[1]]);
 });
 
 test('an unknown non-empty team never matches', () => {
@@ -112,8 +142,8 @@ test('an unknown non-empty team never matches', () => {
 
 test('an absent parameter preserves the exact home event collection', () => {
   const homeEvents = [
-    { summary: 'Herk-De-Stad U9 B / Tegenstander' },
-    { summary: 'Herk-De-Stad U12 A / Andere tegenstander' },
+    { summary: 'U9B — Herk-De-Stad / Tegenstander' },
+    { summary: 'U12A — Herk-De-Stad / Andere tegenstander' },
   ];
 
   assert.equal(filterHomeEventsByTeam(homeEvents, ''), homeEvents);

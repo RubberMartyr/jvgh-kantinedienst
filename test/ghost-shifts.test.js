@@ -90,6 +90,6 @@ test("gedeelde ghostfilter bevat geen backend-deletepad", () => {
 });
 
 test("teamfilter blijft ongewijzigd werken", () => {
-  const events = [{ summary: "Herk-De-Stad U11 / Bezoekers" }, { summary: "Herk-De-Stad U17 / Bezoekers" }];
+  const events = [{ summary: "U11 — Herk-De-Stad / Bezoekers" }, { summary: "U17 — Herk-De-Stad / Bezoekers" }];
   assert.deepEqual(AvailabilityFilter.filterHomeEventsByTeam(events, "U11"), [events[0]]);
 });
