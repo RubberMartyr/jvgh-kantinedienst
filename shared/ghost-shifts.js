@@ -5,19 +5,6 @@
 })(typeof globalThis !== "undefined" ? globalThis : this, function () {
   "use strict";
 
-  const UNAVAILABLE_TITLES = new Set(["ik ben niet beschikbaar deze maand", "niet beschikbaar deze maand"]);
-  const CONTENT_FIELDS = ["description", "beschrijving", "notes", "note", "opmerking", "comment", "remarks", "remark"];
-  const SOURCE_FIELDS = ["source", "sourceType", "source_type", "sourceLabel", "calendarSource", "calendar_source", "eventId", "event_id", "icalUid", "ical_uid", "uid"];
-  const MEANING_FIELDS = ["requirements", "requiredRole", "required_role", "openPlanning", "open_planning", "category", "categories", "type", "eventType", "event_type", "kind", "location", "venue", "team", "teamId", "team_id", "matchId", "match_id", "rentalId", "rental_id", "boardActivity", "board_activity"];
-  const GENERATED_METADATA_KEYS = new Set(["date", "datum", "time", "tijd", "start", "end", "einde", "qty", "duration", "id", "taskid", "scheduleid", "schedule_id", "color", "colour", "kleur", "title", "sourcereason"]);
-  const clean = (value) => String(value ?? "").trim();
-  const hasValue = (value) => {
-    if (value === null || value === undefined || value === "" || value === false) return false;
-    if (Array.isArray(value)) return value.length > 0;
-    if (typeof value === "object") return Object.keys(value).length > 0;
-    return true;
-  };
-
   function isGenericShiftTitle(value) {
     const title = String(value || "")
       .trim()
@@ -30,32 +17,31 @@
     );
   }
 
-  function hasMeaningfulMetadata(value) {
-    if (!value || typeof value !== "object" || Array.isArray(value)) return hasValue(value);
-    return Object.entries(value).some(([key, item]) =>
-      !GENERATED_METADATA_KEYS.has(String(key).replace(/[\s-]/g, "").toLowerCase()) && hasValue(item)
-    );
-  }
-
   // Purely visual predicate: an incomplete people request must never hide a task.
   function isGhostShift(task, context = {}) {
-    const signupCount = Array.isArray(context.signups) ? context.signups.length : 0;
-    const currentUserSelected = context.currentUserSelected === true || context.currentUserAvailability === true;
-    const hasCalendarMatch = context.hasCalendarMatch === true;
-    const rawTitle = clean(task?.title).toLowerCase();
-    const genericTitle = isGenericShiftTitle(task?.title);
-    const sourceReason = clean(task?.sourceReason);
-    const genericSourceReason = sourceReason === "" || sourceReason.toLowerCase() === "handmatige/plannings-taak";
-    const hasKnownTaskId = task?.id !== undefined && task?.id !== null && clean(task.id) !== "";
-    const isGhost = Boolean(task) && hasKnownTaskId && context.signupCollectionLoaded === true &&
-      !UNAVAILABLE_TITLES.has(rawTitle) && genericTitle && !currentUserSelected && signupCount === 0 &&
-      !hasCalendarMatch && genericSourceReason && !hasValue(task.icsSummary) && !hasValue(task.ics_summary) &&
-      !CONTENT_FIELDS.some((field) => hasValue(task[field])) &&
-      !SOURCE_FIELDS.some((field) => hasValue(task[field])) &&
-      !MEANING_FIELDS.some((field) => hasValue(task[field])) &&
-      !hasMeaningfulMetadata(task.metadata) && !hasMeaningfulMetadata(task.meta);
+    if (!task) return false;
+    if (context.signupCollectionLoaded !== true) return false;
 
-    return isGhost;
+    const taskId = task.id ?? task.taskId ?? task.task_id;
+    if (taskId === null || taskId === undefined || taskId === "") return false;
+
+    const title = String(task.title || "").trim();
+    const sourceReason = String(task.sourceReason || task.source_reason || "")
+      .trim()
+      .toLowerCase();
+    const genericTitle =
+      /^shift$/i.test(title) ||
+      /^kantinedienst$/i.test(title) ||
+      /^kantinedienst\s+\d{1,2}:\d{2}$/i.test(title);
+    const genericReason = sourceReason === "" || sourceReason === "handmatige/plannings-taak";
+    const signupCount = Array.isArray(context.signups)
+      ? context.signups.length
+      : Number(context.signupCount || 0);
+
+    return genericTitle && genericReason && signupCount === 0 &&
+      context.currentUserSelected !== true && context.hasCalendarMatch !== true &&
+      !task.icsSummary && !task.ics_summary && !task.description && !task.notes &&
+      !task.opmerking;
   }
 
   function filterGhostShifts(tasks, contextForTask = () => ({})) {
