@@ -7,6 +7,7 @@ const {
 } = window.JVGHAvailabilityFilter;
 
 let requestedTeamName = "";
+let updateSaveStateForMode = null;
 
 function pad2(n) {
   return String(n).padStart(2, "0");
@@ -289,7 +290,7 @@ async function resolveTeamName(teamId, fallbackName) {
   return String(team?.teamName || "").trim() || null;
 }
 
-function validateParentDetails() {
+function validateParentDetails({ showErrors = true } = {}) {
   const values = {
     firstName: document.getElementById("availability-first-name").value.trim(),
     lastName: document.getElementById("availability-last-name").value.trim(),
@@ -304,16 +305,16 @@ function validateParentDetails() {
   let firstInvalid = null;
   Object.entries(errors).forEach(([name, message]) => {
     const input = document.querySelector(`[name="${name}"]`);
-    document.querySelector(`[data-error-for="${name}"]`).textContent = message;
+    document.querySelector(`[data-error-for="${name}"]`).textContent = showErrors ? message : "";
     input.setAttribute("aria-invalid", message ? "true" : "false");
     if (message && !firstInvalid) firstInvalid = input;
   });
-  if (firstInvalid) {
+  if (firstInvalid && showErrors) {
     firstInvalid.focus({ preventScroll: true });
     firstInvalid.scrollIntoView({ behavior: "smooth", block: "center" });
     return null;
   }
-  return { ...values, phone: normalizedPhone };
+  return firstInvalid ? null : { ...values, phone: normalizedPhone };
 }
 
 function setStatus(msg, isError = false) {
@@ -991,7 +992,7 @@ function expandEventIntoDailyOccurrences(event) {
   return occurrences;
 }
 
-async function loadShiftSlotsForMonth(monthKey) {
+async function loadShiftSlotsForMonth(monthKey, { teamMode = false, resolvedTeamName = "" } = {}) {
   const [matchesText, eventsText, verhuurText, bestuurText] = await Promise.all([
     fetch(ICAL_URL, { credentials: "omit" }).then((r) => (r.ok ? r.text() : "")),
     fetch(EVENTS_ICAL_URL, { credentials: "omit" }).then((r) => (r.ok ? r.text() : "")),
@@ -1006,11 +1007,11 @@ async function loadShiftSlotsForMonth(monthKey) {
   });
   const visibleMatchEvents = filterHomeEventsByTeam(
     homeMatchEvents,
-    requestedTeamName
+    teamMode ? resolvedTeamName : ""
   );
 
-  const events = [
-    ...visibleMatchEvents,
+  const events = teamMode ? visibleMatchEvents : [
+    ...homeMatchEvents,
     ...parseICS(eventsText, { sourceType: "event", sourceLabel: "Evenement" }),
     ...parseICS(verhuurText, { sourceType: "rental", sourceLabel: "Verhuur" }),
     ...parseICS(bestuurText, { sourceType: "board", sourceLabel: "Dagelijks bestuur" }),
@@ -1020,7 +1021,7 @@ async function loadShiftSlotsForMonth(monthKey) {
     expandEventIntoDailyOccurrences(event)
   );
 
-  return dailyEvents
+  const shifts = dailyEvents
     .map((ev) => {
       const shiftStart = new Date(ev.start.getTime() - 60 * 60 * 1000);
       const shiftEnd = new Date(ev.end.getTime() + 2 * 60 * 60 * 1000);
@@ -1049,6 +1050,12 @@ async function loadShiftSlotsForMonth(monthKey) {
     })
     .filter((slot) => slot.date.slice(0, 7) === monthKey)
     .sort((a, b) => `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`));
+  shifts.teamModeCounts = {
+    parsedHomeMatches: homeMatchEvents.length,
+    matchedTeamEvents: visibleMatchEvents.length,
+    generatedTeamShifts: shifts.length,
+  };
+  return shifts;
 }
 
 async function ensureTaskForShift(shift, scheduleByDay) {
@@ -1238,7 +1245,8 @@ stateByTask.get(checkbox.dataset.shiftKey);
 }
 function updateDirtyUi(stateByTask) {
   const dirtyCount = computeDirtyCount(stateByTask);
-  setSaveDirtyState(dirtyCount > 0);
+  if (updateSaveStateForMode) updateSaveStateForMode(dirtyCount > 0);
+  else setSaveDirtyState(dirtyCount > 0);
   updateCalendarButtonForState(stateByTask);
   setStatus(
     dirtyCount > 0
@@ -1625,7 +1633,8 @@ async function saveChanges({
     showAvailabilityToast(
       "✅ Beschikbaarheid opgeslagen"
     );
-    setSaveDirtyState(false);
+    if (updateSaveStateForMode) updateSaveStateForMode(false);
+    else setSaveDirtyState(false);
 
     // Fully reload month from backend after save.
     // This avoids stale in-memory state mismatches.
@@ -1652,6 +1661,11 @@ document.addEventListener("DOMContentLoaded", async () => {
   const metaEl = document.getElementById("availability-meta");
   const { userRaw, userId, monthRaw, monthKey, userName: providedName, teamId, teamNameRaw, isTeamMode, invalidTeamId } = getQueryParams();
   let resolvedTeamName = null;
+  const unavailableContainer = document.querySelector(".availability-month-unavailable");
+  if (unavailableContainer) {
+    unavailableContainer.hidden = isTeamMode;
+    unavailableContainer.classList.toggle("is-hidden", isTeamMode);
+  }
 
   if (invalidTeamId) {
     setStatus("Ongeldige ploeg-ID.", true);
@@ -1691,6 +1705,24 @@ document.addEventListener("DOMContentLoaded", async () => {
   let currentScheduleByDay = new Map();
   let resolvedName = isTeamMode ? null : (providedName || null);
   let monthLoading = false;
+  let personalDirty = false;
+  function updateExistingPersonalSaveState(isDirty = personalDirty) {
+    personalDirty = isDirty;
+    setSaveDirtyState(isDirty);
+  }
+  function updateTeamModeSaveState(isDirty = personalDirty) {
+    personalDirty = isDirty;
+    if (!isTeamMode) {
+      updateExistingPersonalSaveState(isDirty);
+      return;
+    }
+    const contactValid = Boolean(validateParentDetails({ showErrors: false }));
+    document.querySelectorAll(".availability-save-btn").forEach((button) => {
+      button.disabled = !contactValid || monthLoading;
+      button.textContent = "Opslaan";
+    });
+  }
+  updateSaveStateForMode = updateTeamModeSaveState;
   setSaveButtonsVisible(false);
   setCalendarButtonVisible(false);
 
@@ -1775,7 +1807,13 @@ document.addEventListener("DOMContentLoaded", async () => {
         currentUserId: Number(userId),
       });
 
-      const generatedCalendarShifts = await loadShiftSlotsForMonth(currentMonthKey);
+      const generatedCalendarShifts = await loadShiftSlotsForMonth(currentMonthKey, {
+        teamMode: isTeamMode,
+        resolvedTeamName,
+      });
+      const validTeamShiftKeys = new Set(generatedCalendarShifts.map(
+        (shift) => `${shift.date}|${shift.time}`
+      ));
 
       const persistedTasksBySlotKey = new Map();
 
@@ -1785,6 +1823,8 @@ document.addEventListener("DOMContentLoaded", async () => {
         }
 
         const key = persistedSlotKey(task);
+        const teamKey = `${String(task.date || "").slice(0, 10)}|${String(task.time || "").slice(0, 5)}`;
+        if (isTeamMode && !validTeamShiftKeys.has(teamKey)) return;
 
         if (!persistedTasksBySlotKey.has(key)) {
           persistedTasksBySlotKey.set(key, []);
@@ -1826,7 +1866,8 @@ document.addEventListener("DOMContentLoaded", async () => {
         });
       });
       persistedTasksBySlotKey.forEach((groupedTasks, key) => {
-        const existing = mergedByKey.get(key) || {};
+        const existing = mergedByKey.get(key);
+        if (isTeamMode && !existing) return;
         /*
          * Gebruik deterministisch de eerste persisted task
          * als canonical task voor deze visuele shift.
@@ -1834,8 +1875,10 @@ document.addEventListener("DOMContentLoaded", async () => {
         const canonicalTask = groupedTasks[0];
 
         mergedByKey.set(key, {
-          ...existing,
-          ...canonicalTask,
+          ...(existing || canonicalTask),
+          id: canonicalTask.id,
+          sheetId: canonicalTask.sheetId,
+          scheduleId: canonicalTask.scheduleId,
           date: String(canonicalTask.date || "").slice(0, 10),
           time: String(canonicalTask.time || "").slice(0, 5),
           /*
@@ -1929,6 +1972,12 @@ document.addEventListener("DOMContentLoaded", async () => {
         visibleCount: visibleShifts.length,
         hiddenTaskIds,
       });
+      if (isTeamMode) console.info("[availability-team-mode]", {
+        teamId,
+        resolvedTeamName,
+        ...generatedCalendarShifts.teamModeCounts,
+        renderedShifts: visibleShifts.length,
+      });
 
       renderList({
         tasks: visibleShifts,
@@ -1936,7 +1985,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         userId,
         userName: resolvedName
       });
-      setSaveDirtyState(isTeamMode ? currentStateByTask.size > 0 : false);
+      updateTeamModeSaveState(false);
       setSaveButtonsVisible(true);
       updateCalendarButtonForState(currentStateByTask);
 
@@ -1947,6 +1996,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     } finally {
       monthLoading = false;
       setMonthButtonsDisabled(false);
+      updateTeamModeSaveState(personalDirty);
     }
   }
 
@@ -1983,6 +2033,14 @@ document.addEventListener("DOMContentLoaded", async () => {
       });
     };
   });
+
+  if (isTeamMode) {
+    document.querySelectorAll("#availability-parent-details input").forEach((input) => {
+      ["input", "change", "blur"].forEach((eventName) => {
+        input.addEventListener(eventName, () => updateTeamModeSaveState(personalDirty));
+      });
+    });
+  }
 
   const calendarBtn = document.getElementById("availability-add-calendar");
   if (calendarBtn) {

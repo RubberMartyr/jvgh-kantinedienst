@@ -6,6 +6,7 @@ const {
   filterHomeEventsByTeam,
   getAvailabilityDisplayTitle,
   homeSideMatchesTeam,
+  matchBelongsToResolvedTeam,
   naturalSortTeamNames,
   normalizeTeamText,
   recognizedTeamName,
@@ -94,6 +95,15 @@ test('base and lettered teams remain distinct', () => {
   assert.equal(homeSideMatchesTeam('Herk-De-Stad U9 A / Tegenstander', 'U9'), false);
   assert.equal(homeSideMatchesTeam('Herk-De-Stad U9 B / Tegenstander', 'U9 A'), false);
   assert.equal(homeSideMatchesTeam('Herk-De-Stad U12 B / Tegenstander', 'U12 A'), false);
+});
+
+test('WordPress squad names match the age prefix and Herk FC squad only', () => {
+  const fcA = 'U8 — Herk-De-Stad FC A 2-1 / ASV Geel A 1';
+  const fcB = 'U8 — Herk-De-Stad FC B 2-1 / Tegenstander U18 FC A';
+  assert.equal(matchBelongsToResolvedTeam(fcA, 'U8 A'), true);
+  assert.equal(matchBelongsToResolvedTeam(fcA, 'U8 B'), false);
+  assert.equal(matchBelongsToResolvedTeam(fcB, 'U8 B'), true);
+  assert.equal(matchBelongsToResolvedTeam(fcA, 'U18 A'), false);
 });
 
 test('an unknown non-empty team never matches', () => {
