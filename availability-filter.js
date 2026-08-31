@@ -49,6 +49,33 @@
     }) || "";
   }
 
+  function decodeAndTrimIcsText(value) {
+    return String(value || "")
+      .replace(/\\([\\,;nN])/g, (_, escapedCharacter) => {
+        if (escapedCharacter.toLowerCase() === "n") return " ";
+        return escapedCharacter;
+      })
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  function getAvailabilityDisplayTitle(task) {
+    const sourceType = String(task?.sourceType || "").toLowerCase();
+    const summary = decodeAndTrimIcsText(task?.icsSummary || "");
+
+    if (sourceType === "match") {
+      const { leftSide } = splitMatchSummary(summary);
+      const teamName = recognizedTeamName(leftSide);
+      return teamName ? `Wedstrijd ${teamName}` : "Wedstrijd";
+    }
+
+    if (sourceType === "event") {
+      return summary || "Evenement";
+    }
+
+    return task?.sourceLabel || task?.title || "Shift";
+  }
+
   function teamLabelMatches(label, requestedTeamName) {
     const recognized = recognizedTeamName(label);
     return Boolean(recognized) &&
@@ -75,7 +102,9 @@
 
   return {
     KNOWN_TEAM_NAMES,
+    decodeAndTrimIcsText,
     filterHomeEventsByTeam,
+    getAvailabilityDisplayTitle,
     homeSideMatchesTeam,
     normalizeTeamText,
     recognizedTeamName,

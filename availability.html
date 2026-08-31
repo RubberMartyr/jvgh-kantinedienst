@@ -234,6 +234,11 @@
       gap: 8px;
       align-items: center;
       font-size: 14px;
+      min-width: 0;
+    }
+
+    .availability-shift-time {
+      flex: 0 0 auto;
     }
 
     .availability-type-match {
@@ -253,13 +258,19 @@
     }
 
     .availability-source-badge {
-      display: inline-block;
-      margin-left: 8px;
+      display: -webkit-box;
+      min-width: 0;
+      max-width: 100%;
       padding: 2px 6px;
       border-radius: 10px;
       font-size: 11px;
       font-weight: 600;
       background: rgba(255, 255, 255, 0.12);
+      overflow: hidden;
+      overflow-wrap: anywhere;
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 2;
+      line-clamp: 2;
     }
 
     .availability-expand-btn {
