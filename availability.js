@@ -1,4 +1,11 @@
 const DEFAULT_ASSIGNMENT_DURATION_MINUTES = 240;
+const {
+  filterHomeEventsByTeam,
+  splitMatchSummary,
+} = window.JVGHAvailabilityFilter;
+
+const params = new URLSearchParams(window.location.search);
+const requestedTeamName = String(params.get("team") || "").trim();
 
 function pad2(n) {
   return String(n).padStart(2, "0");
@@ -811,11 +818,10 @@ function parseICS(text, options = {}) {
     if (!summary) continue;
 
     if (homeTeamFilter) {
-      const parts = String(summary || "").split("/");
-      const homePart = String(parts[0] || "").toLowerCase();
+      const { leftSide: homePart, hasTwoSides } = splitMatchSummary(summary);
       const normalizedFilter = String(homeTeamFilter).toLowerCase();
 
-      if (!(parts.length >= 2 && homePart.includes(normalizedFilter))) {
+      if (!(hasTwoSides && homePart.toLowerCase().includes(normalizedFilter))) {
         continue;
       }
     }
@@ -946,8 +952,18 @@ async function loadShiftSlotsForMonth(monthKey) {
     fetch(DAGELIJKS_BESTUUR_ICAL_URL, { credentials: "omit" }).then((r) => (r.ok ? r.text() : "")),
   ]);
 
+  const homeMatchEvents = parseICS(matchesText, {
+    sourceType: "match",
+    sourceLabel: "Wedstrijd",
+    homeTeamFilter: "Herk-De-Stad",
+  });
+  const visibleMatchEvents = filterHomeEventsByTeam(
+    homeMatchEvents,
+    requestedTeamName
+  );
+
   const events = [
-    ...parseICS(matchesText, { sourceType: "match", sourceLabel: "Wedstrijd", homeTeamFilter: "Herk-De-Stad" }),
+    ...visibleMatchEvents,
     ...parseICS(eventsText, { sourceType: "event", sourceLabel: "Evenement" }),
     ...parseICS(verhuurText, { sourceType: "rental", sourceLabel: "Verhuur" }),
     ...parseICS(bestuurText, { sourceType: "board", sourceLabel: "Dagelijks bestuur" }),
@@ -1191,7 +1207,15 @@ function renderList({
   const visibleTasks = tasks.filter((task) => !isMonthUnavailableTask(task));
 
   if (!visibleTasks.length) {
-    setStatus("Geen shifts gevonden voor deze maand.");
+    if (requestedTeamName) {
+      const message = document.createElement("span");
+      message.textContent = `Geen thuiswedstrijden gevonden voor ${requestedTeamName}.`;
+      const statusEl = document.getElementById("availability-status");
+      statusEl.replaceChildren(message);
+      statusEl.classList.remove("availability-error");
+    } else {
+      setStatus("Geen shifts gevonden voor deze maand.");
+    }
     return;
   }
 

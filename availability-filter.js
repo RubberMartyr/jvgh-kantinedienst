@@ -1,0 +1,85 @@
+(function (root, factory) {
+  const availabilityFilter = factory();
+
+  if (typeof module === "object" && module.exports) {
+    module.exports = availabilityFilter;
+  } else {
+    root.JVGHAvailabilityFilter = availabilityFilter;
+  }
+}(typeof globalThis !== "undefined" ? globalThis : this, function () {
+  "use strict";
+
+  const KNOWN_TEAM_NAMES = Array.from(
+    { length: 16 },
+    (_, index) => index + 6
+  ).flatMap((age) => [`U${age} A`, `U${age} B`, `U${age}`]);
+
+  const SORTED_TEAM_NAMES = [...KNOWN_TEAM_NAMES].sort(
+    (left, right) => right.length - left.length
+  );
+
+  function splitMatchSummary(summary) {
+    const parts = String(summary || "").split("/");
+
+    return {
+      leftSide: String(parts[0] || "").trim(),
+      rightSide: String(parts[1] || "").trim(),
+      hasTwoSides: parts.length >= 2,
+    };
+  }
+
+  function normalizeTeamText(value) {
+    return String(value || "")
+      .normalize("NFKD")
+      .replace(/\p{M}/gu, "")
+      .replace(/[‐‑‒–—]/g, "-")
+      .replace(/\s+/g, " ")
+      .trim()
+      .toLocaleLowerCase("nl-BE");
+  }
+
+  function recognizedTeamName(label) {
+    const normalizedLabel = normalizeTeamText(label);
+
+    return SORTED_TEAM_NAMES.find((teamName) => {
+      const normalizedTeam = normalizeTeamText(teamName);
+      const escapedTeam = normalizedTeam.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      return new RegExp(`(?:^|[^a-z0-9])${escapedTeam}(?:$|[^a-z0-9])`, "u")
+        .test(normalizedLabel);
+    }) || "";
+  }
+
+  function teamLabelMatches(label, requestedTeamName) {
+    const recognized = recognizedTeamName(label);
+    return Boolean(recognized) &&
+      normalizeTeamText(recognized) === normalizeTeamText(requestedTeamName);
+  }
+
+  /*
+   * Availability's existing ICS predicate treats the left SUMMARY part as the
+   * home side. Keep the optional filter on that already accepted side too.
+   */
+  function homeSideMatchesTeam(summary, requestedTeamName) {
+    const { leftSide, hasTwoSides } = splitMatchSummary(summary);
+
+    if (!hasTwoSides) return false;
+    return teamLabelMatches(leftSide, requestedTeamName);
+  }
+
+  function filterHomeEventsByTeam(homeEvents, requestedTeamName) {
+    if (!requestedTeamName) return homeEvents;
+    return homeEvents.filter((event) =>
+      homeSideMatchesTeam(event.summary, requestedTeamName)
+    );
+  }
+
+  return {
+    KNOWN_TEAM_NAMES,
+    filterHomeEventsByTeam,
+    homeSideMatchesTeam,
+    normalizeTeamText,
+    recognizedTeamName,
+    splitMatchSummary,
+    teamLabelMatches,
+  };
+}));
