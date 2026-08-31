@@ -1703,12 +1703,15 @@ document.addEventListener("DOMContentLoaded", function () {
           // Planner month-data bevat op dit punt alle signup/assignmentvelden.
           // Filter vóór er een FullCalendar-slot voor de backendtaak ontstaat.
           const taskSignups = Array.isArray(task?.signups) ? task.signups : [];
+          const taskKey = dateStr + " " + timeStr;
+          const matchingCalendarSlot = slotByKey.get(taskKey);
           if (window.JVGHGhostShifts?.isGhostShift(task, {
             peopleLoaded: true,
             signups: taskSignups,
             assignments: task.assignments,
             volunteers: task.volunteers,
             users: task.users,
+            hasCalendarMatch: Boolean(matchingCalendarSlot && matchingCalendarSlot.manual !== true),
           })) {
             hiddenTaskIds.push(task.id);
             continue;
@@ -1726,7 +1729,6 @@ document.addEventListener("DOMContentLoaded", function () {
 
           tasksProcessed += 1;
 
-          const taskKey = dateStr + " " + timeStr;
           let slot = slotByTaskId.get(String(task.id)) || slotByKey.get(taskKey);
 
           if (!slot) {

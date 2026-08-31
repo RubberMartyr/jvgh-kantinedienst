@@ -1666,6 +1666,8 @@ document.addEventListener("DOMContentLoaded", async () => {
           .filter((id) => id !== null && id !== undefined)
           .forEach((id) => locallySelectedTaskIds.add(String(id)));
       });
+      const slotShifts = await loadShiftSlotsForMonth(currentMonthKey);
+      const currentIcsShiftKeys = new Set(slotShifts.map(persistedSlotKey));
       const visiblePersistedTasks = window.JVGHGhostShifts
         ? JVGHGhostShifts.filterGhostShifts(tasks, (task) => ({
             peopleLoaded: true,
@@ -1674,6 +1676,7 @@ document.addEventListener("DOMContentLoaded", async () => {
             volunteers: task.volunteers,
             users: task.users,
             currentUserSelected: locallySelectedTaskIds.has(String(task.id)),
+            hasCalendarMatch: currentIcsShiftKeys.has(persistedSlotKey(task)),
           }))
         : tasks;
 
@@ -1702,8 +1705,6 @@ document.addEventListener("DOMContentLoaded", async () => {
           })
         )
       );
-
-      const slotShifts = await loadShiftSlotsForMonth(currentMonthKey);
 
       const mergedByKey = new Map();
       slotShifts.forEach((shift) => {
