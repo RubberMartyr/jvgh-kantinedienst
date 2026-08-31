@@ -1,5 +1,5 @@
 // Increase this version for every release that changes a cached shell file.
-const STATIC_CACHE = 'jvgh-planning-static-v22-availability-month-cutoff';
+const STATIC_CACHE = 'jvgh-planning-static-v23-availability-launch-context';
 const CACHE_PREFIX = 'jvgh-planning-static-';
 const APP_SHELL = [
   './index.html', './availability.html', './availability.js', './styles.css', './pwa.css', './pwa.js', './main.js',
@@ -19,6 +19,7 @@ self.addEventListener('install', (event) => {
   event.waitUntil(caches.open(STATIC_CACHE).then(async (cache) => {
     await cache.addAll(APP_SHELL);
     await Promise.all(OPTIONAL_ICON_ASSETS.map((asset) => cache.add(asset).catch(() => undefined)));
+    await self.skipWaiting();
   }));
 });
 
@@ -52,6 +53,22 @@ self.addEventListener('fetch', (event) => {
     }).catch(() => caches.match(url.pathname.endsWith('/availability.html')
       ? './availability.html'
       : './index.html')));
+    return;
+  }
+
+  const shellAsset = [...APP_SHELL, ...OPTIONAL_ICON_ASSETS]
+    .find((asset) => new URL(asset, self.location.href).href === url.href);
+  if (!shellAsset) return;
+
+  // JavaScript and manifests define launch/initialization behaviour. Prefer
+  // the deployed version so an installed client cannot remain on stale logic.
+  if (url.pathname.endsWith('.js') || url.pathname.endsWith('.webmanifest')) {
+    event.respondWith(fetch(request).then((response) => {
+      if (!response.ok) throw new Error('Shell response was not successful');
+      const copy = response.clone();
+      event.waitUntil(caches.open(STATIC_CACHE).then((cache) => cache.put(request, copy)));
+      return response;
+    }).catch(() => caches.match(request)));
     return;
   }
 
