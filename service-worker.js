@@ -1,10 +1,11 @@
 // Increase this version for every release that changes a cached shell file.
-const STATIC_CACHE = 'jvgh-planning-static-v8-calendar-controls';
+const STATIC_CACHE = 'jvgh-planning-static-v9-ghost-shifts';
 const CACHE_PREFIX = 'jvgh-planning-static-';
 const APP_SHELL = [
   './index.html', './availability.html', './availability.js', './styles.css', './pwa.css', './pwa.js', './main.js',
   './jvgh-api.js', './jvgh-access-control.js', './shared/jvgh-core.js',
   './vendor/event-calendar.min.css', './vendor/event-calendar.min.js',
+  './shared/ghost-shifts.js',
   './manifest.webmanifest', './availability.webmanifest'
 ];
 const OPTIONAL_ICON_ASSETS = [
