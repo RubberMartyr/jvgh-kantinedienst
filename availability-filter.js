@@ -64,6 +64,15 @@
     const summary = decodeAndTrimIcsText(task?.icsSummary || "");
 
     if (sourceType === "match") {
+      const teamNames = Array.isArray(task?.teamNames)
+        ? naturalSortTeamNames(task.teamNames)
+        : [];
+      if (teamNames.length) {
+        if (teamNames.length === 1) return `Wedstrijd ${teamNames[0]}`;
+        const lastTeam = teamNames[teamNames.length - 1];
+        const precedingTeams = teamNames.slice(0, -1).join(", ");
+        return `Wedstrijden ${precedingTeams} & ${lastTeam}`;
+      }
       const { leftSide } = splitMatchSummary(summary);
       const teamName = recognizedTeamName(leftSide);
       return teamName ? `Wedstrijd ${teamName}` : "Wedstrijd";
@@ -74,6 +83,18 @@
     }
 
     return task?.sourceLabel || task?.title || "Shift";
+  }
+
+  function naturalSortTeamNames(teamNames) {
+    const uniqueNames = Array.from(new Set(
+      (Array.isArray(teamNames) ? teamNames : [])
+        .map((teamName) => recognizedTeamName(teamName))
+        .filter(Boolean)
+    ));
+
+    return uniqueNames.sort((left, right) =>
+      left.localeCompare(right, "nl-BE", { numeric: true, sensitivity: "base" })
+    );
   }
 
   function teamLabelMatches(label, requestedTeamName) {
@@ -106,6 +127,7 @@
     filterHomeEventsByTeam,
     getAvailabilityDisplayTitle,
     homeSideMatchesTeam,
+    naturalSortTeamNames,
     normalizeTeamText,
     recognizedTeamName,
     splitMatchSummary,

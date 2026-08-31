@@ -228,6 +228,13 @@
       cursor: pointer;
     }
 
+    .availability-checkbox-cell {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+    }
+
     .availability-item-main {
       display: flex;
       flex-wrap: wrap;
@@ -380,9 +387,43 @@
       .availability-month-unavailable { align-items: flex-start; min-height: 44px; overflow-wrap: anywhere; }
       .availability-month-unavailable input[type="checkbox"],
       .availability-item input[type="checkbox"] { width: 24px; height: 24px; flex: 0 0 24px; }
-      .availability-item { grid-template-columns: 24px minmax(0, 1fr) 44px; align-items: start; padding: 12px 10px; }
-      .availability-item-main { align-items: flex-start; }
-      .availability-expand-btn { width: 44px; height: 44px; }
+      .availability-item {
+        grid-template-columns: 44px minmax(0, 1fr) 52px;
+        column-gap: 12px;
+        row-gap: 10px;
+        align-items: center;
+        width: 100%;
+        padding: 12px 10px;
+      }
+      .availability-checkbox-cell { width: 44px; min-height: 48px; }
+      .availability-item-main {
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 6px;
+      }
+      .availability-shift-time {
+        display: block;
+        width: 100%;
+        white-space: nowrap;
+        font-size: clamp(12px, 3.6vw, 14px);
+      }
+      .availability-source-badge {
+        display: block;
+        width: 100%;
+        padding: 0;
+        border-radius: 0;
+        font-size: 14px;
+        font-weight: 700;
+        line-height: 1.25;
+        overflow: visible;
+        overflow-wrap: anywhere;
+        -webkit-line-clamp: unset;
+        line-clamp: unset;
+      }
+      .availability-expand-btn { width: 48px; height: 48px; justify-self: center; }
+      .availability-details { grid-column: 1 / -1; min-width: 0; overflow-wrap: anywhere; }
       #availability-save-toast {
         left: max(12px, env(safe-area-inset-left));
         right: max(12px, env(safe-area-inset-right));
