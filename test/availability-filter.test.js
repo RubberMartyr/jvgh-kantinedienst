@@ -2,12 +2,48 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 
 const {
+  decodeAndTrimIcsText,
   filterHomeEventsByTeam,
+  getAvailabilityDisplayTitle,
   homeSideMatchesTeam,
   normalizeTeamText,
   recognizedTeamName,
   splitMatchSummary,
 } = require('../availability-filter.js');
+
+test('availability titles identify the home team without a team query', () => {
+  assert.equal(getAvailabilityDisplayTitle({
+    sourceType: 'match',
+    icsSummary: 'U8 — Herk-De-Stad FC B 2-1 / Juve Hasselt C 1',
+  }), 'Wedstrijd U8');
+  assert.equal(getAvailabilityDisplayTitle({
+    sourceType: 'match',
+    icsSummary: 'Herk-De-Stad U9 B / Tegenstander U9 B',
+  }), 'Wedstrijd U9 B');
+  assert.equal(getAvailabilityDisplayTitle({
+    sourceType: 'match',
+    icsSummary: 'Herk-De-Stad / Onbekende ploeg',
+  }), 'Wedstrijd');
+});
+
+test('event titles use their decoded full summary and retain safe fallbacks', () => {
+  assert.equal(getAvailabilityDisplayTitle({
+    sourceType: 'event',
+    icsSummary: 'Ploegenvoorstelling en wedstrijd reserven tegen Donk',
+  }), 'Ploegenvoorstelling en wedstrijd reserven tegen Donk');
+  assert.equal(getAvailabilityDisplayTitle({ sourceType: 'event' }), 'Evenement');
+  assert.equal(getAvailabilityDisplayTitle({
+    sourceType: 'event',
+    icsSummary: '<img src=x onerror=alert(1)>',
+  }), '<img src=x onerror=alert(1)>');
+});
+
+test('ICS display text decodes escaped punctuation, newlines and backslashes', () => {
+  assert.equal(
+    decodeAndTrimIcsText('Club\\, jeugd\\; welkom\\nC:\\\\kantine'),
+    'Club, jeugd; welkom C:\\kantine'
+  );
+});
 
 test('splitMatchSummary safely exposes both match sides', () => {
   assert.deepEqual(splitMatchSummary(' Herk-De-Stad U9 B / Tegenstander U9 B '), {

@@ -1,6 +1,7 @@
 const DEFAULT_ASSIGNMENT_DURATION_MINUTES = 240;
 const {
   filterHomeEventsByTeam,
+  getAvailabilityDisplayTitle,
   splitMatchSummary,
 } = window.JVGHAvailabilityFilter;
 
@@ -1254,11 +1255,12 @@ function renderList({
     textWrap.htmlFor = checkbox.id;
 
     const label = document.createElement("span");
+    label.className = "availability-shift-time";
     label.textContent = formatShiftLabel(task);
 
     const sourceBadge = document.createElement("span");
     sourceBadge.className = "availability-source-badge";
-    sourceBadge.textContent = task.sourceLabel || "Shift";
+    sourceBadge.textContent = getAvailabilityDisplayTitle(task);
 
     textWrap.appendChild(label);
     textWrap.appendChild(sourceBadge);
@@ -1283,23 +1285,42 @@ function renderList({
           userName
         )
     );
-    const otherUsersHtml = otherUsers.length
-      ? `<ul>${otherUsers.map((su) => `<li>${signupDisplayName(su)}</li>`).join("")}</ul>`
-      : "<div>Geen andere ingeplande personen op dit moment.</div>";
-
-    let reasonHtml = "<div><strong>Reden:</strong> Handmatige/plannings-taak</div>";
+    const reason = document.createElement("div");
+    const reasonLabel = document.createElement("strong");
+    reasonLabel.textContent = "Reden:";
+    reason.append(reasonLabel, " Handmatige/plannings-taak");
     if (task.source === "ics" || task.icsSummary) {
       const matchHours = task.icsStart && task.icsEnd
         ? ` (${formatHourRange(task.icsStart, task.icsEnd)})`
         : "";
-      reasonHtml = `<div><strong>Reden:</strong> ${task.sourceReason || "Voetbalwedstrijd kalender"}${matchHours}<br>${task.icsSummary || ""}</div>`;
+      reason.replaceChildren(reasonLabel);
+      reason.append(
+        ` ${task.sourceReason || "Voetbalwedstrijd kalender"}${matchHours}`,
+        document.createElement("br"),
+        task.icsSummary || ""
+      );
     }
 
-    details.innerHTML = `
-      ${reasonHtml}
-      <div style="margin-top:6px;"><strong>Andere ingeplande vrijwilligers:</strong></div>
-      ${otherUsersHtml}
-    `;
+    details.appendChild(reason);
+    const volunteersHeading = document.createElement("div");
+    volunteersHeading.style.marginTop = "6px";
+    const volunteersLabel = document.createElement("strong");
+    volunteersLabel.textContent = "Andere ingeplande vrijwilligers:";
+    volunteersHeading.appendChild(volunteersLabel);
+    details.appendChild(volunteersHeading);
+    if (otherUsers.length) {
+      const volunteers = document.createElement("ul");
+      otherUsers.forEach((signup) => {
+        const volunteer = document.createElement("li");
+        volunteer.textContent = signupDisplayName(signup);
+        volunteers.appendChild(volunteer);
+      });
+      details.appendChild(volunteers);
+    } else {
+      const noVolunteers = document.createElement("div");
+      noVolunteers.textContent = "Geen andere ingeplande personen op dit moment.";
+      details.appendChild(noVolunteers);
+    }
 
     expandButton.addEventListener("click", () => {
       const open = details.classList.toggle("is-open");
