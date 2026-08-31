@@ -52,16 +52,23 @@ test("canonieke signupcollectie houdt een taak zichtbaar", () => {
 
 test("lokale selectie van huidige gebruiker blijft zichtbaar", () => {
   assert.equal(Ghosts.isGhostShift(ghost, { ...loaded, currentUserSelected: true }), false);
-  assert.equal(Ghosts.isGhostShift(ghost, { ...loaded, currentUserAvailability: true }), false);
 });
 
-test("kalenderdiensten en betekenisvolle activiteiten blijven zichtbaar", () => {
+test("kalenderinhoud en actuele kalenderovereenkomsten blijven zichtbaar", () => {
   assert.equal(Ghosts.isGhostShift({ ...ghost, icsSummary: "JVGH - KSK" }, loaded), false);
-  assert.equal(Ghosts.isGhostShift({ ...ghost, sourceType: "match" }, loaded), false);
-  assert.equal(Ghosts.isGhostShift({ ...ghost, sourceType: "event" }, loaded), false);
-  assert.equal(Ghosts.isGhostShift({ ...ghost, category: "verhuur" }, loaded), false);
-  assert.equal(Ghosts.isGhostShift({ ...ghost, boardActivity: true }, loaded), false);
   assert.equal(Ghosts.isGhostShift(ghost, { ...loaded, hasCalendarMatch: true }), false);
+});
+
+test("incidentele source-, type- en metadatavelden beschermen een ghost niet", () => {
+  assert.equal(Ghosts.isGhostShift({ ...ghost, source: "manual" }, loaded), true);
+  assert.equal(Ghosts.isGhostShift({ ...ghost, type: "shift" }, loaded), true);
+  assert.equal(Ghosts.isGhostShift({ ...ghost, metadata: { imported: true } }, loaded), true);
+});
+
+test("taskId-aliassen en signupCount worden ondersteund", () => {
+  const { id, ...withoutId } = ghost;
+  assert.equal(Ghosts.isGhostShift({ ...withoutId, task_id: id }, loaded), true);
+  assert.equal(Ghosts.isGhostShift(ghost, { signupCollectionLoaded: true, signupCount: 1 }), false);
 });
 
 test("maand-onbeschikbaarheid wordt niet als ghost behandeld", () => {

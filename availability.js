@@ -1659,30 +1659,11 @@ document.addEventListener("DOMContentLoaded", async () => {
         currentUserId: Number(userId),
       });
 
-      const locallySelectedTaskIds = new Set();
-      currentStateByTask.forEach((state) => {
-        if (!state.currentChecked) return;
-        [state.task?.id, ...(state.task?.relatedTaskIds || [])]
-          .filter((id) => id !== null && id !== undefined)
-          .forEach((id) => locallySelectedTaskIds.add(String(id)));
-      });
-      const slotShifts = await loadShiftSlotsForMonth(currentMonthKey);
-      const currentIcsShiftKeys = new Set(slotShifts.map(persistedSlotKey));
-      const visiblePersistedTasks = window.JVGHGhostShifts
-        ? JVGHGhostShifts.filterGhostShifts(tasks, (task) => ({
-            signupCollectionLoaded: true,
-            signups: signupsByTask.get(String(task.id)) || [],
-            assignments: task.assignments,
-            volunteers: task.volunteers,
-            users: task.users,
-            currentUserSelected: locallySelectedTaskIds.has(String(task.id)),
-            hasCalendarMatch: currentIcsShiftKeys.has(persistedSlotKey(task)),
-          }))
-        : tasks;
+      const generatedCalendarShifts = await loadShiftSlotsForMonth(currentMonthKey);
 
       const persistedTasksBySlotKey = new Map();
 
-      visiblePersistedTasks.forEach((task) => {
+      tasks.forEach((task) => {
         if (isPersistedMonthUnavailableTask(task, currentMonthKey)) {
           return;
         }
@@ -1707,7 +1688,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       );
 
       const mergedByKey = new Map();
-      slotShifts.forEach((shift) => {
+      generatedCalendarShifts.forEach((shift) => {
         mergedByKey.set(`${shift.date} ${shift.time}`, shift);
       });
       persistedTasksBySlotKey.forEach((groupedTasks, key) => {
@@ -1815,8 +1796,32 @@ document.addEventListener("DOMContentLoaded", async () => {
         getMonthUnavailableState(currentStateByTask)
       );
 
+      const currentCalendarShiftKeys = new Set(
+        generatedCalendarShifts.map((task) => shiftKey(task))
+      );
+      const hiddenTaskIds = [];
+      const visibleShifts = allShifts.filter((task) => {
+        const state = currentStateByTask.get(shiftKey(task));
+        const signups = Array.isArray(state?.signups) ? state.signups : [];
+        const hidden = window.JVGHGhostShifts?.isGhostShift(task, {
+          signupCollectionLoaded: true,
+          signups,
+          currentUserSelected:
+            state?.currentChecked === true || state?.originalChecked === true,
+          hasCalendarMatch: currentCalendarShiftKeys.has(shiftKey(task)),
+        }) === true;
+        if (hidden) hiddenTaskIds.push(task.id ?? task.taskId ?? task.task_id);
+        return !hidden;
+      });
+      console.info("[ghost-visual-filter]", {
+        page: "availability",
+        inputCount: allShifts.length,
+        visibleCount: visibleShifts.length,
+        hiddenTaskIds,
+      });
+
       renderList({
-        tasks: allShifts,
+        tasks: visibleShifts,
         stateByTask: currentStateByTask,
         userId,
         userName: resolvedName

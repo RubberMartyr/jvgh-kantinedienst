@@ -1482,6 +1482,14 @@ document.addEventListener("DOMContentLoaded", function () {
       });
     }
 
+    // Keep the calendar-generated collection separate from persisted manual
+    // slots. Both already use the canonical calendar `start` value as their
+    // slot key, so no second date/time normalization is introduced here.
+    const currentCalendarSlots = [...slots];
+    const currentCalendarSlotKeys = new Set(
+      currentCalendarSlots.map((slot) => slot.start)
+    );
+
     // Voeg handmatige slots terug toe
     slots = slots.concat(manualSlots);
     // 🔁 Re-attach sheetId to rebuilt slots
@@ -1492,10 +1500,47 @@ document.addEventListener("DOMContentLoaded", function () {
       }
     });
 
+    const assignmentTaskIds = new Set(
+      assignments
+        .map((assignment) => assignment.taskId)
+        .filter((taskId) => taskId !== null && taskId !== undefined)
+        .map(String)
+    );
+    const hiddenTaskIds = [];
+    const visibleManualSlots = manualSlots.filter((slot) => {
+      if (!slot.planningTask || slot.signupCollectionLoaded !== true) return true;
+      const taskId = slot.taskId ?? slot.task_id;
+      const relatedAssignments = assignments.filter(
+        (assignment) => String(assignment.taskId ?? "") === String(taskId ?? "")
+      );
+      const hidden = window.JVGHGhostShifts?.isGhostShift(
+        { ...slot.planningTask, ...slot, id: taskId ?? slot.id },
+        {
+          signupCollectionLoaded: true,
+          signups: relatedAssignments,
+          currentUserSelected:
+            relatedAssignments.length > 0 || assignmentTaskIds.has(String(taskId)),
+          hasCalendarMatch: currentCalendarSlotKeys.has(slot.start),
+        }
+      ) === true;
+      if (hidden) hiddenTaskIds.push(taskId ?? slot.id);
+      return !hidden;
+    });
+    const renderSlots = currentCalendarSlots.concat(visibleManualSlots);
+
+    if (planningRenderStats) {
+      console.info("[ghost-visual-filter]", {
+        page: "planner",
+        inputCount: currentCalendarSlots.length + manualSlots.length,
+        visibleCount: renderSlots.length,
+        hiddenTaskIds,
+      });
+    }
+
     // track which days still have open shifts
     //openShiftDays = new Map();
 
-    slots.forEach((slot) => {
+    renderSlots.forEach((slot) => {
       const slotAssignments = assignments.filter((a) => a.slotId === slot.id);
 
       // Deduplicate assignments per slot by title
@@ -1577,32 +1622,12 @@ document.addEventListener("DOMContentLoaded", function () {
       });
     }
 
-    // Ghost detection is deliberately the final render step. At this point the
-    // task/signup relation, assignments, slots and all iCal sources are known.
-    let hiddenGhostCount = 0;
-    const visibleEvents = events.filter((event) => {
-      if (event.extendedProps?.type !== "slot") return true;
-      const slot = slots.find((candidate) => candidate.id === event.extendedProps.slotId);
-      if (!slot?.planningTask || slot.signupCollectionLoaded !== true) return true;
-
-      const isGhost = window.JVGHGhostShifts?.isGhostShift(slot.planningTask, {
-        signupCollectionLoaded: true,
-        signups: slot.assignedSignups,
-        currentUserSelected: false,
-        hasCalendarMatch: slot.manual !== true || slots.some((candidate) =>
-          candidate !== slot && candidate.manual !== true && candidate.start === slot.start
-        ),
-      });
-      if (isGhost) hiddenGhostCount += 1;
-      return !isGhost;
-    });
-
-    ec.setOption("events", visibleEvents);
+    ec.setOption("events", events);
     if (planningRenderStats) {
       console.info("[planning-render]", {
         ...planningRenderStats,
-        visibleEventCount: visibleEvents.length,
-        hiddenGhostCount,
+        visibleEventCount: events.length,
+        hiddenGhostCount: hiddenTaskIds.length,
       });
     }
   }
