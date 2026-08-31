@@ -6,6 +6,7 @@ const {
   filterHomeEventsByTeam,
   getAvailabilityDisplayTitle,
   homeSideMatchesTeam,
+  naturalSortTeamNames,
   normalizeTeamText,
   recognizedTeamName,
   splitMatchSummary,
@@ -24,6 +25,25 @@ test('availability titles identify the home team without a team query', () => {
     sourceType: 'match',
     icsSummary: 'Herk-De-Stad / Onbekende ploeg',
   }), 'Wedstrijd');
+});
+
+test('grouped match titles list every unique team in natural order', () => {
+  assert.equal(getAvailabilityDisplayTitle({
+    sourceType: 'match',
+    teamNames: ['U8', 'U7'],
+  }), 'Wedstrijden U7 & U8');
+  assert.equal(getAvailabilityDisplayTitle({
+    sourceType: 'match',
+    teamNames: ['U10', 'U6 B', 'U7', 'U6', 'U7'],
+  }), 'Wedstrijden U6, U6 B, U7 & U10');
+  assert.equal(getAvailabilityDisplayTitle({
+    sourceType: 'match',
+    teamNames: ['U8'],
+  }), 'Wedstrijd U8');
+  assert.deepEqual(
+    naturalSortTeamNames(['U17 B', 'U9 A', 'U6', 'U10', 'U17 A']),
+    ['U6', 'U9 A', 'U10', 'U17 A', 'U17 B']
+  );
 });
 
 test('event titles use their decoded full summary and retain safe fallbacks', () => {

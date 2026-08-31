@@ -2,6 +2,7 @@ const DEFAULT_ASSIGNMENT_DURATION_MINUTES = 240;
 const {
   filterHomeEventsByTeam,
   getAvailabilityDisplayTitle,
+  recognizedTeamName,
   splitMatchSummary,
 } = window.JVGHAvailabilityFilter;
 
@@ -994,6 +995,11 @@ async function loadShiftSlotsForMonth(monthKey) {
         icsEnd: ev.end.toISOString(),
         sourceType: ev.sourceType,
         sourceLabel: ev.sourceLabel,
+        sourceEvents: [ev],
+        icsSummaries: [ev.summary || ""].filter(Boolean),
+        teamNames: ev.sourceType === "match"
+          ? [recognizedTeamName(splitMatchSummary(ev.summary).leftSide)].filter(Boolean)
+          : [],
       };
     })
     .filter((slot) => slot.date.slice(0, 7) === monthKey)
@@ -1296,9 +1302,18 @@ function renderList({
       reason.replaceChildren(reasonLabel);
       reason.append(
         ` ${task.sourceReason || "Voetbalwedstrijd kalender"}${matchHours}`,
-        document.createElement("br"),
-        task.icsSummary || ""
+        document.createElement("br")
       );
+      const summaries = Array.from(new Set(
+        (Array.isArray(task.icsSummaries) && task.icsSummaries.length
+          ? task.icsSummaries
+          : [task.icsSummary]
+        ).filter(Boolean)
+      ));
+      summaries.forEach((summary, summaryIndex) => {
+        if (summaryIndex > 0) reason.append(document.createElement("br"));
+        reason.append(summary);
+      });
     }
 
     details.appendChild(reason);
@@ -1344,7 +1359,12 @@ function renderList({
       updateDirtyUi(stateByTask);
     });
 
-    li.appendChild(checkbox);
+    const checkboxCell = document.createElement("label");
+    checkboxCell.className = "availability-checkbox-cell";
+    checkboxCell.htmlFor = checkbox.id;
+    checkboxCell.appendChild(checkbox);
+
+    li.appendChild(checkboxCell);
     li.appendChild(textWrap);
     li.appendChild(expandButton);
     li.appendChild(details);
@@ -1689,7 +1709,25 @@ document.addEventListener("DOMContentLoaded", async () => {
 
       const mergedByKey = new Map();
       generatedCalendarShifts.forEach((shift) => {
-        mergedByKey.set(`${shift.date} ${shift.time}`, shift);
+        const key = `${shift.date} ${shift.time}`;
+        const existing = mergedByKey.get(key);
+        if (!existing) {
+          mergedByKey.set(key, shift);
+          return;
+        }
+
+        mergedByKey.set(key, {
+          ...existing,
+          sourceEvents: [...(existing.sourceEvents || []), ...(shift.sourceEvents || [])],
+          icsSummaries: Array.from(new Set([
+            ...(existing.icsSummaries || []),
+            ...(shift.icsSummaries || []),
+          ].filter(Boolean))),
+          teamNames: Array.from(new Set([
+            ...(existing.teamNames || []),
+            ...(shift.teamNames || []),
+          ].filter(Boolean))),
+        });
       });
       persistedTasksBySlotKey.forEach((groupedTasks, key) => {
         const existing = mergedByKey.get(key) || {};
