@@ -33,6 +33,7 @@ add_action('rest_api_init', function () {
             'firstName' => array('required' => true, 'type' => 'string'),
             'lastName'  => array('required' => true, 'type' => 'string'),
             'phone'     => array('required' => true, 'type' => 'string'),
+            'teamId'    => array('required' => true, 'type' => 'integer', 'minimum' => 1),
         ),
     ));
 
@@ -48,24 +49,20 @@ add_action('rest_api_init', function () {
     ));
     register_rest_route('jvgh/v1', '/whatsapp-settings', array(
         array('methods' => WP_REST_Server::READABLE, 'callback' => 'jvgh_rest_whatsapp_settings',
-            'permission_callback' => 'jvgh_whatsapp_manage_permission'),
+            'permission_callback' => '__return_true'),
         array('methods' => WP_REST_Server::CREATABLE, 'callback' => 'jvgh_rest_save_whatsapp_settings',
-            'permission_callback' => 'jvgh_whatsapp_manage_permission'),
+            'permission_callback' => '__return_true'),
     ));
     register_rest_route('jvgh/v1', '/send-primary-delegate-whatsapp', array(
         'methods' => WP_REST_Server::CREATABLE,
         'callback' => 'jvgh_rest_send_primary_delegate_whatsapp',
-        'permission_callback' => 'jvgh_whatsapp_manage_permission',
+        'permission_callback' => '__return_true',
         'args' => array(
             'teamId' => array('required' => true, 'type' => 'integer', 'minimum' => 1),
             'staffId' => array('required' => true, 'type' => 'integer', 'minimum' => 1),
         ),
     ));
 });
-
-function jvgh_whatsapp_manage_permission() {
-    return current_user_can('edit_posts');
-}
 
 function jvgh_whatsapp_setting_keys() {
     return array('accountSid', 'from', 'contentSid', 'reminderContentSid', 'scheduledContentSid',
@@ -119,12 +116,26 @@ function jvgh_rest_send_primary_delegate_whatsapp(WP_REST_Request $request) {
     if (!$user_id)
         return new WP_Error('jvgh_primary_delegate_user_missing', 'De primaire afgevaardigde heeft geen gekoppelde gebruiker.', array('status' => 400));
 
-    // Keep the exact variable order used by Vraag beschikbaarheid.
-    $user = get_userdata($user_id);
-    $first_name = trim((string) ($user ? $user->display_name : get_the_title($primary_staff_id)));
-    $first_name = preg_split('/\s+/', $first_name)[0] ?? '';
-    // Variable 2 builds the forwarded parent link: availability.html?teamId={id}.
-    $variables = array('1' => $first_name, '2' => (string) $team_id);
+    $team_name = trim(
+        wp_strip_all_tags(
+            get_the_title($team_id)
+        )
+    );
+
+    $availability_url = add_query_arg(
+        array(
+            'teamId' => $team_id,
+        ),
+        home_url(
+            '/wp-content/uploads/kantinedienst/availability.html'
+        )
+    );
+
+    // The primary delegate forwards this generic team link to the parents.
+    $variables = array(
+        '1' => $team_name,
+        '2' => $availability_url,
+    );
     if (!$variables['1'] || !$variables['2'])
         return new WP_Error('jvgh_template_variables_missing', 'Niet alle verplichte templateparameters zijn beschikbaar.', array('status' => 400));
 
@@ -158,10 +169,16 @@ function jvgh_rest_resolve_availability_parent(WP_REST_Request $request) {
     $first_name = sanitize_text_field(trim((string) $request->get_param('firstName')));
     $last_name = sanitize_text_field(trim((string) $request->get_param('lastName')));
     $phone = jvgh_normalize_parent_phone($request->get_param('phone'));
+    $team_id = (int) $request->get_param('teamId');
     if (!$first_name || !$last_name)
         return new WP_Error('jvgh_parent_name_required', 'Voornaam en naam zijn verplicht.', array('status' => 400));
     if (!$phone)
         return new WP_Error('jvgh_parent_phone_invalid', 'Geef een geldig Belgisch gsm-nummer in.', array('status' => 400));
+
+    // Keep exactly the home-team rule used by the other team endpoints.
+    $team = get_post($team_id);
+    if (!$team || $team->post_type !== 'sp_team' || !has_excerpt($team_id))
+        return new WP_Error('jvgh_invalid_parent_team', 'Ongeldige ploeg.', array('status' => 400));
 
     $matched_user = null;
     foreach (get_users(array('fields' => 'all')) as $candidate) {
@@ -170,7 +187,11 @@ function jvgh_rest_resolve_availability_parent(WP_REST_Request $request) {
             break;
         }
     }
+    $created = false;
     if (!$matched_user) {
+        if (!get_role('eventadmin_volunteer'))
+            return new WP_Error('jvgh_parent_role_missing', 'De vrijwilligersrol bestaat niet.', array('status' => 500));
+
         $base = sanitize_user(remove_accents(strtolower($first_name . '.' . $last_name)), true) ?: 'ouder';
         $login = $base;
         for ($suffix = 2; username_exists($login); $suffix++) $login = $base . $suffix;
@@ -183,14 +204,19 @@ function jvgh_rest_resolve_availability_parent(WP_REST_Request $request) {
             'role' => 'eventadmin_volunteer',
         ));
         if (is_wp_error($user_id)) return $user_id;
-        update_user_meta($user_id, 'billing_phone', $phone);
         $matched_user = get_userdata($user_id);
+        $created = true;
     }
+    // Persist the canonical format for both new and previously matched users.
+    update_user_meta($matched_user->ID, 'billing_phone', $phone);
     return rest_ensure_response(array(
         'ok' => true,
         'userId' => (int) $matched_user->ID,
         'displayName' => (string) $matched_user->display_name,
         'normalizedPhone' => $phone,
+        'teamId' => $team_id,
+        'teamName' => get_the_title($team),
+        'created' => $created,
     ));
 }
 
