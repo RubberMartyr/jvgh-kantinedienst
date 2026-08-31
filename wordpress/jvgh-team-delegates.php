@@ -25,6 +25,17 @@ add_action('rest_api_init', function () {
         'permission_callback' => '__return_true',
     ));
 
+    register_rest_route('jvgh/v1', '/availability-parent', array(
+        'methods'             => WP_REST_Server::CREATABLE,
+        'callback'            => 'jvgh_rest_resolve_availability_parent',
+        'permission_callback' => '__return_true',
+        'args'                => array(
+            'firstName' => array('required' => true, 'type' => 'string'),
+            'lastName'  => array('required' => true, 'type' => 'string'),
+            'phone'     => array('required' => true, 'type' => 'string'),
+        ),
+    ));
+
     register_rest_route('jvgh/v1', '/team-primary-delegate', array(
         'methods'             => WP_REST_Server::CREATABLE,
         'callback'            => 'jvgh_rest_update_team_primary_delegate',
@@ -112,7 +123,8 @@ function jvgh_rest_send_primary_delegate_whatsapp(WP_REST_Request $request) {
     $user = get_userdata($user_id);
     $first_name = trim((string) ($user ? $user->display_name : get_the_title($primary_staff_id)));
     $first_name = preg_split('/\s+/', $first_name)[0] ?? '';
-    $variables = array('1' => $first_name, '2' => (string) $user_id);
+    // Variable 2 builds the forwarded parent link: availability.html?teamId={id}.
+    $variables = array('1' => $first_name, '2' => (string) $team_id);
     if (!$variables['1'] || !$variables['2'])
         return new WP_Error('jvgh_template_variables_missing', 'Niet alle verplichte templateparameters zijn beschikbaar.', array('status' => 400));
 
@@ -131,6 +143,55 @@ function jvgh_rest_send_primary_delegate_whatsapp(WP_REST_Request $request) {
 /** Return the shared phone field used by all JVGH people endpoints. */
 function jvgh_get_user_phone($user_id) {
     return (string) get_user_meta($user_id, 'billing_phone', true);
+}
+
+function jvgh_normalize_parent_phone($phone) {
+    $digits = preg_replace('/[^0-9+]/', '', trim((string) $phone));
+    if (strpos($digits, '00') === 0) $digits = '+' . substr($digits, 2);
+    elseif (strpos($digits, '0') === 0) $digits = '+32' . substr($digits, 1);
+    if (!preg_match('/^\+324[0-9]{8}$/', $digits)) return '';
+    return $digits;
+}
+
+/** Resolve by normalized phone first; only create a volunteer when no match exists. */
+function jvgh_rest_resolve_availability_parent(WP_REST_Request $request) {
+    $first_name = sanitize_text_field(trim((string) $request->get_param('firstName')));
+    $last_name = sanitize_text_field(trim((string) $request->get_param('lastName')));
+    $phone = jvgh_normalize_parent_phone($request->get_param('phone'));
+    if (!$first_name || !$last_name)
+        return new WP_Error('jvgh_parent_name_required', 'Voornaam en naam zijn verplicht.', array('status' => 400));
+    if (!$phone)
+        return new WP_Error('jvgh_parent_phone_invalid', 'Geef een geldig Belgisch gsm-nummer in.', array('status' => 400));
+
+    $matched_user = null;
+    foreach (get_users(array('fields' => 'all')) as $candidate) {
+        if (jvgh_normalize_parent_phone(jvgh_get_user_phone($candidate->ID)) === $phone) {
+            $matched_user = $candidate;
+            break;
+        }
+    }
+    if (!$matched_user) {
+        $base = sanitize_user(remove_accents(strtolower($first_name . '.' . $last_name)), true) ?: 'ouder';
+        $login = $base;
+        for ($suffix = 2; username_exists($login); $suffix++) $login = $base . $suffix;
+        $user_id = wp_insert_user(array(
+            'user_login' => $login,
+            'user_pass' => wp_generate_password(32, true, true),
+            'display_name' => $first_name . ' ' . $last_name,
+            'first_name' => $first_name,
+            'last_name' => $last_name,
+            'role' => 'eventadmin_volunteer',
+        ));
+        if (is_wp_error($user_id)) return $user_id;
+        update_user_meta($user_id, 'billing_phone', $phone);
+        $matched_user = get_userdata($user_id);
+    }
+    return rest_ensure_response(array(
+        'ok' => true,
+        'userId' => (int) $matched_user->ID,
+        'displayName' => (string) $matched_user->display_name,
+        'normalizedPhone' => $phone,
+    ));
 }
 
 function jvgh_rest_volunteers(WP_REST_Request $request) {

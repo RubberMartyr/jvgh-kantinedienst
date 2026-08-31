@@ -6,8 +6,7 @@ const {
   splitMatchSummary,
 } = window.JVGHAvailabilityFilter;
 
-const params = new URLSearchParams(window.location.search);
-const requestedTeamName = String(params.get("team") || "").trim();
+let requestedTeamName = "";
 
 function pad2(n) {
   return String(n).padStart(2, "0");
@@ -259,6 +258,9 @@ function getDefaultAvailabilityMonthKey(now = new Date()) {
 function getQueryParams() {
   const params = new URLSearchParams(window.location.search);
   const userRaw = params.get("userId") || params.get("user") || params.get("uid") || "";
+  const teamIdRaw = (params.get("teamId") || "").trim();
+  const teamNameRaw = (params.get("team") || "").trim();
+  const teamId = teamIdRaw && Number.isFinite(Number(teamIdRaw)) ? Number(teamIdRaw) : null;
   const defaultMonth = getDefaultAvailabilityMonthKey();
   const monthRaw = params.get("month") || defaultMonth;
 
@@ -268,7 +270,50 @@ function getQueryParams() {
     monthRaw,
     monthKey: parseMonthInput(monthRaw),
     userName: (params.get("name") || "").trim(),
+    teamId,
+    teamNameRaw,
+    isTeamMode: Boolean(teamId || teamNameRaw),
+    invalidTeamId: Boolean(teamIdRaw && (!Number.isInteger(teamId) || teamId <= 0)),
   };
+}
+
+async function resolveTeamName(teamId, fallbackName) {
+  const requestedName = String(fallbackName || "").trim();
+  const response = await fetch("/wp-json/jvgh/v1/team-delegates", { credentials: "same-origin", cache: "no-store" });
+  if (!response.ok) throw new Error("Ploegen konden niet worden geladen.");
+  const payload = await response.json();
+  const teams = Array.isArray(payload?.teams) ? payload.teams : [];
+  const team = teamId
+    ? teams.find((item) => Number(item.teamId) === teamId)
+    : teams.find((item) => String(item.teamName || "").trim().toLocaleLowerCase("nl-BE") === requestedName.toLocaleLowerCase("nl-BE"));
+  return String(team?.teamName || "").trim() || null;
+}
+
+function validateParentDetails() {
+  const values = {
+    firstName: document.getElementById("availability-first-name").value.trim(),
+    lastName: document.getElementById("availability-last-name").value.trim(),
+    phone: document.getElementById("availability-phone").value.trim(),
+  };
+  const normalizedPhone = window.JVGHCore?.normalizePhoneNumber(values.phone) || "";
+  const errors = {
+    firstName: values.firstName ? "" : "Vul uw voornaam in.",
+    lastName: values.lastName ? "" : "Vul uw naam in.",
+    phone: normalizedPhone && /^\+324\d{8}$/.test(normalizedPhone) ? "" : "Geef een geldig Belgisch gsm-nummer in.",
+  };
+  let firstInvalid = null;
+  Object.entries(errors).forEach(([name, message]) => {
+    const input = document.querySelector(`[name="${name}"]`);
+    document.querySelector(`[data-error-for="${name}"]`).textContent = message;
+    input.setAttribute("aria-invalid", message ? "true" : "false");
+    if (message && !firstInvalid) firstInvalid = input;
+  });
+  if (firstInvalid) {
+    firstInvalid.focus({ preventScroll: true });
+    firstInvalid.scrollIntoView({ behavior: "smooth", block: "center" });
+    return null;
+  }
+  return { ...values, phone: normalizedPhone };
 }
 
 function setStatus(msg, isError = false) {
@@ -1379,8 +1424,36 @@ async function saveChanges({
   stateByTask,
   userId,
   userName,
-  scheduleByDay
+  scheduleByDay,
+  isTeamMode = false,
+  teamIsValid = true
 }) {
+  if (isTeamMode) {
+    setStatus("");
+    if (!teamIsValid) { setStatus("Ploeg niet gevonden.", true); return; }
+    const parent = validateParentDetails();
+    if (!parent) { setStatus("Controleer de verplichte contactgegevens.", true); return; }
+    if (!Array.from(stateByTask.values()).some((state) => state.currentChecked)) {
+      setStatus("Selecteer minstens één shift.", true);
+      return;
+    }
+    try {
+      const person = await JVGHApi.resolveOrCreateAvailabilityUser(parent);
+      userId = Number(person?.userId);
+      userName = String(person?.displayName || `${parent.firstName} ${parent.lastName}`).trim();
+      if (!Number.isInteger(userId) || userId <= 0) throw new Error("Geen geldige gebruiker ontvangen.");
+      stateByTask.forEach((state) => {
+        const match = state.signups.find((signup) => getSignupUserId(signup) === userId) || null;
+        state.userSignup = match;
+        state.userSignupTaskId = match?.__taskId ?? state.task.id ?? null;
+        state.originalChecked = Boolean(match);
+      });
+    } catch (error) {
+      setStatus("De ouder kon niet worden gevonden of aangemaakt. Probeer opnieuw.", true);
+      showAvailabilityToast("❌ Contactgegevens konden niet worden verwerkt", true);
+      return;
+    }
+  }
   if (!navigator.onLine) {
     setStatus("Geen internetverbinding. Uw wijzigingen zijn nog niet opgeslagen.", true);
     showAvailabilityToast("Geen internetverbinding. Probeer later opnieuw.", true);
@@ -1577,12 +1650,32 @@ document.addEventListener("DOMContentLoaded", async () => {
   ensureAvailabilityToast();
 
   const metaEl = document.getElementById("availability-meta");
-  const { userRaw, userId, monthRaw, monthKey, userName: providedName } = getQueryParams();
+  const { userRaw, userId, monthRaw, monthKey, userName: providedName, teamId, teamNameRaw, isTeamMode, invalidTeamId } = getQueryParams();
+  let resolvedTeamName = null;
 
-  if (!userRaw || userId === null) {
+  if (invalidTeamId) {
+    setStatus("Ongeldige ploeg-ID.", true);
+    document.querySelector(".availability-month-unavailable")?.setAttribute("hidden", "");
+    return;
+  }
+
+  if (!isTeamMode && (!userRaw || userId === null)) {
     setStatus("Open de persoonlijke link die u via WhatsApp of e-mail ontvangen heeft om uw beschikbaarheid door te geven.");
     document.querySelector(".availability-month-unavailable")?.setAttribute("hidden", "");
     return;
+  }
+
+  if (isTeamMode) {
+    document.querySelector(".availability-month-unavailable")?.setAttribute("hidden", "");
+    document.getElementById("availability-parent-details").hidden = false;
+    try { resolvedTeamName = await resolveTeamName(teamId, teamNameRaw); }
+    catch (error) { setStatus("Ploeg kon niet worden opgehaald.", true); return; }
+    if (!resolvedTeamName) {
+      setStatus("Ploeg niet gevonden.", true);
+      document.getElementById("availability-list").replaceChildren();
+      return;
+    }
+    requestedTeamName = resolvedTeamName;
   }
 
   if (!monthRaw || !monthKey) {
@@ -1596,7 +1689,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   let currentMonthDate = monthDateFromKey(monthKey);
   let currentStateByTask = new Map();
   let currentScheduleByDay = new Map();
-  let resolvedName = providedName || null;
+  let resolvedName = isTeamMode ? null : (providedName || null);
   let monthLoading = false;
   setSaveButtonsVisible(false);
   setCalendarButtonVisible(false);
@@ -1616,13 +1709,16 @@ document.addEventListener("DOMContentLoaded", async () => {
     const nextLabel = nextMonthDate.toLocaleDateString("nl-BE", { month: "long", year: "numeric" });
 
     metaEl.innerHTML = `
-      <div><strong>Hallo, ${resolvedName || "Gebruiker"} (${userId})</strong></div>
+      <div><strong id="availability-page-heading"></strong></div>
       <div class="availability-month">${monthLabelFromKey(currentMonthKey)}</div>
       <div class="availability-month-nav">
         <button type="button" id="availability-prev-month" class="availability-month-btn">${prevLabel}</button>
         <button type="button" id="availability-next-month" class="availability-month-btn">${nextLabel}</button>
       </div>
     `;
+    document.getElementById("availability-page-heading").textContent = isTeamMode
+      ? `Beschikbaarheid kantinedienst – ${resolvedTeamName}`
+      : `Hallo, ${resolvedName || "Gebruiker"} (${userId})`;
 
     document.getElementById("availability-prev-month").onclick = () => {
       currentMonthDate = addMonths(currentMonthDate, -1);
@@ -1758,7 +1854,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         isPersistedMonthUnavailableTask(task, currentMonthKey)
       );
       console.log("[availability] existingMonthUnavailable", existingMonthUnavailable);
-      if (existingMonthUnavailable) {
+      if (!isTeamMode && existingMonthUnavailable) {
         mergedByKey.set("month-unavailable", {
           ...monthUnavailable,
           ...existingMonthUnavailable,
@@ -1766,7 +1862,7 @@ document.addEventListener("DOMContentLoaded", async () => {
           sourceReason: "Maand niet beschikbaar",
           isMonthUnavailableDummy: true,
         });
-      } else {
+      } else if (!isTeamMode) {
         mergedByKey.set("month-unavailable", monthUnavailable);
       }
 
@@ -1778,7 +1874,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       console.log("[availability] allShifts", allShifts.length, allShifts);
       console.log("[availability] visible shifts", allShifts.filter((task) => !isMonthUnavailableTask(task)).length);
 
-      if (!resolvedName) {
+      if (!isTeamMode && !resolvedName) {
         resolvedName = await resolveUserName({ providedName, userId, signupsByTask });
         renderMetaHeader();
       }
@@ -1790,36 +1886,12 @@ document.addEventListener("DOMContentLoaded", async () => {
           signups.find((signup) =>
             isSignupForCurrentUser(
               signup,
-              userId,
+              isTeamMode ? null : userId,
               resolvedName
             )
           ) || null;
         const isMonthUnavailable = isMonthUnavailableTask(task);
         const checked = Boolean(userSignup);
-        console.log(
-          "[availability] checkbox identity check",
-          {
-            visibleTaskId: task.id,
-            relatedTaskIds: task.relatedTaskIds || [],
-            currentUserId: Number(userId),
-            currentUserName: resolvedName,
-            signups: signups.map((signup) => ({
-              signupId: signup.id,
-              sourceTaskId: signup.__taskId,
-              normalizedUserId:
-                getSignupUserId(signup),
-              name:
-                signupName(signup),
-              matches:
-                isSignupForCurrentUser(
-                  signup,
-                  userId,
-                  resolvedName
-                )
-            })),
-            checked: Boolean(userSignup)
-          }
-        );
         currentStateByTask.set(shiftKey(task), {
           task,
           signups: [...signups],
@@ -1864,7 +1936,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         userId,
         userName: resolvedName
       });
-      setSaveDirtyState(false);
+      setSaveDirtyState(isTeamMode ? currentStateByTask.size > 0 : false);
       setSaveButtonsVisible(true);
       updateCalendarButtonForState(currentStateByTask);
 
@@ -1903,9 +1975,11 @@ document.addEventListener("DOMContentLoaded", async () => {
     saveButton.onclick = () => {
       saveChanges({
         stateByTask: currentStateByTask,
-        userId,
+        userId: isTeamMode ? null : userId,
         userName: resolvedName || "Gebruiker",
-        scheduleByDay: currentScheduleByDay
+        scheduleByDay: currentScheduleByDay,
+        isTeamMode,
+        teamIsValid: Boolean(resolvedTeamName)
       });
     };
   });

@@ -23,6 +23,16 @@ test('delegate phone and availability variables reuse shared core behavior', () 
   assert.deepEqual(Core.buildAvailabilityContentVariables({ name: 'Jan Peeters' }, 22), { '1': 'Jan', '2': '22' });
 });
 
+test('Belgian parent mobile formats normalize to one stable identity', () => {
+  const formats = [
+    '0476 12 34 56',
+    '0476/12.34.56',
+    '+32 476 12 34 56',
+    '0032 476 12 34 56',
+  ];
+  assert.deepEqual(formats.map(Core.normalizePhoneNumber), Array(4).fill('+32476123456'));
+});
+
 test('parent availability preserves independent primary selections per team', () => {
   const teams = Core.normalizeParentAvailabilityTeams({ teams: [
     { teamId: 1, primaryDelegateStaffId: 12, delegates: [
