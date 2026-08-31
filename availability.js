@@ -1382,15 +1382,6 @@ async function saveChanges({
 
       await JVGHApi.deleteSignup(signupTaskId, signup.id);
 
-      if (window.JVGHGhostShifts && !isMonthUnavailableTask(state.task)) {
-        const cleanup = await JVGHGhostShifts.cleanupAfterSignupDeletion({
-          api: JVGHApi,
-          task: { ...state.task, id: signupTaskId },
-          currentSources: state.task.source ? [state.task] : [],
-        });
-        if (cleanup.deleted) state.task.__ghostDeleted = true;
-      }
-
       state.signups = state.signups.filter(
         (su) =>
           !(
@@ -1634,9 +1625,40 @@ document.addEventListener("DOMContentLoaded", async () => {
         }
       );
 
+      // Signups worden eerst autoritatief geladen. Pas daarna mag een
+      // persisted taak visueel als ghost beoordeeld worden.
+      setStatus("Inschrijvingen laden…");
+      const signupsByTask = await loadAuthoritativeSignupsByTask(
+        tasks.filter((task) => task?.id !== null && task?.id !== undefined),
+        embeddedSignupsByTask
+      );
+      console.log("[availability] authoritative signups loaded", {
+        tasks: tasks.filter((task) => task?.id !== null && task?.id !== undefined).length,
+        signups: Array.from(signupsByTask.values()).reduce((total, signups) => total + signups.length, 0),
+        currentUserId: Number(userId),
+      });
+
+      const locallySelectedTaskIds = new Set();
+      currentStateByTask.forEach((state) => {
+        if (!state.currentChecked) return;
+        [state.task?.id, ...(state.task?.relatedTaskIds || [])]
+          .filter((id) => id !== null && id !== undefined)
+          .forEach((id) => locallySelectedTaskIds.add(String(id)));
+      });
+      const visiblePersistedTasks = window.JVGHGhostShifts
+        ? JVGHGhostShifts.filterGhostShifts(tasks, (task) => ({
+            peopleLoaded: true,
+            signups: signupsByTask.get(String(task.id)) || [],
+            assignments: task.assignments,
+            volunteers: task.volunteers,
+            users: task.users,
+            currentUserSelected: locallySelectedTaskIds.has(String(task.id)),
+          }))
+        : tasks;
+
       const persistedTasksBySlotKey = new Map();
 
-      tasks.forEach((task) => {
+      visiblePersistedTasks.forEach((task) => {
         if (isPersistedMonthUnavailableTask(task, currentMonthKey)) {
           return;
         }
@@ -1714,33 +1736,6 @@ document.addEventListener("DOMContentLoaded", async () => {
       });
       console.log("[availability] allShifts", allShifts.length, allShifts);
       console.log("[availability] visible shifts", allShifts.filter((task) => !isMonthUnavailableTask(task)).length);
-
-      setStatus("Inschrijvingen laden…");
-
-      const signupsByTask =
-        await loadAuthoritativeSignupsByTask(
-          tasks.filter(
-            (task) => task?.id !== null && task?.id !== undefined
-          ),
-          embeddedSignupsByTask
-        );
-
-      console.log(
-        "[availability] authoritative signups loaded",
-        {
-          tasks: tasks.filter(
-            (task) => task?.id !== null && task?.id !== undefined
-          ).length,
-          signups: Array.from(
-            signupsByTask.values()
-          ).reduce(
-            (total, signups) =>
-              total + signups.length,
-            0
-          ),
-          currentUserId: Number(userId)
-        }
-      );
 
       if (!resolvedName) {
         resolvedName = await resolveUserName({ providedName, userId, signupsByTask });

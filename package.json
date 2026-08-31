@@ -1,8 +1,7 @@
 {
   "scripts": {
     "start": "node server.js",
-    "test": "node --test",
-    "ghost-shifts:cleanup": "node scripts/ghost-shift-cleanup.js"
+    "test": "node --test"
   },
   "dependencies": {
     "servor": "^4.0.2",
