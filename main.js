@@ -1403,7 +1403,7 @@ document.addEventListener("DOMContentLoaded", function () {
   // Dubbelklik op een vrijwilliger → inschrijving verwijderen
   let lastEventClick = { id: null, time: 0 };
 
-  ec.setOption("eventClick", function (info) {
+  ec.setOption("eventClick", async function (info) {
     const event = info.event;
     const ext = event.extendedProps || {};
 
@@ -1426,17 +1426,35 @@ document.addEventListener("DOMContentLoaded", function () {
         return;
       }
 
-      // Optimistisch uit de UI verwijderen
-      assignments = assignments.filter((a) => a.id !== assignment.id);
-      renderAll();
-
-      // En op de achtergrond ook in de Sign-up Sheets API verwijderen
+      // Verwijder eerst in de gedeelde backend en controleer daarna opnieuw de
+      // actuele signups. Zo kan uitsluitend een werkelijk lege ghost verdwijnen.
       if (assignment.taskId && assignment.signupId) {
-        JVGHApi.deleteSignup(assignment.taskId, assignment.signupId).catch(
-          (err) => {
-            console.error("Fout bij verwijderen van inschrijving:", err);
+        try {
+          await JVGHApi.deleteSignup(assignment.taskId, assignment.signupId);
+          assignments = assignments.filter((a) => a.id !== assignment.id);
+
+          const task = Array.from(taskBySheetDateTime.values()).find(
+            (candidate) => String(candidate.id) === String(assignment.taskId)
+          );
+          if (task && window.JVGHGhostShifts) {
+            const result = await JVGHGhostShifts.cleanupAfterSignupDeletion({
+              api: JVGHApi,
+              task: { ...task, sheetId: assignment.sheetId ?? task.sheetId },
+              currentSources: getAllExternalEvents(),
+            });
+            if (result.deleted) {
+              slots = slots.filter((slot) => String(slot.taskId) !== String(task.id));
+              taskBySheetDateTime.forEach((value, key) => {
+                if (String(value.id) === String(task.id)) taskBySheetDateTime.delete(key);
+              });
+              plannerMonthDataCache.clear();
+            }
           }
-        );
+          renderAll();
+        } catch (err) {
+          console.error("Fout bij verwijderen van inschrijving:", err);
+          window.alert("De inschrijving kon niet worden verwijderd. Probeer opnieuw.");
+        }
       }
     } else {
       // Eerste klik: enkel onthouden
@@ -1797,6 +1815,7 @@ document.addEventListener("DOMContentLoaded", function () {
               slotId: slot.id,
               title: name,
               taskId: task.id,
+              sheetId,
               signupId: su.id,
               userId,
               role,
@@ -2079,6 +2098,7 @@ document.addEventListener("DOMContentLoaded", function () {
           });
 
           assignment.taskId = taskId;
+          assignment.sheetId = sheetId;
           assignment.signupId = signupObj.id;
           assignment.pending = false;
           renderAll();

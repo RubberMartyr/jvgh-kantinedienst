@@ -1382,6 +1382,15 @@ async function saveChanges({
 
       await JVGHApi.deleteSignup(signupTaskId, signup.id);
 
+      if (window.JVGHGhostShifts && !isMonthUnavailableTask(state.task)) {
+        const cleanup = await JVGHGhostShifts.cleanupAfterSignupDeletion({
+          api: JVGHApi,
+          task: { ...state.task, id: signupTaskId },
+          currentSources: state.task.source ? [state.task] : [],
+        });
+        if (cleanup.deleted) state.task.__ghostDeleted = true;
+      }
+
       state.signups = state.signups.filter(
         (su) =>
           !(
