@@ -1426,30 +1426,14 @@ document.addEventListener("DOMContentLoaded", function () {
         return;
       }
 
-      // Verwijder eerst in de gedeelde backend en controleer daarna opnieuw de
-      // actuele signups. Zo kan uitsluitend een werkelijk lege ghost verdwijnen.
+      // Bestaande functie voor het verwijderen van deze persoonsinschrijving.
+      // De bijbehorende task wordt bewust nooit door de ghostfilter verwijderd.
       if (assignment.taskId && assignment.signupId) {
         try {
           await JVGHApi.deleteSignup(assignment.taskId, assignment.signupId);
           assignments = assignments.filter((a) => a.id !== assignment.id);
 
-          const task = Array.from(taskBySheetDateTime.values()).find(
-            (candidate) => String(candidate.id) === String(assignment.taskId)
-          );
-          if (task && window.JVGHGhostShifts) {
-            const result = await JVGHGhostShifts.cleanupAfterSignupDeletion({
-              api: JVGHApi,
-              task: { ...task, sheetId: assignment.sheetId ?? task.sheetId },
-              currentSources: getAllExternalEvents(),
-            });
-            if (result.deleted) {
-              slots = slots.filter((slot) => String(slot.taskId) !== String(task.id));
-              taskBySheetDateTime.forEach((value, key) => {
-                if (String(value.id) === String(task.id)) taskBySheetDateTime.delete(key);
-              });
-              plannerMonthDataCache.clear();
-            }
-          }
+          // Alleen de signup wordt verwijderd; ghosttaken blijven in de backend.
           renderAll();
         } catch (err) {
           console.error("Fout bij verwijderen van inschrijving:", err);
@@ -1700,6 +1684,7 @@ document.addEventListener("DOMContentLoaded", function () {
       });
 
       const newAssignments = [];
+      const hiddenTaskIds = [];
 
       for (const schedule of schedules) {
         const sheetId = schedule?.id;
@@ -1714,6 +1699,20 @@ document.addEventListener("DOMContentLoaded", function () {
           const timeStr = String(task?.time || "").slice(0, 5);
           if (!dateStr || !timeStr) continue;
           if (!dateStr.startsWith(monthKey)) continue;
+
+          // Planner month-data bevat op dit punt alle signup/assignmentvelden.
+          // Filter vóór er een FullCalendar-slot voor de backendtaak ontstaat.
+          const taskSignups = Array.isArray(task?.signups) ? task.signups : [];
+          if (window.JVGHGhostShifts?.isGhostShift(task, {
+            peopleLoaded: true,
+            signups: taskSignups,
+            assignments: task.assignments,
+            volunteers: task.volunteers,
+            users: task.users,
+          })) {
+            hiddenTaskIds.push(task.id);
+            continue;
+          }
 
           const lookupKey = taskLookupKey(
             sheetId,
@@ -1830,6 +1829,10 @@ document.addEventListener("DOMContentLoaded", function () {
       }
 
       assignments = assignments.concat(newAssignments);
+      console.info("[ghost-shift-filter]", {
+        hiddenCount: hiddenTaskIds.length,
+        hiddenTaskIds,
+      });
       retagBestuurAssignments();
       renderAll();
 
