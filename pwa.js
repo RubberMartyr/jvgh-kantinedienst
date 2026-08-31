@@ -12,7 +12,6 @@
   ].map((id) => document.getElementById(id)).filter(Boolean);
   let deferredInstallPrompt = null;
   let registration = null;
-  let reloadingForUpdate = false;
   let dialogReturnFocus = null;
 
   const isStandalone = () => window.matchMedia('(display-mode: standalone)').matches ||
@@ -128,11 +127,6 @@
       } catch (error) {
         console.warn('PWA-serviceworker kon niet worden geregistreerd.', error.message);
       }
-    });
-    navigator.serviceWorker.addEventListener('controllerchange', () => {
-      if (reloadingForUpdate) return;
-      reloadingForUpdate = true;
-      window.location.reload();
     });
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState === 'visible' && registration) registration.update();

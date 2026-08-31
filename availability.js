@@ -7,22 +7,6 @@ const {
   splitMatchSummary,
 } = window.JVGHAvailabilityFilter;
 
-const queryParams = new URLSearchParams(window.location.search);
-
-const rawTeamId =
-  queryParams.get("teamId") ??
-  queryParams.get("team") ??
-  "";
-
-const parsedTeamId = String(rawTeamId).trim();
-
-const teamId =
-  /^\d+$/.test(parsedTeamId) && Number(parsedTeamId) > 0
-    ? Number(parsedTeamId)
-    : null;
-
-const isTeamMode = teamId !== null;
-
 let requestedTeamName = "";
 let updateSaveStateForMode = null;
 
@@ -271,19 +255,26 @@ function getDefaultAvailabilityMonthKey(now = new Date()) {
   return monthKeyFromDate(getDefaultAvailabilityMonth(now));
 }
 
-function getQueryParams() {
+function initializeAvailabilityFromCurrentUrl(now = new Date()) {
+  const queryParams = new URLSearchParams(window.location.search);
+  const rawTeamId = queryParams.get("teamId") ?? queryParams.get("team") ?? "";
+  const parsedTeamId = String(rawTeamId).trim();
+  const teamId = /^\d+$/.test(parsedTeamId) && Number(parsedTeamId) > 0
+    ? Number(parsedTeamId)
+    : null;
   const userRaw = queryParams.get("userId") || queryParams.get("user") || queryParams.get("uid") || "";
-  const defaultMonth = getDefaultAvailabilityMonthKey();
-  const monthRaw = queryParams.get("month") || defaultMonth;
+  const explicitMonthRaw = queryParams.get("month");
+  const explicitMonth = parseMonthInput(explicitMonthRaw);
+  const monthKey = explicitMonth || getDefaultAvailabilityMonthKey(now);
 
   return {
     userRaw,
     userId: Number.isFinite(Number(userRaw)) ? Number(userRaw) : null,
-    monthRaw,
-    monthKey: parseMonthInput(monthRaw),
+    monthRaw: explicitMonthRaw || monthKey,
+    monthKey,
     userName: (queryParams.get("name") || "").trim(),
     teamId,
-    isTeamMode,
+    isTeamMode: teamId !== null,
   };
 }
 
@@ -1704,7 +1695,10 @@ document.addEventListener("DOMContentLoaded", async () => {
   ensureAvailabilityToast();
 
   const metaEl = document.getElementById("availability-meta");
-  const { userRaw, userId, monthRaw, monthKey, userName: providedName, teamId, isTeamMode } = getQueryParams();
+  // This is deliberately evaluated inside page initialization rather than at
+  // module evaluation time. Every newly launched availability document reads
+  // its own URL and gets a freshly calculated default month.
+  const { userRaw, userId, monthRaw, monthKey, userName: providedName, teamId, isTeamMode } = initializeAvailabilityFromCurrentUrl();
   let resolvedTeamName = null;
   const unavailableContainer = document.querySelector(".availability-month-unavailable");
   if (unavailableContainer) {

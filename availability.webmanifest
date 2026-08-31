@@ -6,6 +6,9 @@
   "lang": "nl-BE",
   "start_url": "./availability.html",
   "scope": "./",
+  "launch_handler": {
+    "client_mode": "navigate-new"
+  },
   "display": "standalone",
   "background_color": "#f5f7fb",
   "theme_color": "#002b5c",
