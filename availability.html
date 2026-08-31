@@ -139,6 +139,29 @@
       display: none;
     }
 
+    .availability-parent-details {
+      max-width: 900px;
+      margin-top: 24px;
+      padding-top: 20px;
+      border-top: 1px solid #e5e7eb;
+    }
+    .availability-parent-details[hidden] { display: none; }
+    .availability-parent-details h2 { margin: 0 0 16px; color: #1f2937; }
+    .availability-field { margin-bottom: 14px; }
+    .availability-field label { display: block; margin-bottom: 6px; font-weight: 700; color: #1f2937; }
+    .availability-field input {
+      box-sizing: border-box;
+      width: 100%;
+      min-height: 48px;
+      padding: 10px 12px;
+      border: 1px solid #9ca3af;
+      border-radius: 8px;
+      font: inherit;
+      font-size: 16px;
+    }
+    .availability-field input[aria-invalid="true"] { border-color: #b91c1c; outline-color: #b91c1c; }
+    .field-error { min-height: 20px; margin-top: 4px; color: #b91c1c; font-size: 14px; }
+
     .availability-calendar-btn {
       min-height: 56px;
       font-size: 20px;
@@ -487,6 +510,24 @@
       <button id="availability-save-top" class="availability-save-btn" disabled>Opslaan</button>
     </div>
     <ul id="availability-list" class="availability-list"></ul>
+    <div id="availability-parent-details" class="availability-parent-details" hidden>
+      <h2>Contactgegevens</h2>
+      <div class="availability-field">
+        <label for="availability-first-name">Voornaam</label>
+        <input id="availability-first-name" name="firstName" type="text" autocomplete="given-name" required>
+        <div class="field-error" data-error-for="firstName"></div>
+      </div>
+      <div class="availability-field">
+        <label for="availability-last-name">Naam</label>
+        <input id="availability-last-name" name="lastName" type="text" autocomplete="family-name" required>
+        <div class="field-error" data-error-for="lastName"></div>
+      </div>
+      <div class="availability-field">
+        <label for="availability-phone">Gsm-nummer</label>
+        <input id="availability-phone" name="phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="0476 12 34 56" required>
+        <div class="field-error" data-error-for="phone"></div>
+      </div>
+    </div>
     <div class="availability-save-wrap hidden">
       <button id="availability-save-bottom" class="availability-save-btn" disabled>Opslaan</button>
     </div>
@@ -516,6 +557,7 @@
 </script>
 <script src="availability-filter.js"></script>
 <script src="shared/ghost-shifts.js"></script>
+<script src="shared/jvgh-core.js"></script>
 <script src="availability.js"></script>
 <script src="pwa.js"></script>
 </body>

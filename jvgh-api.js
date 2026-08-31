@@ -142,6 +142,10 @@ async function deleteSignup(taskId, signupId) {
   });
 }
 
+async function resolveOrCreateAvailabilityUser({ firstName, lastName, phone }) {
+  return jvghRequest('/availability-parent', { method: 'POST', body: { firstName, lastName, phone } });
+}
+
 // === USERS ===================================================
 
 async function getUserDisplayName(userId) {
@@ -472,6 +476,7 @@ window.JVGHApi = {
   getSignups,
   createSignup,
   deleteSignup,
+  resolveOrCreateAvailabilityUser,
 
   getUserDisplayName,
 };
