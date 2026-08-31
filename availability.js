@@ -1670,7 +1670,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       const currentIcsShiftKeys = new Set(slotShifts.map(persistedSlotKey));
       const visiblePersistedTasks = window.JVGHGhostShifts
         ? JVGHGhostShifts.filterGhostShifts(tasks, (task) => ({
-            peopleLoaded: true,
+            signupCollectionLoaded: true,
             signups: signupsByTask.get(String(task.id)) || [],
             assignments: task.assignments,
             volunteers: task.volunteers,

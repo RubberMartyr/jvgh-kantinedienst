@@ -8,10 +8,11 @@ const Ghosts = require("../shared/ghost-shifts.js");
 const AvailabilityFilter = require("../availability-filter.js");
 
 const ghost = { id: 33, sheetId: 7, title: "Shift", date: "2026-09-03", time: "00:00", qty: 240 };
-const loaded = { peopleLoaded: true };
+const loaded = { signupCollectionLoaded: true, signups: [] };
 
 test("expliciete nachtelijke planningsghost zonder actuele ICS-shift", () => {
   const ghost = {
+    id: 33,
     date: "2026-09-03",
     time: "00:00",
     title: "Kantinedienst 00:00",
@@ -20,7 +21,7 @@ test("expliciete nachtelijke planningsghost zonder actuele ICS-shift", () => {
     assignments: [],
     icsSummary: ""
   };
-  const context = { peopleLoaded: true, hasCalendarMatch: false };
+  const context = { signupCollectionLoaded: true, signups: [], hasCalendarMatch: false };
 
   assert.equal(Ghosts.isGhostShift(ghost, context), true);
 });
@@ -34,18 +35,19 @@ test("alle ondersteunde generieke shifttitels worden herkend", () => {
 
 test("generieke taak zonder personen of bron is een ghost", () => {
   assert.equal(Ghosts.isGhostShift(ghost, loaded), true);
-  assert.equal(Ghosts.isGhostShift({ ...ghost, title: "" }, loaded), true);
+  assert.equal(Ghosts.isGhostShift({ ...ghost, title: "" }, loaded), false);
 });
 
 test("filter wacht tot signup- en assignmentinformatie geladen is", () => {
   assert.equal(Ghosts.isGhostShift(ghost), false);
-  assert.equal(Ghosts.isGhostShift(ghost, { peopleLoaded: false }), false);
+  assert.equal(Ghosts.isGhostShift(ghost, { signupCollectionLoaded: false }), false);
+  assert.equal(Ghosts.isGhostShift({ ...ghost, id: null }, loaded), false);
 });
 
-test("alle ondersteunde persoonsvelden houden een taak zichtbaar", () => {
-  for (const field of ["signups", "assignments", "volunteers", "users"]) {
-    assert.equal(Ghosts.isGhostShift(ghost, { ...loaded, [field]: [{ id: 1 }] }), false, field);
-  }
+test("canonieke signupcollectie houdt een taak zichtbaar", () => {
+  assert.equal(Ghosts.isGhostShift(ghost, { ...loaded, signups: [{ id: 1 }] }), false);
+  assert.equal(Ghosts.isGhostShift({ ...ghost, signups: [{ id: 1 }] }, loaded), true,
+    "embedded taskvelden zijn niet de canonieke renderbron");
 });
 
 test("lokale selectie van huidige gebruiker blijft zichtbaar", () => {
@@ -67,19 +69,11 @@ test("maand-onbeschikbaarheid wordt niet als ghost behandeld", () => {
   assert.equal(Ghosts.isGhostShift({ ...ghost, title: "Niet beschikbaar deze maand" }, loaded), false);
 });
 
-test("filter verwijdert alleen uit de rendercollectie en logt ids", () => {
-  const originalInfo = console.info;
-  let diagnostic;
-  console.info = (_label, details) => { diagnostic = details; };
-  try {
+test("filter verwijdert alleen uit de rendercollectie", () => {
     const tasks = [ghost, { ...ghost, id: 34, signups: [{ id: 1 }] }];
     const visible = Ghosts.filterGhostShifts(tasks, (task) => ({ ...loaded, signups: task.signups }));
     assert.deepEqual(visible.map((task) => task.id), [34]);
-    assert.deepEqual(diagnostic, { hiddenCount: 1, hiddenTaskIds: [33] });
     assert.equal(tasks.length, 2, "broncollectie blijft intact");
-  } finally {
-    console.info = originalInfo;
-  }
 });
 
 test("gedeelde ghostfilter bevat geen backend-deletepad", () => {
