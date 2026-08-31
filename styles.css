@@ -5,6 +5,10 @@
   --jvgh-yellow: #f2b400;
   --jvgh-green: #1fa45a;
   --jvgh-bg: #f4f7fb;
+  --jvgh-control-text: #17345f;
+  --jvgh-control-text-hover: #073f7a;
+  --jvgh-control-border: #c7d3e3;
+  --jvgh-control-focus: rgba(245, 197, 66, 0.75);
   --jvgh-card-radius: 14px;
   --jvgh-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
 }
@@ -100,31 +104,77 @@ body {
 
 .jvgh-calendar-header {
   display: flex;
+  align-items: center;
   justify-content: flex-end;
-  align-items: baseline;
-  gap: 12px;
-  padding-inline: 4px;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 8px 10px;
 }
 
-.jvgh-calendar-control-btn {
-  padding: 6px 12px;
-  background: var(--jvgh-blue);
-  color: #fff;
-  border: none;
-  border-radius: 6px;
+.jvgh-calendar-header .jvgh-calendar-control-btn {
+  appearance: none;
+  -webkit-appearance: none;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  width: auto;
+  min-width: 0;
+  height: 36px;
+  min-height: 36px;
+  padding: 0 12px;
+  color: var(--jvgh-control-text);
+  background: #fff;
+  border: 1px solid var(--jvgh-control-border);
+  border-radius: 8px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 650;
+  line-height: 1;
+  white-space: nowrap;
+  box-shadow: 0 1px 2px rgba(13, 42, 79, 0.06);
   cursor: pointer;
-  font-weight: 600;
+  transition: color 150ms ease, background-color 150ms ease,
+    border-color 150ms ease, box-shadow 150ms ease;
 }
 
-.jvgh-calendar-control-btn:disabled {
-  opacity: 0.5;
+.jvgh-calendar-header .jvgh-calendar-control-btn:hover:not(:disabled) {
+  color: var(--jvgh-control-text-hover);
+  background: #f2f6fb;
+  border-color: #8ca9cc;
+  box-shadow: 0 2px 5px rgba(13, 42, 79, 0.1);
+}
+
+.jvgh-calendar-header .jvgh-calendar-control-btn:focus-visible {
+  outline: 3px solid var(--jvgh-control-focus);
+  outline-offset: 2px;
+}
+
+.jvgh-calendar-header .jvgh-calendar-control-btn:disabled {
+  color: #8290a3;
+  background: #f3f5f8;
+  border-color: #d8dee7;
+  box-shadow: none;
   cursor: not-allowed;
+  opacity: 0.75;
 }
 
-.jvgh-calendar-control-btn .jvgh-action-icon {
-  flex: 0 0 18px;
-  width: 18px;
-  height: 18px;
+.jvgh-calendar-header #toggle-hours-button[aria-pressed="true"] {
+  color: var(--jvgh-control-text-hover);
+  background: #e8f1fb;
+  border-color: #6f97c4;
+}
+
+.jvgh-calendar-header .jvgh-calendar-control-btn svg {
+  display: block;
+  flex: 0 0 auto;
+  width: 16px;
+  height: 16px;
+  max-width: 16px;
+  max-height: 16px;
+  fill: none;
+  stroke: currentColor;
 }
 
 /* Planning action bar: scoped to avoid affecting application buttons and icons. */
@@ -209,11 +259,6 @@ body {
 
 .jvgh-header-actions .jvgh-header-action:focus-visible {
   outline: 3px solid #f5c542;
-  outline-offset: 2px;
-}
-
-.jvgh-calendar-header .jvgh-calendar-control-btn:focus-visible {
-  outline: 3px solid #77bdf5;
   outline-offset: 2px;
 }
 
@@ -1817,8 +1862,6 @@ body:has(.jvgh-availability-overlay:not(.hidden)) { overflow: hidden; }
   .jvgh-main { padding: 6px max(6px, env(safe-area-inset-right)) max(10px, env(safe-area-inset-bottom)) max(6px, env(safe-area-inset-left)); }
   .jvgh-content { gap: 10px; }
   .jvgh-calendar-card { border-radius: 10px; }
-  .jvgh-calendar-header { align-items: stretch; flex-wrap: wrap; gap: 6px; }
-  .jvgh-calendar-header .jvgh-calendar-control-btn { flex: 1 1 180px; }
   .planning-table-scroll > #ec { min-width: 680px; }
   .ec .ec-button { min-height: 44px; padding-inline: 12px; }
 
@@ -1886,10 +1929,31 @@ body:has(.jvgh-availability-overlay:not(.hidden)) { overflow: hidden; }
 
 @media (max-width: 479px) {
   .jvgh-header > div:nth-child(2) .jvgh-print-btn { flex-basis: 100%; }
-  .jvgh-calendar-header .jvgh-calendar-control-btn { flex-basis: 100%; }
   .planning-table-scroll > #ec { min-width: 640px; }
   .pwa-update-banner { display: flex; align-items: center; gap: 8px; text-align: left; }
   .pwa-update-banner button { flex: 0 0 auto; margin-left: 0; }
+}
+
+@media (max-width: 600px) {
+  .jvgh-calendar-header {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    width: 100%;
+  }
+
+  .jvgh-calendar-header .jvgh-calendar-control-btn {
+    width: 100%;
+    padding-inline: 10px;
+  }
+}
+
+@media (max-width: 360px) {
+  .jvgh-calendar-header .jvgh-calendar-control-btn {
+    height: auto;
+    padding-block: 8px;
+    line-height: 1.2;
+    white-space: normal;
+  }
 }
 
 @media print {
