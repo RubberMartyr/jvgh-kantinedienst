@@ -10,6 +10,28 @@ const AvailabilityFilter = require("../availability-filter.js");
 const ghost = { id: 33, sheetId: 7, title: "Shift", date: "2026-09-03", time: "00:00", qty: 240 };
 const loaded = { peopleLoaded: true };
 
+test("expliciete nachtelijke planningsghost zonder actuele ICS-shift", () => {
+  const ghost = {
+    date: "2026-09-03",
+    time: "00:00",
+    title: "Kantinedienst 00:00",
+    sourceReason: "Handmatige/plannings-taak",
+    signups: [],
+    assignments: [],
+    icsSummary: ""
+  };
+  const context = { peopleLoaded: true, hasCalendarMatch: false };
+
+  assert.equal(Ghosts.isGhostShift(ghost, context), true);
+});
+
+test("alle ondersteunde generieke shifttitels worden herkend", () => {
+  for (const title of ["Shift", "Kantinedienst", "Kantinedienst 00:00", "Kantinedienst 8:30", "Kantinedienst 08:30"]) {
+    assert.equal(Ghosts.isGenericShiftTitle(title), true, title);
+  }
+  assert.equal(Ghosts.isGenericShiftTitle("Wedstrijd U6"), false);
+});
+
 test("generieke taak zonder personen of bron is een ghost", () => {
   assert.equal(Ghosts.isGhostShift(ghost, loaded), true);
   assert.equal(Ghosts.isGhostShift({ ...ghost, title: "" }, loaded), true);
@@ -37,6 +59,7 @@ test("kalenderdiensten en betekenisvolle activiteiten blijven zichtbaar", () => 
   assert.equal(Ghosts.isGhostShift({ ...ghost, sourceType: "event" }, loaded), false);
   assert.equal(Ghosts.isGhostShift({ ...ghost, category: "verhuur" }, loaded), false);
   assert.equal(Ghosts.isGhostShift({ ...ghost, boardActivity: true }, loaded), false);
+  assert.equal(Ghosts.isGhostShift(ghost, { ...loaded, hasCalendarMatch: true }), false);
 });
 
 test("maand-onbeschikbaarheid wordt niet als ghost behandeld", () => {
