@@ -2,10 +2,25 @@ const DEFAULT_ASSIGNMENT_DURATION_MINUTES = 240;
 const {
   filterHomeEventsByTeam,
   getAvailabilityDisplayTitle,
-  parseTeamQueryParams,
   recognizedTeamName,
   splitMatchSummary,
 } = window.JVGHAvailabilityFilter;
+
+const queryParams = new URLSearchParams(window.location.search);
+
+const rawTeamId =
+  queryParams.get("teamId") ??
+  queryParams.get("team") ??
+  "";
+
+const parsedTeamId = String(rawTeamId).trim();
+
+const teamId =
+  /^\d+$/.test(parsedTeamId) && Number(parsedTeamId) > 0
+    ? Number(parsedTeamId)
+    : null;
+
+const isTeamMode = teamId !== null;
 
 let requestedTeamName = "";
 let updateSaveStateForMode = null;
@@ -258,18 +273,16 @@ function getDefaultAvailabilityMonthKey(now = new Date()) {
 }
 
 function getQueryParams() {
-  const params = new URLSearchParams(window.location.search);
-  const userRaw = params.get("userId") || params.get("user") || params.get("uid") || "";
-  const { teamId, isTeamMode } = parseTeamQueryParams(window.location.search);
+  const userRaw = queryParams.get("userId") || queryParams.get("user") || queryParams.get("uid") || "";
   const defaultMonth = getDefaultAvailabilityMonthKey();
-  const monthRaw = params.get("month") || defaultMonth;
+  const monthRaw = queryParams.get("month") || defaultMonth;
 
   return {
     userRaw,
     userId: Number.isFinite(Number(userRaw)) ? Number(userRaw) : null,
     monthRaw,
     monthKey: parseMonthInput(monthRaw),
-    userName: (params.get("name") || "").trim(),
+    userName: (queryParams.get("name") || "").trim(),
     teamId,
     isTeamMode,
   };
