@@ -3,6 +3,10 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const Core = require('../shared/jvgh-core');
+const fs = require('node:fs');
+const path = require('node:path');
+
+const repositoryFile = (file) => fs.readFileSync(path.join(__dirname, '..', file), 'utf8');
 
 test('parent availability keeps empty teams, multiple delegates and removes duplicate staff', () => {
   const teams = Core.normalizeParentAvailabilityTeams({ teams: [
@@ -31,6 +35,39 @@ test('Belgian parent mobile formats normalize to one stable identity', () => {
     '0032 476 12 34 56',
   ];
   assert.deepEqual(formats.map(Core.normalizePhoneNumber), Array(4).fill('+32476123456'));
+});
+
+test('team availability sends the resolved team id while resolving a free parent', () => {
+  const availabilitySource = repositoryFile('availability.js');
+  const apiSource = repositoryFile('jvgh-api.js');
+
+  assert.match(availabilitySource, /teamId:\s*resolvedTeamId/);
+  assert.match(availabilitySource, /resolveOrCreateAvailabilityUser\(parentPayload\)/);
+  assert.match(apiSource, /teamId:\s*Number\(teamId\)/);
+  assert.match(apiSource, /'Content-Type':\s*'application\/json'/);
+});
+
+test('availability parent failures expose REST details without logging contact data', () => {
+  const availabilitySource = repositoryFile('availability.js');
+  const parentErrorLog = availabilitySource.match(
+    /console\.error\("\[availability-parent\]",\s*\{([\s\S]*?)\}\);/
+  );
+
+  assert.ok(parentErrorLog);
+  assert.match(parentErrorLog[1], /status:\s*error\.status/);
+  assert.match(parentErrorLog[1], /code:\s*error\.code/);
+  assert.match(parentErrorLog[1], /message:\s*error\.message/);
+  assert.doesNotMatch(parentErrorLog[1], /firstName|lastName|phone|parentPayload/);
+});
+
+test('availability parent REST route validates team and resolves phones idempotently', () => {
+  const phpSource = repositoryFile('wordpress/jvgh-team-delegates.php');
+
+  assert.match(phpSource, /register_rest_route\('jvgh\/v1', '\/availability-parent'/);
+  assert.match(phpSource, /'teamId'\s*=>\s*array\('required'\s*=>\s*true/);
+  assert.match(phpSource, /function jvgh_rest_resolve_availability_parent/);
+  assert.match(phpSource, /jvgh_normalize_parent_phone\(jvgh_get_user_phone\(\$candidate->ID\)\) === \$phone/);
+  assert.match(phpSource, /get_role\('eventadmin_volunteer'\)/);
 });
 
 test('parent availability preserves independent primary selections per team', () => {

@@ -175,10 +175,10 @@ function jvgh_rest_resolve_availability_parent(WP_REST_Request $request) {
     if (!$phone)
         return new WP_Error('jvgh_parent_phone_invalid', 'Geef een geldig Belgisch gsm-nummer in.', array('status' => 400));
 
-    // Keep exactly the home-team rule used by the other team endpoints.
+    // Availability accepts every existing SportsPress team exposed by the team filter.
     $team = get_post($team_id);
-    if (!$team || $team->post_type !== 'sp_team' || !has_excerpt($team_id))
-        return new WP_Error('jvgh_invalid_parent_team', 'Ongeldige ploeg.', array('status' => 400));
+    if (!$team_id || !$team || $team->post_type !== 'sp_team')
+        return new WP_Error('jvgh_invalid_parent_team', 'Ploeg niet gevonden.', array('status' => 400));
 
     $matched_user = null;
     foreach (get_users(array('fields' => 'all')) as $candidate) {
@@ -203,7 +203,8 @@ function jvgh_rest_resolve_availability_parent(WP_REST_Request $request) {
             'last_name' => $last_name,
             'role' => 'eventadmin_volunteer',
         ));
-        if (is_wp_error($user_id)) return $user_id;
+        if (is_wp_error($user_id))
+            return new WP_Error('jvgh_parent_user_creation_failed', 'Gebruiker kon niet worden aangemaakt: ' . $user_id->get_error_message(), array('status' => 500));
         $matched_user = get_userdata($user_id);
         $created = true;
     }

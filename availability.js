@@ -1434,19 +1434,37 @@ async function saveChanges({
   userName,
   scheduleByDay,
   isTeamMode = false,
-  teamIsValid = true
+  teamIsValid = true,
+  teamId = null
 }) {
+  let parent = null;
   if (isTeamMode) {
     setStatus("");
     if (!teamIsValid) { setStatus("Ploeg niet gevonden.", true); return; }
-    const parent = validateParentDetails();
+    const resolvedTeamId = Number(teamId);
+    if (!Number.isInteger(resolvedTeamId) || resolvedTeamId <= 0) {
+      setStatus("teamId ontbreekt of is ongeldig.", true);
+      return;
+    }
+    parent = validateParentDetails();
     if (!parent) { setStatus("Controleer de verplichte contactgegevens.", true); return; }
     if (!Array.from(stateByTask.values()).some((state) => state.currentChecked)) {
       setStatus("Selecteer minstens één shift.", true);
       return;
     }
+    if (!navigator.onLine) {
+      setStatus("Geen internetverbinding. Uw wijzigingen zijn nog niet opgeslagen.", true);
+      showAvailabilityToast("Geen internetverbinding. Probeer later opnieuw.", true);
+      return;
+    }
     try {
-      const person = await JVGHApi.resolveOrCreateAvailabilityUser(parent);
+      const parentPayload = {
+        firstName: parent.firstName.trim(),
+        lastName: parent.lastName.trim(),
+        phone: parent.phone.trim(),
+        teamId: resolvedTeamId
+      };
+      const person = await JVGHApi.resolveOrCreateAvailabilityUser(parentPayload);
       userId = Number(person?.userId);
       userName = String(person?.displayName || `${parent.firstName} ${parent.lastName}`).trim();
       if (!Number.isInteger(userId) || userId <= 0) throw new Error("Geen geldige gebruiker ontvangen.");
@@ -1457,8 +1475,13 @@ async function saveChanges({
         state.originalChecked = Boolean(match);
       });
     } catch (error) {
-      setStatus("De ouder kon niet worden gevonden of aangemaakt. Probeer opnieuw.", true);
-      showAvailabilityToast("❌ Contactgegevens konden niet worden verwerkt", true);
+      console.error("[availability-parent]", {
+        status: error.status,
+        code: error.code,
+        message: error.message
+      });
+      setStatus(error.message || "Ouder opslaan mislukt.", true);
+      showAvailabilityToast(`❌ ${error.message || "Contactgegevens konden niet worden verwerkt"}`, true);
       return;
     }
   }
@@ -1579,10 +1602,10 @@ async function saveChanges({
       }
       if (!isUnavailable) {
         const created = await JVGHApi.createSignup(state.task.id, {
-          firstName: userName,
-          lastName: "",
+          firstName: parent?.firstName || userName,
+          lastName: parent?.lastName || "",
           email: "",
-          phone: "",
+          phone: parent?.phone || "",
           userId,
         });
 
@@ -2029,7 +2052,8 @@ document.addEventListener("DOMContentLoaded", async () => {
         userName: resolvedName || "Gebruiker",
         scheduleByDay: currentScheduleByDay,
         isTeamMode,
-        teamIsValid: Boolean(resolvedTeamName)
+        teamIsValid: Boolean(resolvedTeamName),
+        teamId
       });
     };
   });
