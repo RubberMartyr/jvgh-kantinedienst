@@ -8,6 +8,10 @@
  */
 define('JVGH_PRIMARY_DELEGATE_META_KEY', '_jvgh_primary_delegate_staff_id');
 define('JVGH_WHATSAPP_SETTINGS_OPTION', 'jvgh_whatsapp_settings');
+define(
+    'JVGH_PRIMARY_DELEGATE_WHATSAPP_TEMPLATE_ID',
+    'HX99004e68f1b165d54e7824088636bf6f'
+);
 
 add_action('rest_api_init', function () {
     register_rest_route('jvgh/v1', '/volunteers', array(
@@ -108,9 +112,9 @@ function jvgh_rest_send_primary_delegate_whatsapp(WP_REST_Request $request) {
     if (strpos($digits, '+') !== 0) $digits = strpos($digits, '0') === 0 ? '+32' . substr($digits, 1) : '+' . $digits;
 
     $settings = get_option(JVGH_WHATSAPP_SETTINGS_OPTION, array());
-    $template_id = sanitize_text_field($settings['primaryDelegateWhatsappTemplateId'] ?? '');
+    $template_id = JVGH_PRIMARY_DELEGATE_WHATSAPP_TEMPLATE_ID;
     if (!$template_id)
-        return new WP_Error('jvgh_primary_delegate_template_missing', 'De WhatsApp-template-ID voor primaire afgevaardigden is niet ingesteld.', array('status' => 400));
+        return new WP_Error('jvgh_primary_delegate_template_missing', 'De WhatsApp-template voor primaire afgevaardigden ontbreekt.', array('status' => 500));
     foreach (array('accountSid', 'authToken', 'from') as $key)
         if (empty($settings[$key])) return new WP_Error('jvgh_whatsapp_setting_missing', 'Niet alle verplichte WhatsApp-instellingen zijn ingevuld.', array('status' => 400));
     if (!$user_id)
@@ -122,19 +126,9 @@ function jvgh_rest_send_primary_delegate_whatsapp(WP_REST_Request $request) {
         )
     );
 
-    $availability_url = add_query_arg(
-        array(
-            'teamId' => $team_id,
-        ),
-        home_url(
-            '/wp-content/uploads/kantinedienst/availability.html'
-        )
-    );
-
-    // The primary delegate forwards this generic team link to the parents.
     $variables = array(
         '1' => $team_name,
-        '2' => $availability_url,
+        '2' => (string) $team_id,
     );
     if (!$variables['1'] || !$variables['2'])
         return new WP_Error('jvgh_template_variables_missing', 'Niet alle verplichte templateparameters zijn beschikbaar.', array('status' => 400));
@@ -142,7 +136,7 @@ function jvgh_rest_send_primary_delegate_whatsapp(WP_REST_Request $request) {
     $endpoint = sprintf('https://api.twilio.com/2010-04-01/Accounts/%s/Messages.json', rawurlencode($settings['accountSid']));
     $response = wp_remote_post($endpoint, array('timeout' => 20,
         'headers' => array('Authorization' => 'Basic ' . base64_encode($settings['accountSid'] . ':' . $settings['authToken'])),
-        'body' => array('To' => 'whatsapp:' . $digits, 'From' => $settings['from'], 'ContentSid' => $template_id,
+        'body' => array('To' => 'whatsapp:' . $digits, 'From' => $settings['from'], 'ContentSid' => JVGH_PRIMARY_DELEGATE_WHATSAPP_TEMPLATE_ID,
             'ContentVariables' => wp_json_encode($variables))));
     if (is_wp_error($response)) return new WP_Error('jvgh_whatsapp_failed', 'WhatsApp-verzending is mislukt.', array('status' => 502));
     $status = (int) wp_remote_retrieve_response_code($response);
