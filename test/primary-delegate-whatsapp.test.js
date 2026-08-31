@@ -11,6 +11,13 @@ test('primary delegate WhatsApp uses the fixed template and team variables', () 
   const request = JSON.parse(result.stdout);
   assert.equal(request.body.ContentSid, 'HX99004e68f1b165d54e7824088636bf6f');
   assert.equal(request.body.ContentVariables, '{"1":"U8 A","2":"13413"}');
+  const variables = JSON.parse(request.body.ContentVariables);
+  assert.equal(variables['1'], 'U8 A');
+  assert.equal(variables['2'], '13413');
+  assert.equal(variables['2'].includes('://'), false);
+  assert.notEqual(variables['2'], '375474', 'the WordPress user/RBFA-like ID must not be used');
+  assert.notEqual(variables['2'], '2468', 'the staff ID must not be used');
   assert.equal(request.body.To, 'whatsapp:+32470123456');
+  assert.equal(request.body.From, 'whatsapp:+32123456789');
   assert.equal(Object.hasOwn(request.body, 'Body'), false);
 });

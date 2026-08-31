@@ -31,6 +31,7 @@ function wp_remote_post($endpoint, $args) {
 }
 function is_wp_error() { return false; }
 function wp_remote_retrieve_response_code($response) { return $response['response']['code']; }
+function wp_remote_retrieve_body() { return ''; }
 function rest_ensure_response($value) { return $value; }
 
 require dirname(__DIR__) . '/wordpress/jvgh-team-delegates.php';
