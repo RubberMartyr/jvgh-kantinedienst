@@ -1447,7 +1447,7 @@ document.addEventListener("DOMContentLoaded", function () {
   });
 
   // Render slots + assignments (+ iCal) into calendar events
-  function renderAll() {
+  function renderAll(planningRenderStats = null) {
     const events = [];
 
     // Bewaar bestaande handmatige slots
@@ -1577,7 +1577,34 @@ document.addEventListener("DOMContentLoaded", function () {
       });
     }
 
-    ec.setOption("events", events);
+    // Ghost detection is deliberately the final render step. At this point the
+    // task/signup relation, assignments, slots and all iCal sources are known.
+    let hiddenGhostCount = 0;
+    const visibleEvents = events.filter((event) => {
+      if (event.extendedProps?.type !== "slot") return true;
+      const slot = slots.find((candidate) => candidate.id === event.extendedProps.slotId);
+      if (!slot?.planningTask || slot.signupCollectionLoaded !== true) return true;
+
+      const isGhost = window.JVGHGhostShifts?.isGhostShift(slot.planningTask, {
+        signupCollectionLoaded: true,
+        signups: slot.assignedSignups,
+        currentUserSelected: false,
+        hasCalendarMatch: slot.manual !== true || slots.some((candidate) =>
+          candidate !== slot && candidate.manual !== true && candidate.start === slot.start
+        ),
+      });
+      if (isGhost) hiddenGhostCount += 1;
+      return !isGhost;
+    });
+
+    ec.setOption("events", visibleEvents);
+    if (planningRenderStats) {
+      console.info("[planning-render]", {
+        ...planningRenderStats,
+        visibleEventCount: visibleEvents.length,
+        hiddenGhostCount,
+      });
+    }
   }
 
   // Fullscreen loading overlay (for slow signup loading)
@@ -1684,7 +1711,17 @@ document.addEventListener("DOMContentLoaded", function () {
       });
 
       const newAssignments = [];
-      const hiddenTaskIds = [];
+      const signupsByTaskId = new Map();
+      const taskIdsWithLoadedSignups = new Set();
+      schedules.forEach((schedule) => {
+        (Array.isArray(schedule?.tasks) ? schedule.tasks : []).forEach((task) => {
+          if (task?.id === undefined || task?.id === null) return;
+          if (Array.isArray(task.signups)) {
+            signupsByTaskId.set(String(task.id), task.signups);
+            taskIdsWithLoadedSignups.add(String(task.id));
+          }
+        });
+      });
 
       for (const schedule of schedules) {
         const sheetId = schedule?.id;
@@ -1700,22 +1737,7 @@ document.addEventListener("DOMContentLoaded", function () {
           if (!dateStr || !timeStr) continue;
           if (!dateStr.startsWith(monthKey)) continue;
 
-          // Planner month-data bevat op dit punt alle signup/assignmentvelden.
-          // Filter vóór er een FullCalendar-slot voor de backendtaak ontstaat.
-          const taskSignups = Array.isArray(task?.signups) ? task.signups : [];
           const taskKey = dateStr + " " + timeStr;
-          const matchingCalendarSlot = slotByKey.get(taskKey);
-          if (window.JVGHGhostShifts?.isGhostShift(task, {
-            peopleLoaded: true,
-            signups: taskSignups,
-            assignments: task.assignments,
-            volunteers: task.volunteers,
-            users: task.users,
-            hasCalendarMatch: Boolean(matchingCalendarSlot && matchingCalendarSlot.manual !== true),
-          })) {
-            hiddenTaskIds.push(task.id);
-            continue;
-          }
 
           const lookupKey = taskLookupKey(
             sheetId,
@@ -1766,6 +1788,9 @@ document.addEventListener("DOMContentLoaded", function () {
 
           slot.sheetId = sheetId;
           slot.taskId = task.id;
+          slot.planningTask = task;
+          slot.signupCollectionLoaded = taskIdsWithLoadedSignups.has(String(task.id));
+          slot.assignedSignups = signupsByTaskId.get(String(task.id)) || [];
           if (task.qty !== undefined && task.qty !== null) {
             slot.required = getTaskCapacity(task.qty);
           }
@@ -1774,7 +1799,7 @@ document.addEventListener("DOMContentLoaded", function () {
           if (loadedTaskIds.has(taskIdKey)) continue;
           loadedTaskIds.add(taskIdKey);
 
-          const signupsArr = Array.isArray(task?.signups) ? task.signups : [];
+          const signupsArr = signupsByTaskId.get(taskIdKey) || [];
           if (!signupsArr.length) continue;
 
           const durationMinutes = getTaskDurationMinutes(task.qty);
@@ -1831,12 +1856,12 @@ document.addEventListener("DOMContentLoaded", function () {
       }
 
       assignments = assignments.concat(newAssignments);
-      console.info("[ghost-shift-filter]", {
-        hiddenCount: hiddenTaskIds.length,
-        hiddenTaskIds,
-      });
       retagBestuurAssignments();
-      renderAll();
+      renderAll({
+        taskCount: tasksProcessed,
+        signupCount: Array.from(signupsByTaskId.values()).reduce((sum, items) => sum + items.length, 0),
+        volunteerCount: new Set(assignments.map((assignment) => assignment.userId || assignment.title)).size,
+      });
 
       if (sheetsProcessed > 0) {
         loadedMonths.add(monthKey);
@@ -3525,6 +3550,7 @@ ${getAvailabilityLinkForUser(userId)}`;
 // --- Month corner triangles ---------------------------------
 
 function initMonthTriangles() {
+  const DEBUG_TRIANGLES = false;
   const ecEl = document.getElementById("ec");
   const cal = window.ec;
 
@@ -3554,7 +3580,13 @@ function initMonthTriangles() {
     ];
     const priority = { red: 3, orange: 2, green: 1 };
 
+    let applyingTriangles = false;
+    let triangleFramePending = false;
+
     function applyTrianglesForCurrentMonth() {
+      if (applyingTriangles) return;
+      applyingTriangles = true;
+      try {
       // Only do something if month view is visible
       if (!ecEl.querySelector(".ec-month-view")) {
         return;
@@ -3614,12 +3646,7 @@ function initMonthTriangles() {
         }
       });
 
-      // 3) Clear old triangles
-      ecEl
-        .querySelectorAll(".jvgh-corner-triangle")
-        .forEach((el) => el.remove());
-
-      // 4) Walk visible month cells and apply triangles
+      // 3) Walk visible month cells and update triangles only when necessary.
       const footCells = ecEl.querySelectorAll(".ec-month-view .ec-day-foot");
       if (!footCells.length) {
         console.warn(
@@ -3633,19 +3660,24 @@ function initMonthTriangles() {
         d.setDate(visibleStart.getDate() + idx);
         const key = jvghDayKeyFromDate(d);
         const status = statusByDay.get(key);
-        if (!status) return;
-
         const dayCell = foot.closest(".ec-day");
         if (!dayCell) return;
+
+        const existing = dayCell.querySelector(":scope > .jvgh-corner-triangle");
+        if (!status) {
+          if (existing) existing.remove();
+          return;
+        }
 
         // Make sure the whole day cell is the positioning context
         if (getComputedStyle(dayCell).position === "static") {
           dayCell.style.position = "relative";
         }
 
-        const tri = document.createElement("div");
-        tri.className = "jvgh-corner-triangle";
-        Object.assign(tri.style, {
+        const tri = existing || document.createElement("div");
+        if (!existing) {
+          tri.className = "jvgh-corner-triangle";
+          Object.assign(tri.style, {
           position: "absolute",
           width: "0",
           height: "0",
@@ -3657,17 +3689,15 @@ function initMonthTriangles() {
           right: "0",
           zIndex: "5",
           pointerEvents: "none",
-        });
-
-        if (status === "red") {
-          tri.style.borderTopColor = "#e74c3c";
-        } else if (status === "orange") {
-          tri.style.borderTopColor = "#f2b400";
-        } else if (status === "green") {
-          tri.style.borderTopColor = "#1fa45a";
+          });
+          dayCell.appendChild(tri);
         }
 
-        dayCell.appendChild(tri);
+        const color = status === "red" ? "#e74c3c" : status === "orange" ? "#f2b400" : "#1fa45a";
+        if (tri.dataset.status !== status) {
+          tri.dataset.status = status;
+          tri.style.borderTopColor = color;
+        }
       });
 
       // Also (lazy) load signups for this visible month, if available
@@ -3675,19 +3705,31 @@ function initMonthTriangles() {
         window.JVGH_loadSignupsForVisibleMonth();
       }
 
-      console.log(
-        "Triangles applied for visible month.",
-        Array.from(statusByDay.entries())
-      );
+      if (DEBUG_TRIANGLES) console.debug("Triangles applied for visible month.", Array.from(statusByDay.entries()));
+      } finally {
+        applyingTriangles = false;
+      }
     }
 
     // Run once now
     applyTrianglesForCurrentMonth();
 
     // Observe DOM changes and re-apply when month/view changes
-    const observer = new MutationObserver(() => {
-      // tiny debounce so the DOM has fully updated
-      requestAnimationFrame(applyTrianglesForCurrentMonth);
+    const observer = new MutationObserver((mutations) => {
+      // Triangle mutations are ours and must not retrigger the observer.
+      const relevant = mutations.some((mutation) => {
+        const changed = [...mutation.addedNodes, ...mutation.removedNodes];
+        return changed.some((node) =>
+          node.nodeType !== Node.ELEMENT_NODE ||
+          (!node.classList?.contains("jvgh-corner-triangle") && !node.closest?.(".jvgh-corner-triangle"))
+        );
+      });
+      if (!relevant || triangleFramePending) return;
+      triangleFramePending = true;
+      requestAnimationFrame(() => {
+        triangleFramePending = false;
+        applyTrianglesForCurrentMonth();
+      });
     });
 
     observer.observe(ecEl, { childList: true, subtree: true });

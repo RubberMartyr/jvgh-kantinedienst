@@ -6,7 +6,6 @@
   "use strict";
 
   const UNAVAILABLE_TITLES = new Set(["ik ben niet beschikbaar deze maand", "niet beschikbaar deze maand"]);
-  const PEOPLE_FIELDS = ["signups", "assignments", "volunteers", "users"];
   const CONTENT_FIELDS = ["description", "beschrijving", "notes", "note", "opmerking", "comment", "remarks", "remark"];
   const SOURCE_FIELDS = ["source", "sourceType", "source_type", "sourceLabel", "calendarSource", "calendar_source", "eventId", "event_id", "icalUid", "ical_uid", "uid"];
   const MEANING_FIELDS = ["requirements", "requiredRole", "required_role", "openPlanning", "open_planning", "category", "categories", "type", "eventType", "event_type", "kind", "location", "venue", "team", "teamId", "team_id", "matchId", "match_id", "rentalId", "rental_id", "boardActivity", "board_activity"];
@@ -25,7 +24,6 @@
       .replace(/\s+/g, " ");
 
     return (
-      title === "" ||
       /^shift$/i.test(title) ||
       /^kantinedienst$/i.test(title) ||
       /^kantinedienst\s+\d{1,2}:\d{2}$/i.test(title)
@@ -41,17 +39,15 @@
 
   // Purely visual predicate: an incomplete people request must never hide a task.
   function isGhostShift(task, context = {}) {
-    const signupCount = PEOPLE_FIELDS.reduce((count, field) => {
-      const people = hasValue(context[field]) ? context[field] : task?.[field];
-      return count + (Array.isArray(people) ? people.length : (hasValue(people) ? 1 : 0));
-    }, 0);
+    const signupCount = Array.isArray(context.signups) ? context.signups.length : 0;
     const currentUserSelected = context.currentUserSelected === true || context.currentUserAvailability === true;
     const hasCalendarMatch = context.hasCalendarMatch === true;
     const rawTitle = clean(task?.title).toLowerCase();
     const genericTitle = isGenericShiftTitle(task?.title);
     const sourceReason = clean(task?.sourceReason);
     const genericSourceReason = sourceReason === "" || sourceReason.toLowerCase() === "handmatige/plannings-taak";
-    const isGhost = Boolean(task) && context.peopleLoaded === true &&
+    const hasKnownTaskId = task?.id !== undefined && task?.id !== null && clean(task.id) !== "";
+    const isGhost = Boolean(task) && hasKnownTaskId && context.signupCollectionLoaded === true &&
       !UNAVAILABLE_TITLES.has(rawTitle) && genericTitle && !currentUserSelected && signupCount === 0 &&
       !hasCalendarMatch && genericSourceReason && !hasValue(task.icsSummary) && !hasValue(task.ics_summary) &&
       !CONTENT_FIELDS.some((field) => hasValue(task[field])) &&
@@ -59,15 +55,6 @@
       !MEANING_FIELDS.some((field) => hasValue(task[field])) &&
       !hasMeaningfulMetadata(task.metadata) && !hasMeaningfulMetadata(task.meta);
 
-    console.info("[ghost-shift-filter]", {
-      taskId: task?.id,
-      rawTitle: task?.title,
-      genericTitle,
-      signupCount,
-      currentUserSelected,
-      hasCalendarMatch,
-      isGhost,
-    });
     return isGhost;
   }
 
@@ -78,7 +65,6 @@
       if (hidden) hiddenTaskIds.push(task?.id);
       return !hidden;
     });
-    console.info("[ghost-shift-filter]", { hiddenCount: hiddenTaskIds.length, hiddenTaskIds });
     return visible;
   }
 
