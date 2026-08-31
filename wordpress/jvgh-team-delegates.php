@@ -105,6 +105,8 @@ function jvgh_rest_send_primary_delegate_whatsapp(WP_REST_Request $request) {
     if (!$staff || $staff->post_type !== 'sp_staff')
         return new WP_Error('jvgh_primary_delegate_not_found', get_the_title($team_id) . ': de primaire afgevaardigde kon niet worden gevonden.', array('status' => 400));
     $user_id = (int) get_post_field('post_author', $primary_staff_id);
+    if (!$user_id)
+        return new WP_Error('jvgh_primary_delegate_user_missing', 'De primaire afgevaardigde heeft geen gekoppelde gebruiker.', array('status' => 400));
     $phone = $user_id ? jvgh_get_user_phone($user_id) : '';
     $digits = preg_replace('/[^0-9+]/', '', $phone);
     if (!preg_match('/^\+?[0-9]{8,15}$/', $digits))
@@ -117,9 +119,6 @@ function jvgh_rest_send_primary_delegate_whatsapp(WP_REST_Request $request) {
         return new WP_Error('jvgh_primary_delegate_template_missing', 'De WhatsApp-template voor primaire afgevaardigden ontbreekt.', array('status' => 500));
     foreach (array('accountSid', 'authToken', 'from') as $key)
         if (empty($settings[$key])) return new WP_Error('jvgh_whatsapp_setting_missing', 'Niet alle verplichte WhatsApp-instellingen zijn ingevuld.', array('status' => 400));
-    if (!$user_id)
-        return new WP_Error('jvgh_primary_delegate_user_missing', 'De primaire afgevaardigde heeft geen gekoppelde gebruiker.', array('status' => 400));
-
     $team_name = trim(
         wp_strip_all_tags(
             get_the_title($team_id)
@@ -138,10 +137,31 @@ function jvgh_rest_send_primary_delegate_whatsapp(WP_REST_Request $request) {
         'headers' => array('Authorization' => 'Basic ' . base64_encode($settings['accountSid'] . ':' . $settings['authToken'])),
         'body' => array('To' => 'whatsapp:' . $digits, 'From' => $settings['from'], 'ContentSid' => JVGH_PRIMARY_DELEGATE_WHATSAPP_TEMPLATE_ID,
             'ContentVariables' => wp_json_encode($variables))));
-    if (is_wp_error($response)) return new WP_Error('jvgh_whatsapp_failed', 'WhatsApp-verzending is mislukt.', array('status' => 502));
-    $status = (int) wp_remote_retrieve_response_code($response);
-    if ($status < 200 || $status >= 300)
+    if (is_wp_error($response)) {
+        error_log(sprintf(
+            'JVGH primary delegate WhatsApp transport error: teamId=%d staffId=%d',
+            $team_id,
+            $primary_staff_id
+        ));
         return new WP_Error('jvgh_whatsapp_failed', 'WhatsApp-verzending is mislukt.', array('status' => 502));
+    }
+    $status = (int) wp_remote_retrieve_response_code($response);
+    if ($status < 200 || $status >= 300) {
+        $twilio_error = json_decode(wp_remote_retrieve_body($response), true);
+        $twilio_code = is_array($twilio_error) && isset($twilio_error['code']) ? (string) $twilio_error['code'] : '-';
+        $twilio_message = is_array($twilio_error) && isset($twilio_error['message'])
+            ? sanitize_text_field((string) $twilio_error['message'])
+            : '-';
+        error_log(sprintf(
+            'JVGH primary delegate WhatsApp error: HTTP %d; code=%s; message=%s; teamId=%d; staffId=%d',
+            $status,
+            $twilio_code,
+            $twilio_message,
+            $team_id,
+            $primary_staff_id
+        ));
+        return new WP_Error('jvgh_whatsapp_failed', 'WhatsApp-verzending is mislukt.', array('status' => 502));
+    }
     return rest_ensure_response(array('ok' => true, 'teamId' => $team_id, 'staffId' => $primary_staff_id));
 }
 
