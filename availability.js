@@ -290,12 +290,15 @@ async function resolveTeamName(teamId, fallbackName) {
   return String(team?.teamName || "").trim() || null;
 }
 
-function validateParentDetails({ showErrors = true } = {}) {
-  const values = {
+function getParentDetails() {
+  return {
     firstName: document.getElementById("availability-first-name").value.trim(),
     lastName: document.getElementById("availability-last-name").value.trim(),
     phone: document.getElementById("availability-phone").value.trim(),
   };
+}
+
+function validateParentDetails(values = getParentDetails(), { showErrors = true } = {}) {
   const normalizedPhone = window.JVGHCore?.normalizePhoneNumber(values.phone) || "";
   const errors = {
     firstName: values.firstName ? "" : "Vul uw voornaam in.",
@@ -1435,7 +1438,8 @@ async function saveChanges({
   scheduleByDay,
   isTeamMode = false,
   teamIsValid = true,
-  teamId = null
+  teamId = null,
+  parentDetails = null
 }) {
   let parent = null;
   if (isTeamMode) {
@@ -1446,7 +1450,7 @@ async function saveChanges({
       setStatus("teamId ontbreekt of is ongeldig.", true);
       return;
     }
-    parent = validateParentDetails();
+    parent = validateParentDetails(parentDetails || getParentDetails());
     if (!parent) { setStatus("Controleer de verplichte contactgegevens.", true); return; }
     if (!Array.from(stateByTask.values()).some((state) => state.currentChecked)) {
       setStatus("Selecteer minstens één shift.", true);
@@ -1480,8 +1484,13 @@ async function saveChanges({
         code: error.code,
         message: error.message
       });
-      setStatus(error.message || "Ouder opslaan mislukt.", true);
-      showAvailabilityToast(`❌ ${error.message || "Contactgegevens konden niet worden verwerkt"}`, true);
+      const errorDetails = [
+        error.message || "Contactgegevens konden niet worden verwerkt",
+        error.code ? `code: ${error.code}` : "",
+        error.status ? `status: ${error.status}` : ""
+      ].filter(Boolean).join(" — ");
+      setStatus(errorDetails, true);
+      showAvailabilityToast(`❌ ${errorDetails}`, true);
       return;
     }
   }
@@ -1739,7 +1748,9 @@ document.addEventListener("DOMContentLoaded", async () => {
       updateExistingPersonalSaveState(isDirty);
       return;
     }
-    const contactValid = Boolean(validateParentDetails({ showErrors: false }));
+    const contactValid = Boolean(
+      validateParentDetails(getParentDetails(), { showErrors: false })
+    );
     document.querySelectorAll(".availability-save-btn").forEach((button) => {
       button.disabled = !contactValid || monthLoading;
       button.textContent = "Opslaan";
@@ -2053,7 +2064,8 @@ document.addEventListener("DOMContentLoaded", async () => {
         scheduleByDay: currentScheduleByDay,
         isTeamMode,
         teamIsValid: Boolean(resolvedTeamName),
-        teamId
+        teamId: teamId,
+        parentDetails: isTeamMode ? getParentDetails() : null
       });
     };
   });

@@ -45,8 +45,10 @@ async function jvghRequest(path, { method = 'GET', body = null } = {}) {
   }
 
   if (!res.ok) {
-    console.error('JVGH API error', res.status, data);
-    throw data || { status: res.status, message: 'Unknown error' };
+    const error = new Error(data?.message || `JVGH API request failed (${res.status})`);
+    error.code = data?.code || 'jvgh_request_failed';
+    error.status = res.status;
+    throw error;
   }
 
   return data;
@@ -143,41 +145,20 @@ async function deleteSignup(taskId, signupId) {
 }
 
 async function resolveOrCreateAvailabilityUser({ firstName, lastName, phone, teamId }) {
-  const parentPayload = {
-    firstName: String(firstName || '').trim(),
-    lastName: String(lastName || '').trim(),
-    phone: String(phone || '').trim(),
-    teamId: Number(teamId),
-  };
+  const normalizedTeamId = Number(teamId);
+  if (!Number.isInteger(normalizedTeamId) || normalizedTeamId <= 0) {
+    throw new Error('Een geldige teamId is verplicht.');
+  }
 
-  const response = await fetch(`${JVGH_API_BASE}/availability-parent`, {
+  return jvghRequest('/availability-parent', {
     method: 'POST',
-    headers: {
-      'Authorization': 'Basic ' + JVGH_CREDENTIALS,
-      'Accept': 'application/json',
-      'Content-Type': 'application/json',
+    body: {
+      firstName: String(firstName || '').trim(),
+      lastName: String(lastName || '').trim(),
+      phone: String(phone || '').trim(),
+      teamId: normalizedTeamId,
     },
-    body: JSON.stringify(parentPayload),
-    cache: 'no-cache',
   });
-
-  let responseBody = null;
-  try {
-    responseBody = await response.json();
-  } catch {
-    responseBody = null;
-  }
-
-  if (!response.ok) {
-    const error = new Error(
-      responseBody?.message || `Ouder opslaan mislukt (${response.status})`
-    );
-    error.code = responseBody?.code || 'jvgh_parent_request_failed';
-    error.status = response.status;
-    throw error;
-  }
-
-  return responseBody;
 }
 
 // === USERS ===================================================

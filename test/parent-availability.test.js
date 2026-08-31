@@ -5,6 +5,7 @@ const assert = require('node:assert/strict');
 const Core = require('../shared/jvgh-core');
 const fs = require('node:fs');
 const path = require('node:path');
+const vm = require('node:vm');
 
 const repositoryFile = (file) => fs.readFileSync(path.join(__dirname, '..', file), 'utf8');
 
@@ -43,8 +44,54 @@ test('team availability sends the resolved team id while resolving a free parent
 
   assert.match(availabilitySource, /teamId:\s*resolvedTeamId/);
   assert.match(availabilitySource, /resolveOrCreateAvailabilityUser\(parentPayload\)/);
-  assert.match(apiSource, /teamId:\s*Number\(teamId\)/);
-  assert.match(apiSource, /'Content-Type':\s*'application\/json'/);
+  assert.match(apiSource, /teamId:\s*normalizedTeamId/);
+  assert.match(apiSource, /return jvghRequest\('\/availability-parent'/);
+  assert.match(apiSource, /Number\.isInteger\(normalizedTeamId\)/);
+  assert.match(availabilitySource, /parentDetails:\s*isTeamMode\s*\?\s*getParentDetails\(\)\s*:\s*null/);
+});
+
+test('availability parent request serializes the validated SportsPress team id', async () => {
+  let request = null;
+  const context = {
+    btoa: (value) => Buffer.from(value).toString('base64'),
+    fetch: async (url, options) => {
+      request = { url, options };
+      return { ok: true, status: 200, json: async () => ({ userId: 42 }) };
+    },
+    window: {},
+  };
+  vm.runInNewContext(repositoryFile('jvgh-api.js'), context);
+
+  await context.window.JVGHApi.resolveOrCreateAvailabilityUser({
+    firstName: 'Rony',
+    lastName: 'Vanlee',
+    phone: '+32476695361',
+    teamId: '13413',
+  });
+
+  assert.equal(request.url, 'https://jeugdherk.be/wp-json/jvgh/v1/availability-parent');
+  assert.deepEqual(JSON.parse(request.options.body), {
+    firstName: 'Rony',
+    lastName: 'Vanlee',
+    phone: '+32476695361',
+    teamId: 13413,
+  });
+});
+
+test('availability parent request rejects an invalid team id before fetch', async () => {
+  let fetchCalled = false;
+  const context = {
+    btoa: (value) => Buffer.from(value).toString('base64'),
+    fetch: async () => { fetchCalled = true; },
+    window: {},
+  };
+  vm.runInNewContext(repositoryFile('jvgh-api.js'), context);
+
+  await assert.rejects(
+    context.window.JVGHApi.resolveOrCreateAvailabilityUser({ teamId: 'U8 A' }),
+    /Een geldige teamId is verplicht/,
+  );
+  assert.equal(fetchCalled, false);
 });
 
 test('availability parent failures expose REST details without logging contact data', () => {
