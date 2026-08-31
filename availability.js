@@ -2,6 +2,7 @@ const DEFAULT_ASSIGNMENT_DURATION_MINUTES = 240;
 const {
   filterHomeEventsByTeam,
   getAvailabilityDisplayTitle,
+  parseTeamQueryParams,
   recognizedTeamName,
   splitMatchSummary,
 } = window.JVGHAvailabilityFilter;
@@ -259,9 +260,7 @@ function getDefaultAvailabilityMonthKey(now = new Date()) {
 function getQueryParams() {
   const params = new URLSearchParams(window.location.search);
   const userRaw = params.get("userId") || params.get("user") || params.get("uid") || "";
-  const teamIdRaw = (params.get("teamId") || "").trim();
-  const teamNameRaw = (params.get("team") || "").trim();
-  const teamId = teamIdRaw && Number.isFinite(Number(teamIdRaw)) ? Number(teamIdRaw) : null;
+  const { teamId, isTeamMode } = parseTeamQueryParams(window.location.search);
   const defaultMonth = getDefaultAvailabilityMonthKey();
   const monthRaw = params.get("month") || defaultMonth;
 
@@ -272,21 +271,16 @@ function getQueryParams() {
     monthKey: parseMonthInput(monthRaw),
     userName: (params.get("name") || "").trim(),
     teamId,
-    teamNameRaw,
-    isTeamMode: Boolean(teamId || teamNameRaw),
-    invalidTeamId: Boolean(teamIdRaw && (!Number.isInteger(teamId) || teamId <= 0)),
+    isTeamMode,
   };
 }
 
-async function resolveTeamName(teamId, fallbackName) {
-  const requestedName = String(fallbackName || "").trim();
+async function resolveTeamName(teamId) {
   const response = await fetch("/wp-json/jvgh/v1/team-delegates", { credentials: "same-origin", cache: "no-store" });
   if (!response.ok) throw new Error("Ploegen konden niet worden geladen.");
   const payload = await response.json();
   const teams = Array.isArray(payload?.teams) ? payload.teams : [];
-  const team = teamId
-    ? teams.find((item) => Number(item.teamId) === teamId)
-    : teams.find((item) => String(item.teamName || "").trim().toLocaleLowerCase("nl-BE") === requestedName.toLocaleLowerCase("nl-BE"));
+  const team = teams.find((item) => Number(item.teamId) === teamId);
   return String(team?.teamName || "").trim() || null;
 }
 
@@ -997,11 +991,18 @@ function expandEventIntoDailyOccurrences(event) {
 
 async function loadShiftSlotsForMonth(monthKey, { teamMode = false, resolvedTeamName = "" } = {}) {
   const [matchesText, eventsText, verhuurText, bestuurText] = await Promise.all([
-    fetch(ICAL_URL, { credentials: "omit" }).then((r) => (r.ok ? r.text() : "")),
+    fetch(ICAL_URL, { credentials: "omit" }).then((r) => {
+      if (!r.ok) throw new Error("Wedstrijdkalender kon niet worden geladen.");
+      return r.text();
+    }),
     fetch(EVENTS_ICAL_URL, { credentials: "omit" }).then((r) => (r.ok ? r.text() : "")),
     fetch(VERHUUR_ICAL_URL, { credentials: "omit" }).then((r) => (r.ok ? r.text() : "")),
     fetch(DAGELIJKS_BESTUUR_ICAL_URL, { credentials: "omit" }).then((r) => (r.ok ? r.text() : "")),
   ]);
+
+  if (!/BEGIN:VEVENT[\s\S]*END:VEVENT/i.test(matchesText)) {
+    throw new Error("Wedstrijdkalender bevat geen geldige events.");
+  }
 
   const homeMatchEvents = parseICS(matchesText, {
     sourceType: "match",
@@ -1047,7 +1048,7 @@ async function loadShiftSlotsForMonth(monthKey, { teamMode = false, resolvedTeam
         sourceEvents: [ev],
         icsSummaries: [ev.summary || ""].filter(Boolean),
         teamNames: ev.sourceType === "match"
-          ? [recognizedTeamName(splitMatchSummary(ev.summary).leftSide)].filter(Boolean)
+          ? [teamMode ? resolvedTeamName : recognizedTeamName(splitMatchSummary(ev.summary).leftSide)].filter(Boolean)
           : [],
       };
     })
@@ -1691,18 +1692,12 @@ document.addEventListener("DOMContentLoaded", async () => {
   ensureAvailabilityToast();
 
   const metaEl = document.getElementById("availability-meta");
-  const { userRaw, userId, monthRaw, monthKey, userName: providedName, teamId, teamNameRaw, isTeamMode, invalidTeamId } = getQueryParams();
+  const { userRaw, userId, monthRaw, monthKey, userName: providedName, teamId, isTeamMode } = getQueryParams();
   let resolvedTeamName = null;
   const unavailableContainer = document.querySelector(".availability-month-unavailable");
   if (unavailableContainer) {
     unavailableContainer.hidden = isTeamMode;
     unavailableContainer.classList.toggle("is-hidden", isTeamMode);
-  }
-
-  if (invalidTeamId) {
-    setStatus("Ongeldige ploeg-ID.", true);
-    document.querySelector(".availability-month-unavailable")?.setAttribute("hidden", "");
-    return;
   }
 
   if (!isTeamMode && (!userRaw || userId === null)) {
@@ -1714,7 +1709,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   if (isTeamMode) {
     document.querySelector(".availability-month-unavailable")?.setAttribute("hidden", "");
     document.getElementById("availability-parent-details").hidden = false;
-    try { resolvedTeamName = await resolveTeamName(teamId, teamNameRaw); }
+    try { resolvedTeamName = await resolveTeamName(teamId); }
     catch (error) { setStatus("Ploeg kon niet worden opgehaald.", true); return; }
     if (!resolvedTeamName) {
       setStatus("Ploeg niet gevonden.", true);

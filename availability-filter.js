@@ -28,6 +28,32 @@
     };
   }
 
+  function parseTeamQueryParams(search = "") {
+    const queryParams = new URLSearchParams(search);
+    const rawTeamId = queryParams.get("teamId") || queryParams.get("team") || "";
+    const normalizedRawTeamId = String(rawTeamId).trim();
+    const teamId = /^\d+$/.test(normalizedRawTeamId) && Number(normalizedRawTeamId) > 0
+      ? Number(normalizedRawTeamId)
+      : null;
+
+    return { teamId, isTeamMode: teamId !== null };
+  }
+
+  function normalizeTeamCode(value) {
+    return String(value || "").trim().toUpperCase().replace(/\s+/g, "");
+  }
+
+  function extractIcsTeamCode(event) {
+    const summary = String(event?.summary ?? event?.title ?? "").trim();
+    if (!summary) return "";
+    const longDashIndex = summary.indexOf("—");
+    if (longDashIndex >= 0) {
+      return normalizeTeamCode(summary.slice(0, longDashIndex));
+    }
+    const fallbackMatch = summary.match(/^\s*(U\d{1,2}(?:\s*[A-Z])?)\s+-\s+/i);
+    return fallbackMatch ? normalizeTeamCode(fallbackMatch[1]) : "";
+  }
+
   function normalizeTeamText(value) {
     return String(value || "")
       .normalize("NFKD")
@@ -112,25 +138,9 @@
   }
 
   function matchBelongsToResolvedTeam(summary, resolvedTeamName) {
-    const { leftSide, hasTwoSides } = splitMatchSummary(summary);
-    if (!hasTwoSides) return false;
-
-    const requested = normalizeTeamText(resolvedTeamName).match(/^u(\d{1,2})(?:\s+([a-z]))?$/u);
-    if (!requested) return false;
-
-    const home = normalizeTeamText(leftSide);
-    const agePattern = new RegExp(`(?:^|[^a-z0-9])u${requested[1]}(?:$|[^a-z0-9])`, "u");
-    if (!agePattern.test(home)) return false;
-
-    const squad = requested[2];
-    if (squad) {
-      const escapedSquad = squad.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-      return new RegExp(`(?:^|[^a-z0-9])fc\\s+${escapedSquad}(?:$|[^a-z0-9])`, "u").test(home) ||
-        recognizedTeamName(leftSide) === `U${requested[1]} ${squad.toUpperCase()}`;
-    }
-
-    // Keep the established mapping for teams without a squad suffix.
-    return recognizedTeamName(leftSide) === `U${requested[1]}`;
+    const requestedTeamCode = normalizeTeamCode(resolvedTeamName);
+    const eventTeamCode = extractIcsTeamCode({ summary });
+    return Boolean(requestedTeamCode && eventTeamCode) && eventTeamCode === requestedTeamCode;
   }
 
   function filterHomeEventsByTeam(homeEvents, requestedTeamName) {
@@ -143,13 +153,16 @@
   return {
     KNOWN_TEAM_NAMES,
     decodeAndTrimIcsText,
+    extractIcsTeamCode,
     filterHomeEventsByTeam,
     getAvailabilityDisplayTitle,
     homeSideMatchesTeam,
     matchBelongsToResolvedTeam,
     naturalSortTeamNames,
+    normalizeTeamCode,
     normalizeTeamText,
     recognizedTeamName,
+    parseTeamQueryParams,
     splitMatchSummary,
     teamLabelMatches,
   };
