@@ -1901,13 +1901,41 @@ body:has(.jvgh-availability-overlay:not(.hidden)) { overflow: hidden; }
   .ec .ec-toolbar > * { min-width: 0; margin: 0; }
   .ec .ec-toolbar > :nth-child(1) { grid-row: 1; justify-self: center; }
   .ec .ec-toolbar > :nth-child(2) { grid-row: 2; width: 100%; text-align: center; }
-  .ec .ec-toolbar > :nth-child(3) {
+  .ec .ec-toolbar > :has(> .jvgh-view-button-group) {
     grid-row: 3;
+    width: 100%;
+  }
+  .ec .jvgh-view-button-group {
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
     width: 100%;
+    overflow: hidden;
+    border: 1px solid #002b5c;
+    border-radius: 8px;
   }
-  .ec .ec-toolbar > :nth-child(3) .ec-button { min-width: 0; padding-inline: 4px; }
+  .ec .jvgh-view-button-group .ec-button {
+    width: 100%;
+    min-width: 0;
+    min-height: 44px;
+    margin: 0;
+    padding-inline: 3px;
+    border: 0;
+    border-right: 1px solid #b8c8dc;
+    border-radius: 0;
+    color: #002b5c;
+    background: #f8fbff;
+    font-size: .875rem;
+    line-height: 1.2;
+    text-align: center;
+    white-space: nowrap;
+  }
+  .ec .jvgh-view-button-group .ec-button:last-child { border-right: 0; }
+  .ec .jvgh-view-button-group .ec-button:hover,
+  .ec .jvgh-view-button-group .ec-button:focus-visible { background: #e8f0f9; }
+  .ec .jvgh-view-button-group .ec-button.ec-active {
+    color: #fff;
+    background: #002b5c;
+  }
   .ec .ec-toolbar-title,
   .ec .ec-title { width: 100%; text-align: center; white-space: normal; overflow-wrap: anywhere; }
   .ec .ec-resourceTimeGridDay,
@@ -1925,16 +1953,50 @@ body:has(.jvgh-availability-overlay:not(.hidden)) { overflow: hidden; }
   #ec.jvgh-view-day :is(.ec-event, .ec-event-title, .jvgh-ical-title) { min-width: 0; overflow: hidden; overflow-wrap: anywhere; }
   #ec.jvgh-view-list :is(.ec-list, .ec-list-table, .ec-list-day, .ec-event) { width: 100%; min-width: 0; max-width: 100%; }
   #ec.jvgh-view-list :is(.ec-event-title, .jvgh-ical-title) { white-space: normal; overflow-wrap: anywhere; }
-  #ec.jvgh-view-week { width: 100%; min-width: 0 !important; }
-  #ec.jvgh-view-week :is(.ec-day-head, .ec-day, .ec-time) { padding-inline: 1px; font-size: .75rem; }
-  #ec.jvgh-view-week .ec-time { width: 2.5rem; }
-  #ec.jvgh-view-week :is(.ec-event, .ec-event-title, .jvgh-ical-title) { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  .planning-table-scroll:has(> #ec.jvgh-view-week) { overflow-x: hidden; }
+  #ec.jvgh-view-week,
+  #ec.jvgh-view-week :is(.ec-container, .ec-main, .ec-header, .ec-body, .ec-content, .ec-days) {
+    width: 100%;
+    min-width: 0 !important;
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+  #ec.jvgh-view-week :is(.ec-header, .ec-body) { overflow-x: hidden; }
+  #ec.jvgh-view-week :is(.ec-day, .ec-day-head) {
+    min-width: 0;
+    padding-inline: 0;
+    overflow: hidden;
+    font-size: .6875rem;
+    text-align: center;
+    white-space: nowrap;
+  }
+  #ec.jvgh-view-week .ec-sidebar {
+    flex: 0 0 40px;
+    width: 40px;
+    min-width: 40px;
+    max-width: 40px;
+    padding-inline: 1px;
+    overflow: hidden;
+  }
+  #ec.jvgh-view-week .ec-time { width: auto; padding-inline: 0; font-size: .6875rem; }
+  #ec.jvgh-view-week :is(.ec-event, .ec-event-body, .ec-event-main, .jvgh-ical-content, .jvgh-assignment) {
+    min-width: 0;
+    max-width: 100%;
+    overflow: hidden;
+  }
+  #ec.jvgh-view-week .ec-event { padding-inline: 1px; font-size: .6875rem; line-height: 1.15; }
+  #ec.jvgh-view-week :is(.ec-event-time, .ec-event-title, .jvgh-ical-title, .jvgh-assignment-name, .jvgh-time-line) {
+    min-width: 0;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  #ec.jvgh-view-week .ec-events { min-width: 0; margin-right: 1px; }
 
-  @media (max-width: 479px) {
-    .planning-table-scroll:has(> #ec.jvgh-view-week) {
-      overflow-x: auto; overscroll-behavior-x: contain; -webkit-overflow-scrolling: touch;
-    }
-    .planning-table-scroll > #ec.jvgh-view-week { min-width: 520px !important; }
+  @media (max-width: 379px) {
+    #ec.jvgh-view-week .ec-sidebar { flex-basis: 34px; width: 34px; min-width: 34px; max-width: 34px; }
+    #ec.jvgh-view-week :is(.ec-day, .ec-day-head, .ec-time) { font-size: .625rem; }
   }
 
   .jvgh-sidebar {

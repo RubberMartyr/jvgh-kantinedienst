@@ -846,6 +846,43 @@ document.addEventListener("DOMContentLoaded", function () {
   }
   let previousViewType = "";
 
+  function prepareMobileCalendarControls(viewType) {
+    if (!mobileQuery.matches) return;
+
+    const labels = {
+      ".ec-dayGridMonth": "maand",
+      ".ec-timeGridWeek": "week",
+      ".ec-timeGridDay": "dag",
+      ".ec-listWeek": "lijst",
+    };
+    Object.entries(labels).forEach(([selector, label]) => {
+      const button = el.querySelector(selector);
+      if (button) button.textContent = label;
+    });
+
+    const viewButton = el.querySelector(".ec-dayGridMonth");
+    const viewButtonGroup = viewButton?.closest(".ec-button-group");
+    if (viewButtonGroup && Object.keys(labels).every((selector) => viewButtonGroup.querySelector(selector))) {
+      viewButtonGroup.classList.add("jvgh-view-button-group");
+    }
+
+    if (viewType !== "timeGridWeek") return;
+
+    const weekday = new Intl.DateTimeFormat("nl-BE", { weekday: "short" });
+    el.querySelectorAll(".ec-header .ec-day-head time").forEach((time) => {
+      const date = time.getAttribute("datetime");
+      if (!date) return;
+      const value = new Date(`${date}T12:00:00`);
+      if (Number.isNaN(value.getTime())) return;
+      time.textContent = `${weekday.format(value).replace(".", "")} ${value.getDate()}`;
+    });
+    el.querySelectorAll(".ec-time-grid .ec-sidebar .ec-time time").forEach((time) => {
+      const value = time.getAttribute("datetime") || time.textContent;
+      const hour = value?.match(/(?:T|^)(\d{1,2})(?::\d{2})?/i)?.[1];
+      if (hour) time.textContent = `${Number(hour)}u`;
+    });
+  }
+
   const ec = EventCalendar.create(el, {
     view: "timeGridWeek",
     locale: "nl",
@@ -864,25 +901,11 @@ document.addEventListener("DOMContentLoaded", function () {
       const viewClass = jvghViewClass(viewType);
       if (viewClass) el.classList.add(viewClass);
       if (mobileQuery.matches) {
-        const labels = {
-          ".ec-dayGridMonth": "maand",
-          ".ec-timeGridDay": "dag",
-          ".ec-timeGridWeek": "week",
-          ".ec-listWeek": "lijst",
-        };
-        requestAnimationFrame(() => Object.entries(labels).forEach(([selector, label]) => {
-          const button = el.querySelector(selector);
-          if (button) button.textContent = label;
-        }));
-        if (viewType === "timeGridWeek" && previousViewType !== viewType && window.innerWidth < 480) {
-          requestAnimationFrame(() => {
-            const scroller = el.closest(".planning-table-scroll");
-            const currentDay = el.querySelector(".ec-header .ec-day.ec-today") || el.querySelector(".ec-header .ec-day");
-            if (scroller && currentDay) {
-              scroller.scrollLeft = Math.max(0, currentDay.offsetLeft - scroller.clientWidth / 2 + currentDay.clientWidth / 2);
-            }
-          });
-        }
+        const viewChanged = previousViewType !== viewType;
+        requestAnimationFrame(() => {
+          prepareMobileCalendarControls(viewType);
+          if (viewChanged) ec.updateSize();
+        });
       }
       previousViewType = viewType;
       if (typeof JVGH_ensureVisibleMonthsLoaded === "function") {
