@@ -1,5 +1,5 @@
 // Increase this version for every release that changes a cached shell file.
-const STATIC_CACHE = 'jvgh-planning-static-v24-mobile-planner';
+const STATIC_CACHE = 'jvgh-planning-static-v25-mobile-calendar-views';
 const CACHE_PREFIX = 'jvgh-planning-static-';
 const APP_SHELL = [
   './index.html', './availability.html', './availability.js', './styles.css', './pwa.css', './pwa.js', './main.js',
