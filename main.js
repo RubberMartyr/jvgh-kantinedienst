@@ -409,6 +409,63 @@ document.addEventListener("DOMContentLoaded", function () {
     return;
   }
 
+  const mobileQuery = window.matchMedia("(max-width: 767px)");
+  const headerMenuButton = document.querySelector(".jvgh-mobile-menu-toggle");
+  const headerActions = document.getElementById("jvgh-header-actions");
+  const peopleBar = document.querySelector(".jvgh-mobile-people-bar");
+  const peopleSheet = document.getElementById("jvgh-people-sheet");
+  const peopleSheetClose = document.querySelector(".jvgh-mobile-sheet-close");
+  const peopleBackdrop = document.querySelector(".jvgh-mobile-sheet-backdrop");
+  const peopleSummary = document.querySelector(".jvgh-mobile-people-summary");
+
+  function setHeaderMenu(open) {
+    const mobileOpen = mobileQuery.matches && open;
+    headerMenuButton.setAttribute("aria-expanded", String(mobileOpen));
+    headerMenuButton.setAttribute("aria-label", mobileOpen ? "Planningmenu sluiten" : "Planningmenu openen");
+    headerActions.classList.toggle("is-mobile-open", mobileOpen);
+  }
+
+  function setPeopleSheet(open, restoreFocus = false) {
+    const mobileOpen = mobileQuery.matches && open;
+    peopleBar.setAttribute("aria-expanded", String(mobileOpen));
+    peopleBar.setAttribute("aria-label", mobileOpen
+      ? "Paneel in te plannen personen sluiten"
+      : "Paneel in te plannen personen openen");
+    peopleSheet.classList.toggle("is-mobile-open", mobileOpen);
+    peopleSheet.setAttribute("role", mobileOpen ? "dialog" : "region");
+    if (mobileOpen) {
+      peopleSheet.setAttribute("aria-modal", "true");
+      peopleBackdrop.hidden = false;
+      document.body.classList.add("jvgh-sheet-open");
+      peopleSheetClose.focus();
+    } else {
+      peopleSheet.removeAttribute("aria-modal");
+      peopleBackdrop.hidden = true;
+      document.body.classList.remove("jvgh-sheet-open");
+      if (restoreFocus && mobileQuery.matches) peopleBar.focus();
+    }
+  }
+
+  headerMenuButton.addEventListener("click", () => {
+    setHeaderMenu(headerMenuButton.getAttribute("aria-expanded") !== "true");
+  });
+  peopleBar.addEventListener("click", () => {
+    setPeopleSheet(peopleBar.getAttribute("aria-expanded") !== "true", true);
+  });
+  peopleSheetClose.addEventListener("click", () => setPeopleSheet(false, true));
+  peopleBackdrop.addEventListener("click", () => setPeopleSheet(false, true));
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && peopleBar.getAttribute("aria-expanded") === "true") {
+      setPeopleSheet(false, true);
+    }
+  });
+  mobileQuery.addEventListener("change", () => {
+    setHeaderMenu(false);
+    setPeopleSheet(false);
+  });
+  setHeaderMenu(false);
+  setPeopleSheet(false);
+
   // 🔹 Local "shifts" (keep your existing planning logic)
   let slots = [];
 
@@ -778,7 +835,7 @@ document.addEventListener("DOMContentLoaded", function () {
   const FULL_SLOT_MAX_TIME = "24:00:00";
 
   const ec = EventCalendar.create(el, {
-    view: "timeGridWeek", // week view is fine for a single resource
+    view: mobileQuery.matches ? "timeGridDay" : "timeGridWeek",
     locale: "nl",
     firstDay: 1,
     editable: true,
@@ -789,6 +846,21 @@ document.addEventListener("DOMContentLoaded", function () {
     nowIndicator: true,
     datesSet(info) {
       lastDatesSetInfo = info;
+      const viewType = info.view?.type || "";
+      el.classList.toggle("jvgh-mobile-week-view", viewType === "timeGridWeek");
+      el.classList.toggle("jvgh-mobile-day-view", viewType === "timeGridDay");
+      el.classList.toggle("jvgh-mobile-list-view", viewType.toLowerCase().includes("list"));
+      if (mobileQuery.matches) {
+        const labels = {
+          ".ec-timeGridDay": "dag",
+          ".ec-timeGridWeek": "week",
+          ".ec-listWeek": "lijst",
+        };
+        requestAnimationFrame(() => Object.entries(labels).forEach(([selector, label]) => {
+          const button = el.querySelector(selector);
+          if (button) button.textContent = label;
+        }));
+      }
       console.log(
         "[JVGH] datesSet",
         info.view?.type,
@@ -2004,7 +2076,10 @@ document.addEventListener("DOMContentLoaded", function () {
   }
 
   peopleTabs.forEach((tab) => {
-    tab.addEventListener('click', () => setActivePeopleTab(tab.dataset.tab));
+    tab.addEventListener('click', () => {
+      setActivePeopleTab(tab.dataset.tab);
+      if (peopleSummary) peopleSummary.textContent = tab.textContent.split("·")[0].trim();
+    });
   });
 
   const playerSelectEl = document.querySelector('#jvgh-player-select');
