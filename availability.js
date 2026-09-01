@@ -9,6 +9,10 @@ const {
 
 let requestedTeamName = "";
 let updateSaveStateForMode = null;
+const availabilityMonthDataLoader =
+  window.JVGHAvailabilityMonthData.createMonthDataLoader({
+    getPlannerMonthData: (monthKey) => JVGHApi.getPlannerMonthData(monthKey),
+  });
 
 function pad2(n) {
   return String(n).padStart(2, "0");
@@ -632,121 +636,7 @@ async function getVolunteerNameByUserId(userId) {
 }
 
 async function loadTasksForMonth(monthKey) {
-  const resp = await JVGHApi.getMonthData(monthKey);
-
-  const schedules = Array.isArray(resp?.schedules)
-    ? resp.schedules
-    : [];
-
-  const tasks = [];
-  const signupsByTask = new Map();
-  const scheduleByDay = new Map();
-
-  schedules.forEach((schedule) => {
-    const scheduleStart = String(schedule.start || "").slice(0, 10);
-    if (scheduleStart) {
-      scheduleByDay.set(scheduleStart, schedule.id);
-    }
-
-    const scheduleTasks = Array.isArray(schedule.tasks)
-      ? schedule.tasks
-      : [];
-
-    scheduleTasks.forEach((task) => {
-      const normalizedTask = {
-        ...task,
-        sheetId: schedule.id,
-      };
-
-      tasks.push(normalizedTask);
-
-      signupsByTask.set(
-        String(task.id),
-        Array.isArray(task.signups)
-          ? task.signups
-          : []
-      );
-    });
-  });
-
-  tasks.sort((a, b) =>
-    `${a.date || ""} ${a.time || ""}`.localeCompare(
-      `${b.date || ""} ${b.time || ""}`
-    )
-  );
-
-  return {
-    tasks,
-    signupsByTask,
-    scheduleByDay,
-  };
-}
-
-async function loadAuthoritativeSignupsByTask(
-  tasks,
-  fallbackSignupsByTask = new Map()
-) {
-  const result = new Map();
-
-  const taskIds = Array.from(
-    new Set(
-      (Array.isArray(tasks) ? tasks : [])
-        .map((task) => task?.id)
-        .filter(
-          (taskId) =>
-            taskId !== null &&
-            taskId !== undefined &&
-            String(taskId).trim() !== ""
-        )
-        .map(String)
-    )
-  );
-
-  if (
-    !window.JVGHApi ||
-    typeof JVGHApi.getSignups !== "function"
-  ) {
-    console.warn(
-      "[availability] JVGHApi.getSignups ontbreekt; embedded month-data signups worden gebruikt."
-    );
-
-    taskIds.forEach((taskId) => {
-      result.set(
-        taskId,
-        fallbackSignupsByTask.get(taskId) || []
-      );
-    });
-
-    return result;
-  }
-
-  for (const taskId of taskIds) {
-    try {
-      const response =
-        await JVGHApi.getSignups(taskId);
-
-      const signups =
-        Array.isArray(response?.signups)
-          ? response.signups
-          : Array.isArray(response)
-            ? response
-            : [];
-
-      result.set(taskId, signups);
-    } catch (error) {
-      console.warn(
-        `[availability] Kon actuele signups voor taak ${taskId} niet laden; fallback wordt gebruikt.`,
-        error
-      );
-
-      result.set(
-        taskId,
-        fallbackSignupsByTask.get(taskId) || []
-      );
-    }
-  }
-
-  return result;
+  return availabilityMonthDataLoader.load(monthKey);
 }
 
 function collectSignupsForTaskGroup(task, signupsByTask) {
@@ -1672,8 +1562,8 @@ async function saveChanges({
     if (updateSaveStateForMode) updateSaveStateForMode(false);
     else setSaveDirtyState(false);
 
-    // Fully reload month from backend after save.
-    // This avoids stale in-memory state mismatches.
+    // Invalidate the month cache so the reload performs one fresh bulk request.
+    availabilityMonthDataLoader.invalidate();
     if (typeof loadMonth === "function") {
       await loadMonth();
     }
@@ -1810,7 +1700,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       setStatus("Shifts laden…");
       const {
         tasks,
-        signupsByTask: embeddedSignupsByTask,
+        signupsByTask,
         scheduleByDay
       } = await loadTasksForMonth(currentMonthKey);
 
@@ -1821,7 +1711,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         {
           tasks: tasks.length,
           signups:
-            Array.from(embeddedSignupsByTask.values())
+            Array.from(signupsByTask.values())
               .reduce(
                 (sum, arr) => sum + arr.length,
                 0
@@ -1829,14 +1719,8 @@ document.addEventListener("DOMContentLoaded", async () => {
         }
       );
 
-      // Signups worden eerst autoritatief geladen. Pas daarna mag een
-      // persisted taak visueel als ghost beoordeeld worden.
-      setStatus("Inschrijvingen laden…");
-      const signupsByTask = await loadAuthoritativeSignupsByTask(
-        tasks.filter((task) => task?.id !== null && task?.id !== undefined),
-        embeddedSignupsByTask
-      );
-      console.log("[availability] authoritative signups loaded", {
+      // task.signups from planner-month-data is authoritative for this load.
+      console.log("[availability] bundled signups loaded", {
         tasks: tasks.filter((task) => task?.id !== null && task?.id !== undefined).length,
         signups: Array.from(signupsByTask.values()).reduce((total, signups) => total + signups.length, 0),
         currentUserId: Number(userId),
