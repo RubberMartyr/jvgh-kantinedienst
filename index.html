@@ -66,7 +66,11 @@
     </div>
      
   </div>
-   <div class="jvgh-header-actions" aria-label="Planningacties">
+  <button class="jvgh-mobile-menu-toggle" type="button" aria-expanded="false"
+    aria-controls="jvgh-header-actions" aria-label="Planningmenu openen">
+    <span>Menu</span><span class="jvgh-mobile-chevron" aria-hidden="true">⌄</span>
+  </button>
+   <div id="jvgh-header-actions" class="jvgh-header-actions" aria-label="Planningacties">
       <button id="send-availability-mails-button" class="jvgh-header-action jvgh-header-action--secondary" type="button">
         <span>Vraag beschikbaarheid</span>
       </button>
@@ -119,7 +123,11 @@
     </section>
 
     <!-- RIGHT: volunteers to plan -->
-  <aside class="jvgh-sidebar">
+  <aside id="jvgh-people-sheet" class="jvgh-sidebar" role="region" aria-labelledby="jvgh-people-sheet-title">
+    <div class="jvgh-mobile-sheet-heading">
+      <h2 id="jvgh-people-sheet-title">In te plannen personen</h2>
+      <button class="jvgh-mobile-sheet-close" type="button" aria-label="Paneel sluiten">×</button>
+    </div>
     <div class="people-tabs" role="tablist" aria-label="Vrijwilliger groepen">
     <button class="people-tab is-active" type="button" role="tab" aria-selected="true" data-tab="bestuur">Bestuur · 4,5u</button>
     <button class="people-tab" type="button" role="tab" aria-selected="false" data-tab="vrijwilligers">Vrijwilligers · 4u</button>
@@ -214,6 +222,13 @@
     </aside>
   </div>
 </main>
+
+<div class="jvgh-mobile-sheet-backdrop" hidden></div>
+<button class="jvgh-mobile-people-bar" type="button" aria-expanded="false"
+  aria-controls="jvgh-people-sheet" aria-label="Paneel in te plannen personen openen">
+  <span><strong>In te plannen personen</strong><small class="jvgh-mobile-people-summary">Bestuur</small></span>
+  <span class="jvgh-mobile-chevron" aria-hidden="true">⌃</span>
+</button>
 
 <div id="pwa-ios-dialog" class="pwa-dialog-backdrop" hidden>
   <section class="pwa-dialog" role="dialog" aria-modal="true" aria-labelledby="pwa-ios-title">
