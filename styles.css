@@ -1888,12 +1888,6 @@ body:has(.jvgh-availability-overlay:not(.hidden)) { overflow: hidden; }
   .jvgh-calendar-card { min-width: 0; max-width: 100%; border-radius: 10px; }
   .planning-table-scroll { width: 100%; overflow-x: hidden; background: none; scrollbar-gutter: auto; }
   .planning-table-scroll > #ec { width: 100%; min-width: 0 !important; }
-  .planning-table-scroll > #ec.jvgh-mobile-week-view { min-width: 680px !important; }
-  .planning-table-scroll:has(> #ec.jvgh-mobile-week-view) {
-    overflow-x: auto;
-    overscroll-behavior-x: contain;
-    -webkit-overflow-scrolling: touch;
-  }
   .ec .ec-button { min-height: 44px; padding-inline: 12px; }
 
   .ec .ec-toolbar {
@@ -1907,15 +1901,41 @@ body:has(.jvgh-availability-overlay:not(.hidden)) { overflow: hidden; }
   .ec .ec-toolbar > * { min-width: 0; margin: 0; }
   .ec .ec-toolbar > :nth-child(1) { grid-row: 1; justify-self: center; }
   .ec .ec-toolbar > :nth-child(2) { grid-row: 2; width: 100%; text-align: center; }
-  .ec .ec-toolbar > :nth-child(3) { grid-row: 3; justify-self: center; }
+  .ec .ec-toolbar > :nth-child(3) {
+    grid-row: 3;
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    width: 100%;
+  }
+  .ec .ec-toolbar > :nth-child(3) .ec-button { min-width: 0; padding-inline: 4px; }
   .ec .ec-toolbar-title,
   .ec .ec-title { width: 100%; text-align: center; white-space: normal; overflow-wrap: anywhere; }
-  .ec .ec-dayGridMonth,
   .ec .ec-resourceTimeGridDay,
   .ec .ec-resourceTimelineDay { display: none !important; }
-  #ec.jvgh-mobile-list-view { min-width: 0 !important; }
-  #ec.jvgh-mobile-list-view .ec-event-title,
-  #ec.jvgh-mobile-list-view .ec-list { white-space: normal; overflow-wrap: anywhere; }
+  #ec:is(.jvgh-view-month, .jvgh-view-day, .jvgh-view-list) {
+    width: 100%; min-width: 0 !important; overflow-x: hidden;
+  }
+  #ec:is(.jvgh-view-month, .jvgh-view-day, .jvgh-view-week) :is(.ec-body, .ec-content, .ec-days, .ec-day) { min-width: 0; }
+  #ec.jvgh-view-month :is(.ec-day-head, .ec-day-cell, .ec-day) { padding-inline: 1px; }
+  #ec.jvgh-view-month :is(.ec-event, .ec-event-body, .jvgh-ical-content, .jvgh-assignment) { min-width: 0; overflow: hidden; }
+  #ec.jvgh-view-month :is(.ec-event-title, .jvgh-ical-title, .ec-event-time) {
+    display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  #ec.jvgh-view-day .ec-time { width: 2.75rem; padding-inline: 2px; }
+  #ec.jvgh-view-day :is(.ec-event, .ec-event-title, .jvgh-ical-title) { min-width: 0; overflow: hidden; overflow-wrap: anywhere; }
+  #ec.jvgh-view-list :is(.ec-list, .ec-list-table, .ec-list-day, .ec-event) { width: 100%; min-width: 0; max-width: 100%; }
+  #ec.jvgh-view-list :is(.ec-event-title, .jvgh-ical-title) { white-space: normal; overflow-wrap: anywhere; }
+  #ec.jvgh-view-week { width: 100%; min-width: 0 !important; }
+  #ec.jvgh-view-week :is(.ec-day-head, .ec-day, .ec-time) { padding-inline: 1px; font-size: .75rem; }
+  #ec.jvgh-view-week .ec-time { width: 2.5rem; }
+  #ec.jvgh-view-week :is(.ec-event, .ec-event-title, .jvgh-ical-title) { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+
+  @media (max-width: 479px) {
+    .planning-table-scroll:has(> #ec.jvgh-view-week) {
+      overflow-x: auto; overscroll-behavior-x: contain; -webkit-overflow-scrolling: touch;
+    }
+    .planning-table-scroll > #ec.jvgh-view-week { min-width: 520px !important; }
+  }
 
   .jvgh-sidebar {
     position: fixed;

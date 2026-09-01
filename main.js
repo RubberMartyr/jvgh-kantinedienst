@@ -834,8 +834,20 @@ document.addEventListener("DOMContentLoaded", function () {
   const FULL_SLOT_MIN_TIME = "00:00:00";
   const FULL_SLOT_MAX_TIME = "24:00:00";
 
+  const VIEW_CLASSES = ["jvgh-view-month", "jvgh-view-week", "jvgh-view-day", "jvgh-view-list", "jvgh-view-resources", "jvgh-view-timeline"];
+  function jvghViewClass(viewType) {
+    if (viewType === "dayGridMonth") return "jvgh-view-month";
+    if (viewType === "timeGridWeek") return "jvgh-view-week";
+    if (viewType === "timeGridDay") return "jvgh-view-day";
+    if (viewType.toLowerCase().includes("list")) return "jvgh-view-list";
+    if (viewType === "resourceTimeGridDay") return "jvgh-view-resources";
+    if (viewType === "resourceTimelineDay") return "jvgh-view-timeline";
+    return "";
+  }
+  let previousViewType = "";
+
   const ec = EventCalendar.create(el, {
-    view: mobileQuery.matches ? "timeGridDay" : "timeGridWeek",
+    view: "timeGridWeek",
     locale: "nl",
     firstDay: 1,
     editable: true,
@@ -844,14 +856,16 @@ document.addEventListener("DOMContentLoaded", function () {
     selectable: false,
     height: "auto",
     nowIndicator: true,
+    dayMaxEvents: mobileQuery.matches,
     datesSet(info) {
       lastDatesSetInfo = info;
       const viewType = info.view?.type || "";
-      el.classList.toggle("jvgh-mobile-week-view", viewType === "timeGridWeek");
-      el.classList.toggle("jvgh-mobile-day-view", viewType === "timeGridDay");
-      el.classList.toggle("jvgh-mobile-list-view", viewType.toLowerCase().includes("list"));
+      el.classList.remove(...VIEW_CLASSES);
+      const viewClass = jvghViewClass(viewType);
+      if (viewClass) el.classList.add(viewClass);
       if (mobileQuery.matches) {
         const labels = {
+          ".ec-dayGridMonth": "maand",
           ".ec-timeGridDay": "dag",
           ".ec-timeGridWeek": "week",
           ".ec-listWeek": "lijst",
@@ -860,13 +874,17 @@ document.addEventListener("DOMContentLoaded", function () {
           const button = el.querySelector(selector);
           if (button) button.textContent = label;
         }));
+        if (viewType === "timeGridWeek" && previousViewType !== viewType && window.innerWidth < 480) {
+          requestAnimationFrame(() => {
+            const scroller = el.closest(".planning-table-scroll");
+            const currentDay = el.querySelector(".ec-header .ec-day.ec-today") || el.querySelector(".ec-header .ec-day");
+            if (scroller && currentDay) {
+              scroller.scrollLeft = Math.max(0, currentDay.offsetLeft - scroller.clientWidth / 2 + currentDay.clientWidth / 2);
+            }
+          });
+        }
       }
-      console.log(
-        "[JVGH] datesSet",
-        info.view?.type,
-        "start", jvghDayKeyFromDate(new Date(info.start)),
-        "endExcl", jvghDayKeyFromDate(new Date(info.end))
-      );
+      previousViewType = viewType;
       if (typeof JVGH_ensureVisibleMonthsLoaded === "function") {
         JVGH_ensureVisibleMonthsLoaded(info);
       }
@@ -1296,6 +1314,11 @@ document.addEventListener("DOMContentLoaded", function () {
   });
 
   window.ec = ec;
+
+  mobileQuery.addEventListener("change", () => {
+    ec.setOption("dayMaxEvents", mobileQuery.matches);
+    requestAnimationFrame(() => ec.updateSize());
+  });
 
   const toggleHoursButton = document.getElementById("toggle-hours-button");
   const refreshMonthButton = document.getElementById("refresh-month-button");
