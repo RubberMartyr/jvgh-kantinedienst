@@ -97,7 +97,7 @@
       .trim();
   }
 
-  function getAvailabilityDisplayTitle(task) {
+  function getAvailabilityDisplayTitle(task, { includeActualMatchTime = false } = {}) {
     const sourceType = String(task?.sourceType || "").toLowerCase();
     const summary = decodeAndTrimIcsText(task?.icsSummary || "");
 
@@ -107,7 +107,8 @@
         { teamNames: task?.teamNames, summary },
       ];
       return buildGroupedMatchTitle(groupedMatches,
-        task?.matchStart ?? task?.icsStart, task?.matchEnd ?? task?.icsEnd);
+        task?.matchStart ?? task?.icsStart, task?.matchEnd ?? task?.icsEnd,
+        { includeActualMatchTime });
     }
 
     if (sourceType === "event") {
@@ -115,6 +116,32 @@
     }
 
     return task?.sourceLabel || task?.title || "Shift";
+  }
+
+  function normalizeAvailabilityTitleTime(value) {
+    const match = String(value ?? "").trim().match(/^(\d{1,2}):(\d{2})(?::\d{2})?$/);
+    if (!match) return "";
+    const hours = Number(match[1]);
+    const minutes = Number(match[2]);
+    if (hours > 23 || minutes > 59) return "";
+    return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
+  }
+
+  function getAvailabilityCardTitle(task, state) {
+    const baseTitle = getAvailabilityDisplayTitle(task, { includeActualMatchTime: false });
+    if (task?.isMonthUnavailableDummy || !state?.currentChecked) return baseTitle;
+
+    const selectedStart = normalizeAvailabilityTitleTime(state.selectedStartTime);
+    const selectedEnd = normalizeAvailabilityTitleTime(state.selectedEndTime);
+    const shiftStart = normalizeAvailabilityTitleTime(state.shiftStartTime);
+    const shiftEnd = normalizeAvailabilityTitleTime(state.shiftEndTime);
+    if (!selectedStart || !selectedEnd || !shiftStart || !shiftEnd || selectedStart >= selectedEnd) {
+      return baseTitle;
+    }
+
+    return selectedStart !== shiftStart || selectedEnd !== shiftEnd
+      ? `${baseTitle} (${selectedStart}–${selectedEnd})`
+      : baseTitle;
   }
 
   function formatActualMatchTime(startValue, endValue) {
@@ -176,7 +203,8 @@
     });
   }
 
-  function buildGroupedMatchTitle(matches, actualStart, actualEnd) {
+  function buildGroupedMatchTitle(matches, actualStart, actualEnd,
+    { includeActualMatchTime = true } = {}) {
     const matchList = Array.isArray(matches) ? matches : [];
     const starts = [];
     const ends = [];
@@ -193,7 +221,7 @@
     const end = ends.length ? new Date(Math.max(...ends)) : actualEnd;
     const teams = groupedTitleTeamNames(matchList);
     const title = teams.length ? `Wedstrijd ${teams.join(", ")}` : "Wedstrijd";
-    const actualTime = formatActualMatchTime(start, end);
+    const actualTime = includeActualMatchTime ? formatActualMatchTime(start, end) : "";
     return actualTime ? `${title} (${actualTime})` : title;
   }
 
@@ -232,6 +260,7 @@
     filterHomeEventsByTeam,
     formatActualMatchTime,
     getDefaultAvailabilityMonth,
+    getAvailabilityCardTitle,
     getAvailabilityDisplayTitle,
     homeSideMatchesTeam,
     matchBelongsToResolvedTeam,
@@ -239,6 +268,7 @@
     normalizeTeamForGroupedTitle,
     normalizeTeamCode,
     normalizeTeamText,
+    normalizeAvailabilityTitleTime,
     recognizedTeamName,
     parseTeamQueryParams,
     splitMatchSummary,

@@ -7,6 +7,7 @@ const {
   extractIcsTeamCode,
   filterHomeEventsByTeam,
   getDefaultAvailabilityMonth,
+  getAvailabilityCardTitle,
   getAvailabilityDisplayTitle,
   homeSideMatchesTeam,
   matchBelongsToResolvedTeam,
@@ -14,6 +15,7 @@ const {
   normalizeTeamForGroupedTitle,
   normalizeTeamCode,
   normalizeTeamText,
+  normalizeAvailabilityTitleTime,
   recognizedTeamName,
   parseTeamQueryParams,
   splitMatchSummary,
@@ -88,15 +90,55 @@ test('grouped match titles list every unique team in natural order', () => {
   );
 });
 
-test('match titles append the canonical actual time but event titles do not', () => {
+test('match titles include the canonical actual time only when explicitly requested', () => {
   assert.equal(getAvailabilityDisplayTitle({ sourceType: 'match', teamNames: ['U11'],
-    matchStart: '2026-09-05T09:30:00', matchEnd: '2026-09-05T11:00:00' }),
+    matchStart: '2026-09-05T09:30:00', matchEnd: '2026-09-05T11:00:00' },
+  { includeActualMatchTime: true }),
   'Wedstrijd U11 (09:30–11:00)');
   assert.equal(getAvailabilityDisplayTitle({ sourceType: 'match', teamNames: ['U11', 'U6 A', 'U6 B'],
-    matchStart: '2026-09-05T09:30:00', matchEnd: '2026-09-05T11:00:00' }),
+    matchStart: '2026-09-05T09:30:00', matchEnd: '2026-09-05T11:00:00' },
+  { includeActualMatchTime: true }),
   'Wedstrijd U6, U11 (09:30–11:00)');
   assert.equal(getAvailabilityDisplayTitle({ sourceType: 'event', icsSummary: 'Feest',
     icsStart: '2026-09-05T09:30:00', icsEnd: '2026-09-05T11:00:00' }), 'Feest');
+});
+
+test('availability card titles conditionally show the checked selected interval', () => {
+  const task = { sourceType: 'match', teamNames: ['U11', 'U6A', 'U6B'],
+    matchStart: '2026-09-05T09:30:00', matchEnd: '2026-09-05T11:00:00' };
+  const complete = { currentChecked: true, selectedStartTime: '8:30', selectedEndTime: '12:00:00',
+    shiftStartTime: '08:30:00', shiftEndTime: '12:00' };
+  assert.equal(getAvailabilityCardTitle(task, complete), 'Wedstrijd U6, U11');
+  assert.equal(getAvailabilityCardTitle(task, { ...complete, selectedStartTime: '09:00', selectedEndTime: '11:30' }),
+    'Wedstrijd U6, U11 (09:00–11:30)');
+  assert.equal(getAvailabilityCardTitle(task, { ...complete, selectedStartTime: '09:00' }),
+    'Wedstrijd U6, U11 (09:00–12:00)');
+  assert.equal(getAvailabilityCardTitle(task, { ...complete, selectedEndTime: '11:15' }),
+    'Wedstrijd U6, U11 (08:30–11:15)');
+  assert.equal(getAvailabilityCardTitle(task, { ...complete, currentChecked: false,
+    selectedStartTime: '09:00' }), 'Wedstrijd U6, U11');
+});
+
+test('availability card titles support events and reject malformed intervals', () => {
+  const task = { sourceType: 'event', icsSummary: 'Ploegenvoorstelling' };
+  const state = { currentChecked: true, selectedStartTime: '18:30', selectedEndTime: '21:00',
+    shiftStartTime: '18:00', shiftEndTime: '22:00' };
+  assert.equal(getAvailabilityCardTitle(task, state), 'Ploegenvoorstelling (18:30–21:00)');
+  assert.equal(getAvailabilityCardTitle(task, { ...state, selectedStartTime: undefined }), 'Ploegenvoorstelling');
+  assert.equal(getAvailabilityCardTitle(task, { ...state, selectedStartTime: '25:00' }), 'Ploegenvoorstelling');
+  assert.equal(getAvailabilityCardTitle({ ...task, isMonthUnavailableDummy: true }, state), 'Ploegenvoorstelling');
+  assert.equal(normalizeAvailabilityTitleTime('8:30'), '08:30');
+  assert.equal(normalizeAvailabilityTitleTime('08:30:00'), '08:30');
+});
+
+test('availability compact base title can omit actual match time without losing it from task data', () => {
+  const task = { sourceType: 'match', teamNames: ['U8A', 'U8B'],
+    matchStart: '2026-09-05T09:30:00', matchEnd: '2026-09-05T11:00:00' };
+  assert.equal(getAvailabilityDisplayTitle(task, { includeActualMatchTime: false }), 'Wedstrijd U8');
+  assert.equal(getAvailabilityDisplayTitle(task), 'Wedstrijd U8');
+  assert.equal(getAvailabilityDisplayTitle(task, { includeActualMatchTime: true }),
+    'Wedstrijd U8 (09:30–11:00)');
+  assert.equal(task.matchStart, '2026-09-05T09:30:00');
 });
 
 test('grouped-title normalization collapses only trailing squad variants', () => {

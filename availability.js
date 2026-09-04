@@ -9,7 +9,7 @@ const {
   extractIcsTeamCode,
   filterHomeEventsByTeam,
   getDefaultAvailabilityMonth,
-  getAvailabilityDisplayTitle,
+  getAvailabilityCardTitle,
   recognizedTeamName,
   splitMatchSummary,
 } = availabilityFilter;
@@ -1300,7 +1300,10 @@ function renderList({
 
     const sourceBadge = document.createElement("span");
     sourceBadge.className = "availability-source-badge";
-    sourceBadge.textContent = getAvailabilityDisplayTitle(task);
+    const updateCardTitle = () => {
+      sourceBadge.textContent = getAvailabilityCardTitle(task, state);
+    };
+    updateCardTitle();
 
     textWrap.appendChild(label);
     textWrap.appendChild(sourceBadge);
@@ -1396,6 +1399,7 @@ function renderList({
           state.selectedEndTime = normalized.endTime;
         }
         Object.values(selects).forEach((control) => control.renderOptions());
+        updateCardTitle();
         updateDirtyUi(stateByTask);
       });
       selects[kind] = { select, renderOptions };
@@ -1451,6 +1455,7 @@ function renderList({
       state.currentChecked = Boolean(checkbox.checked);
       state.hasUnresolvedSeparatedIntervals = false;
       timeRange.hidden = !state.currentChecked;
+      updateCardTitle();
 
       const monthUnavailableState = getMonthUnavailableState(stateByTask);
       if (monthUnavailableState && state.currentChecked) {

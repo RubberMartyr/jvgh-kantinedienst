@@ -60,6 +60,6 @@ test('loadShiftSlotsForMonth uses the imported helper for a normal match event',
   assert.equal(shifts[0].end, '2026-09-05T12:00:00.000Z');
   assert.equal(
     AvailabilityFilter.getAvailabilityDisplayTitle({ ...shifts[0], teamNames: ['U11', 'U6A', 'U6B'] }),
-    'Wedstrijd U6, U11 (09:30–11:00)'
+    'Wedstrijd U6, U11'
   );
 });

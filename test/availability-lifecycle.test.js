@@ -12,7 +12,7 @@ test('availability PWA launches links in a new browsing context', () => {
 
 test('service worker refreshes critical launch assets and advances its cache', () => {
   const worker = fs.readFileSync(path.join(root, 'service-worker.js'), 'utf8');
-  assert.match(worker, /jvgh-planning-static-v38-signup-owned-overlaps/);
+  assert.match(worker, /jvgh-planning-static-v39-availability-selected-hours/);
   assert.match(worker, /\.\/availability-volunteers\.js/);
   assert.match(worker, /request\.mode === 'navigate'/);
   assert.match(worker, /url\.pathname\.endsWith\('\.js'\)/);
@@ -44,11 +44,30 @@ test('selecting availability does not change the details expansion state', () =>
   assert.ok(handler);
   assert.match(handler[1], /state\.currentChecked = Boolean\(checkbox\.checked\)/);
   assert.match(handler[1], /timeRange\.hidden = !state\.currentChecked/);
+  assert.match(handler[1], /updateCardTitle\(\)/);
   assert.match(handler[1], /syncAvailabilityDom\(stateByTask\)/);
   assert.match(handler[1], /updateDirtyUi\(stateByTask\)/);
   assert.doesNotMatch(handler[1], /details\.classList|expandButton\.click|classList\.toggle/);
 
   assert.match(source, /expandButton\.addEventListener\("click", \(\) => \{[\s\S]*?details\.classList\.toggle\("is-open"\)/);
+});
+
+test('dropdown and checkbox changes update only the compact card title immediately', () => {
+  const source = fs.readFileSync(path.join(root, 'availability.js'), 'utf8');
+  assert.match(source, /sourceBadge\.textContent = getAvailabilityCardTitle\(task, state\)/);
+  const dropdownHandler = source.match(/select\.addEventListener\("change", \(\) => \{([\s\S]*?)\n      \}\);/);
+  assert.ok(dropdownHandler);
+  assert.match(dropdownHandler[1], /state\.selectedStartTime = select\.value/);
+  assert.match(dropdownHandler[1], /state\.selectedEndTime = select\.value/);
+  assert.match(dropdownHandler[1], /updateCardTitle\(\)/);
+  assert.doesNotMatch(dropdownHandler[1], /renderList|loadMonth/);
+});
+
+test('actual match hours remain in the expanded reason and not the compact base-title call', () => {
+  const source = fs.readFileSync(path.join(root, 'availability.js'), 'utf8');
+  assert.match(source, /const matchHours = task\.icsStart && task\.icsEnd[\s\S]*?formatHourRange\(task\.icsStart, task\.icsEnd\)/);
+  assert.match(source, /sourceBadge\.textContent = getAvailabilityCardTitle\(task, state\)/);
+  assert.doesNotMatch(source, /sourceBadge\.textContent = getAvailabilityDisplayTitle\(task\)/);
 });
 
 test('availability context is initialized from the current URL at DOM initialization', () => {
