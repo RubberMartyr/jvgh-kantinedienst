@@ -12,7 +12,7 @@ test('availability PWA launches links in a new browsing context', () => {
 
 test('service worker refreshes critical launch assets and advances its cache', () => {
   const worker = fs.readFileSync(path.join(root, 'service-worker.js'), 'utf8');
-  assert.match(worker, /jvgh-planning-static-v37-independent-availability-overlaps/);
+  assert.match(worker, /jvgh-planning-static-v38-signup-owned-overlaps/);
   assert.match(worker, /\.\/availability-volunteers\.js/);
   assert.match(worker, /request\.mode === 'navigate'/);
   assert.match(worker, /url\.pathname\.endsWith\('\.js'\)/);
@@ -68,4 +68,11 @@ test('loaded state stays clean and stale loads cannot replace user edits', () =>
   assert.match(source, /state\.originalEndTime = state\.selectedEndTime/);
   assert.match(source, /availabilityUserEditGeneration !== editGenerationAtRequestStart/);
   assert.match(source, /availabilityUserEditGeneration \+= 1/);
+});
+
+test('persisted signups remain authoritative when availability owner metadata is absent', () => {
+  const source = fs.readFileSync(path.join(root, 'availability.js'), 'utf8');
+  assert.match(source, /const ownedAvailabilityAssignments = availabilityAssignments\.filter/);
+  assert.match(source, /getAvailabilityMetadata\(assignment\)\.ownerUserId === Number\(userId\) \|\|/);
+  assert.match(source, /signupsByTask\.get\(String\(assignment\.id\)\)[\s\S]*?isSignupForCurrentUser/);
 });
