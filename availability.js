@@ -1426,7 +1426,6 @@ function renderList({
       state.currentChecked = Boolean(checkbox.checked);
       state.hasUnresolvedSeparatedIntervals = false;
       timeRange.hidden = !state.currentChecked;
-      if (state.currentChecked && !details.classList.contains("is-open")) expandButton.click();
 
       const monthUnavailableState = getMonthUnavailableState(stateByTask);
       if (monthUnavailableState && state.currentChecked) {

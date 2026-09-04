@@ -44,6 +44,55 @@ test("saved merged assignments reconstruct complete and partial source blocks", 
     [[['09:15', '10:00']], [['10:00', '11:30']], [['11:30', '12:15']]]);
 });
 
+test("loaded assignment over overlapping blocks ends at the next selected start", () => {
+  const shifts = [sourceShift("08:30", "13:00"), sourceShift("10:00", "14:30")];
+  const persisted = saved("08:30", "13:00", shifts.map((shift) => shift.key));
+  const mapped = reconstruct(shifts, [persisted]);
+  const ranges = shifts.map((shift) => mapped.get(shift).intervals[0])
+    .map((interval) => [local(interval.start), local(interval.end)]);
+
+  assert.deepEqual(ranges, [["08:30", "10:00"], ["10:00", "13:00"]]);
+  assert.equal(ranges[0][1], ranges[1][0], "the first end is the next reconstructed start");
+  assert.deepEqual(ranges.map(([start]) => start), ["08:30", "10:00"],
+    "reconstructing ends does not alter starts");
+  assert.ok(shifts.every((shift) => {
+    const interval = mapped.get(shift).intervals[0];
+    return interval.end.getTime() > interval.start.getTime();
+  }), "every reconstructed selection has positive duration");
+
+  const [roundTrip] = mergeAvailabilityIntervals(
+    shifts.map((task) => ({ task, selected: mapped.get(task).intervals[0] })),
+    (state) => state.selected,
+  );
+  assert.deepEqual([roundTrip.startTime, roundTrip.endTime], ["08:30", "13:00"]);
+});
+
+test("loaded end boundaries preserve partial starts and cap the last block at both ends", () => {
+  const shifts = [
+    sourceShift("08:30", "13:00"),
+    sourceShift("10:00", "14:30"),
+    sourceShift("11:30", "14:00"),
+  ];
+  let mapped = reconstruct(shifts, [saved("09:00", "15:00", shifts.map((shift) => shift.key))]);
+  assert.deepEqual(shifts.map((shift) => mapped.get(shift).intervals.map((interval) =>
+    [local(interval.start), local(interval.end)])), [
+    [["09:00", "10:00"]], [["10:00", "11:30"]], [["11:30", "14:00"]],
+  ]);
+
+  mapped = reconstruct(shifts.slice(0, 2), [saved("09:15", "12:00", shifts.slice(0, 2).map((shift) => shift.key))]);
+  assert.deepEqual(shifts.slice(0, 2).map((shift) => mapped.get(shift).intervals.map((interval) =>
+    [local(interval.start), local(interval.end)])), [
+    [["09:15", "10:00"]], [["10:00", "12:00"]],
+  ]);
+});
+
+test("a single loaded block keeps its complete applicable range", () => {
+  const shift = sourceShift("08:30", "13:00");
+  const interval = reconstruct([shift], [saved("08:30", "13:00", [shift.key])])
+    .get(shift).intervals[0];
+  assert.deepEqual([local(interval.start), local(interval.end)], ["08:30", "13:00"]);
+});
+
 test("reconstructed source selections round-trip to the same merged assignment", () => {
   const shifts = [sourceShift("08:30", "10:00"), sourceShift("10:00", "11:30"), sourceShift("11:30", "13:00")];
   const persisted = saved("09:15", "12:15", shifts.map((shift) => shift.key));

@@ -105,6 +105,28 @@
       });
       result.set(shift, { intervals: merged, separated: merged.length > 1 });
     });
+
+    // A canonical assignment can cover overlapping source shifts. Its persisted
+    // end is therefore a valid intersection end for more than one shift, but
+    // showing that end on every row would duplicate time in the form. Split only
+    // the loaded representation at the next later reconstructed start; saving
+    // the adjacent pieces will still merge into the canonical assignment.
+    assignments.forEach((assignment) => {
+      const selected = [];
+      sourceShifts.forEach((shift) => {
+        (result.get(shift)?.intervals || []).forEach((interval) => {
+          if (interval.assignments.includes(assignment)) selected.push(interval);
+        });
+      });
+      selected.sort((a, b) => a.start.getTime() - b.start.getTime());
+      selected.forEach((interval, index) => {
+        const next = selected.slice(index + 1)
+          .find((candidate) => candidate.start.getTime() > interval.start.getTime());
+        if (!next) return;
+        const reconstructedEnd = Math.min(interval.end.getTime(), next.start.getTime());
+        if (reconstructedEnd > interval.start.getTime()) interval.end = new Date(reconstructedEnd);
+      });
+    });
     return result;
   }
 
