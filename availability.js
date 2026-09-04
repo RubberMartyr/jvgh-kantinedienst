@@ -1,11 +1,22 @@
 const DEFAULT_ASSIGNMENT_DURATION_MINUTES = 240;
+const availabilityFilter = window.JVGHAvailabilityFilter;
+if (!availabilityFilter) {
+  throw new Error(
+    "JVGHAvailabilityFilter is unavailable. Load availability-filter.js before availability.js."
+  );
+}
 const {
+  extractIcsTeamCode,
   filterHomeEventsByTeam,
   getDefaultAvailabilityMonth,
   getAvailabilityDisplayTitle,
   recognizedTeamName,
   splitMatchSummary,
-} = window.JVGHAvailabilityFilter;
+} = availabilityFilter;
+
+if (typeof extractIcsTeamCode !== "function") {
+  throw new Error("JVGHAvailabilityFilter.extractIcsTeamCode is unavailable.");
+}
 
 let requestedTeamName = "";
 let updateSaveStateForMode = null;
