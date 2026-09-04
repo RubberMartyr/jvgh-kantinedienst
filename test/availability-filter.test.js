@@ -2,6 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 
 const {
+  buildGroupedMatchTitle,
   decodeAndTrimIcsText,
   extractIcsTeamCode,
   filterHomeEventsByTeam,
@@ -10,6 +11,7 @@ const {
   homeSideMatchesTeam,
   matchBelongsToResolvedTeam,
   naturalSortTeamNames,
+  normalizeTeamForGroupedTitle,
   normalizeTeamCode,
   normalizeTeamText,
   recognizedTeamName,
@@ -60,7 +62,7 @@ test('availability titles identify the home team without a team query', () => {
   assert.equal(getAvailabilityDisplayTitle({
     sourceType: 'match',
     icsSummary: 'Herk-De-Stad U9 B / Tegenstander U9 B',
-  }), 'Wedstrijd U9 B');
+  }), 'Wedstrijd U9');
   assert.equal(getAvailabilityDisplayTitle({
     sourceType: 'match',
     icsSummary: 'Herk-De-Stad / Onbekende ploeg',
@@ -71,11 +73,11 @@ test('grouped match titles list every unique team in natural order', () => {
   assert.equal(getAvailabilityDisplayTitle({
     sourceType: 'match',
     teamNames: ['U8', 'U7'],
-  }), 'Wedstrijden U7 & U8');
+  }), 'Wedstrijd U7, U8');
   assert.equal(getAvailabilityDisplayTitle({
     sourceType: 'match',
     teamNames: ['U10', 'U6 B', 'U7', 'U6', 'U7'],
-  }), 'Wedstrijden U6, U6 B, U7 & U10');
+  }), 'Wedstrijd U6, U7, U10');
   assert.equal(getAvailabilityDisplayTitle({
     sourceType: 'match',
     teamNames: ['U8'],
@@ -92,9 +94,44 @@ test('match titles append the canonical actual time but event titles do not', ()
   'Wedstrijd U11 (09:30–11:00)');
   assert.equal(getAvailabilityDisplayTitle({ sourceType: 'match', teamNames: ['U11', 'U6 A', 'U6 B'],
     matchStart: '2026-09-05T09:30:00', matchEnd: '2026-09-05T11:00:00' }),
-  'Wedstrijden U6 A, U6 B & U11 (09:30–11:00)');
+  'Wedstrijd U6, U11 (09:30–11:00)');
   assert.equal(getAvailabilityDisplayTitle({ sourceType: 'event', icsSummary: 'Feest',
     icsStart: '2026-09-05T09:30:00', icsEnd: '2026-09-05T11:00:00' }), 'Feest');
+});
+
+test('grouped-title normalization collapses only trailing squad variants', () => {
+  for (const value of ['U6A', 'U6B', 'U6 A', 'U6 B', 'u6a']) {
+    assert.equal(normalizeTeamForGroupedTitle(value), 'U6');
+  }
+  assert.equal(normalizeTeamForGroupedTitle(' U11  A '), 'U11');
+  assert.equal(normalizeTeamForGroupedTitle('U17B'), 'U17');
+  assert.equal(normalizeTeamForGroupedTitle('First Team A'), 'First Team A');
+});
+
+test('grouped match titles use every source match, deduplicate, and naturally sort ages', () => {
+  const matches = [
+    { summary: 'U11 — Herk-De-Stad FC 2-1 / Godsheide VV 1',
+      start: '2026-09-05T09:30:00', end: '2026-09-05T11:00:00' },
+    { summary: 'U6A — Herk-De-Stad FC A / FC Averbode Testelt Okselaar',
+      start: '2026-09-05T09:30:00', end: '2026-09-05T11:00:00' },
+    { summary: 'U6B — Herk-De-Stad FC B / Juve Hasselt B',
+      start: '2026-09-05T09:30:00', end: '2026-09-05T11:00:00' },
+  ];
+  assert.equal(buildGroupedMatchTitle(matches), 'Wedstrijd U6, U11 (09:30–11:00)');
+  assert.equal(buildGroupedMatchTitle(['U8A', 'U8B']), 'Wedstrijd U8');
+  assert.equal(buildGroupedMatchTitle(['U11', 'U11'],
+    '2026-09-05T09:30:00', '2026-09-05T11:00:00'),
+  'Wedstrijd U11 (09:30–11:00)');
+  assert.equal(buildGroupedMatchTitle(['U21', 'U12', 'U9']), 'Wedstrijd U9, U12, U21');
+});
+
+test('grouped match time spans all differing actual intervals and has a safe fallback', () => {
+  assert.equal(buildGroupedMatchTitle([
+    { teamName: 'U6A', start: '2026-09-05T09:30:00', end: '2026-09-05T11:00:00' },
+    { teamName: 'U11', start: '2026-09-05T10:00:00', end: '2026-09-05T11:30:00' },
+  ]), 'Wedstrijd U6, U11 (09:30–11:30)');
+  assert.equal(buildGroupedMatchTitle([], '2026-09-05T09:30:00',
+    '2026-09-05T11:00:00'), 'Wedstrijd (09:30–11:00)');
 });
 
 test('event titles use their decoded full summary and retain safe fallbacks', () => {

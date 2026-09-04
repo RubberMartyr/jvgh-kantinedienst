@@ -102,25 +102,12 @@
     const summary = decodeAndTrimIcsText(task?.icsSummary || "");
 
     if (sourceType === "match") {
-      const teamNames = Array.isArray(task?.teamNames)
-        ? naturalSortTeamNames(task.teamNames)
-        : [];
-      let title;
-      if (teamNames.length) {
-        if (teamNames.length === 1) title = `Wedstrijd ${teamNames[0]}`;
-        else {
-          const lastTeam = teamNames[teamNames.length - 1];
-          const precedingTeams = teamNames.slice(0, -1).join(", ");
-          title = `Wedstrijden ${precedingTeams} & ${lastTeam}`;
-        }
-      } else {
-        const { leftSide } = splitMatchSummary(summary);
-        const teamName = recognizedTeamName(leftSide);
-        title = teamName ? `Wedstrijd ${teamName}` : "Wedstrijd";
-      }
-      const actualTime = formatActualMatchTime(task?.matchStart ?? task?.icsStart,
-        task?.matchEnd ?? task?.icsEnd);
-      return actualTime ? `${title} (${actualTime})` : title;
+      const groupedMatches = [
+        ...(Array.isArray(task?.sourceEvents) ? task.sourceEvents : []),
+        { teamNames: task?.teamNames, summary },
+      ];
+      return buildGroupedMatchTitle(groupedMatches,
+        task?.matchStart ?? task?.icsStart, task?.matchEnd ?? task?.icsEnd);
     }
 
     if (sourceType === "event") {
@@ -148,6 +135,66 @@
     return uniqueNames.sort((left, right) =>
       left.localeCompare(right, "nl-BE", { numeric: true, sensitivity: "base" })
     );
+  }
+
+  function normalizeTeamForGroupedTitle(teamName) {
+    const cleaned = String(teamName || "").replace(/\s+/g, " ").trim();
+    if (!cleaned) return "";
+    const youthTeam = cleaned.match(/^u(\d+)(?:\s*[a-d])?$/i);
+    return youthTeam ? `U${Number(youthTeam[1])}` : cleaned;
+  }
+
+  function groupedTitleTeamNames(matches) {
+    const names = [];
+    (Array.isArray(matches) ? matches : []).forEach((match) => {
+      if (typeof match === "string") {
+        names.push(match);
+        return;
+      }
+      if (Array.isArray(match?.teamNames)) names.push(...match.teamNames);
+      if (match?.teamName) names.push(match.teamName);
+      const summary = String(match?.summary ?? match?.icsSummary ?? "").trim();
+      if (summary) {
+        const parsedCode = extractIcsTeamCode({ summary });
+        const fallback = recognizedTeamName(splitMatchSummary(summary).leftSide);
+        if (parsedCode || fallback) names.push(parsedCode || fallback);
+      }
+    });
+
+    const unique = new Map();
+    names.map(normalizeTeamForGroupedTitle).filter(Boolean).forEach((name) => {
+      const key = name.toLocaleLowerCase("nl-BE");
+      if (!unique.has(key)) unique.set(key, name);
+    });
+    return Array.from(unique.values()).sort((left, right) => {
+      const leftAge = left.match(/^U(\d+)$/);
+      const rightAge = right.match(/^U(\d+)$/);
+      if (leftAge && rightAge) return Number(leftAge[1]) - Number(rightAge[1]);
+      if (leftAge) return -1;
+      if (rightAge) return 1;
+      return left.localeCompare(right, "nl-BE", { numeric: true, sensitivity: "base" });
+    });
+  }
+
+  function buildGroupedMatchTitle(matches, actualStart, actualEnd) {
+    const matchList = Array.isArray(matches) ? matches : [];
+    const starts = [];
+    const ends = [];
+    matchList.forEach((match) => {
+      if (!match || typeof match === "string") return;
+      const start = new Date(match.matchStart ?? match.icsStart ?? match.start);
+      const end = new Date(match.matchEnd ?? match.icsEnd ?? match.end);
+      if (Number.isFinite(start.getTime()) && Number.isFinite(end.getTime()) && end > start) {
+        starts.push(start.getTime());
+        ends.push(end.getTime());
+      }
+    });
+    const start = starts.length ? new Date(Math.min(...starts)) : actualStart;
+    const end = ends.length ? new Date(Math.max(...ends)) : actualEnd;
+    const teams = groupedTitleTeamNames(matchList);
+    const title = teams.length ? `Wedstrijd ${teams.join(", ")}` : "Wedstrijd";
+    const actualTime = formatActualMatchTime(start, end);
+    return actualTime ? `${title} (${actualTime})` : title;
   }
 
   function teamLabelMatches(label, requestedTeamName) {
@@ -178,6 +225,7 @@
   }
 
   return {
+    buildGroupedMatchTitle,
     KNOWN_TEAM_NAMES,
     decodeAndTrimIcsText,
     extractIcsTeamCode,
@@ -188,6 +236,7 @@
     homeSideMatchesTeam,
     matchBelongsToResolvedTeam,
     naturalSortTeamNames,
+    normalizeTeamForGroupedTitle,
     normalizeTeamCode,
     normalizeTeamText,
     recognizedTeamName,
