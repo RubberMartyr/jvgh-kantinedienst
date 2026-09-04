@@ -96,10 +96,10 @@ async function getTasks(sheetId) {
   return jvghRequest(`/schedules/${sheetId}/tasks`);
 }
 
-async function createTask(sheetId, { title, qty = 1, date = '', time = '' }) {
+async function createTask(sheetId, { title, qty = 1, date = '', time = '', ...metadata }) {
   return jvghRequest(`/schedules/${sheetId}/tasks`, {
     method: 'POST',
-    body: { title, qty, date, time },
+    body: { title, qty, date, time, ...metadata },
   });
 }
 
@@ -141,6 +141,13 @@ async function createSignup(
 async function deleteSignup(taskId, signupId) {
   return jvghRequest(`/tasks/${taskId}/signups/${signupId}`, {
     method: 'DELETE',
+  });
+}
+
+async function reconcileAvailabilityAssignments(payload) {
+  return jvghRequest('/availability-assignments/reconcile', {
+    method: 'POST',
+    body: payload,
   });
 }
 
@@ -491,6 +498,7 @@ window.JVGHApi = {
   getSignups,
   createSignup,
   deleteSignup,
+  reconcileAvailabilityAssignments,
   resolveOrCreateAvailabilityUser,
 
   getUserDisplayName,
