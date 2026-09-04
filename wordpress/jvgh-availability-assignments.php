@@ -87,8 +87,12 @@ function jvgh_rest_reconcile_availability_assignments(WP_REST_Request $request) 
     $team_id = (int) $request->get_param('teamId');
     $month = sanitize_text_field((string) $request->get_param('month'));
     $input = $request->get_param('assignments');
+    $migration_input = $request->get_param('legacySignupMigrations');
+    if ($migration_input === null) $migration_input = array();
     if (!$user_id || !get_userdata($user_id) || !preg_match('/^\d{4}-\d{2}$/', $month) || !is_array($input))
         return new WP_Error('jvgh_invalid_availability_state', 'Ongeldige availability desired state.', array('status' => 400));
+    if (!is_array($migration_input))
+        return new WP_Error('jvgh_invalid_legacy_migration', 'Ongeldige legacy-inschrijvingsmigratie.', array('status' => 400));
 
     $desired = array();
     foreach ($input as $assignment) {
@@ -111,12 +115,13 @@ function jvgh_rest_reconcile_availability_assignments(WP_REST_Request $request) 
     $month_data = jvgh_availability_internal_request('GET', '/jvgh/v1/planner-month-data', array('month' => $month));
     if (is_wp_error($month_data)) return $month_data;
     $schedules = (array) ($month_data['schedules'] ?? array());
-    $schedule_by_day = array(); $existing = array();
+    $schedule_by_day = array(); $existing = array(); $tasks_by_id = array();
     foreach ($schedules as $schedule) {
         $day = substr((string) ($schedule['start'] ?? ''), 0, 10);
         if ($day) $schedule_by_day[$day] = (int) $schedule['id'];
         foreach ((array) ($schedule['tasks'] ?? array()) as $task) {
             $task_id = (int) ($task['id'] ?? 0);
+            if ($task_id) $tasks_by_id[$task_id] = $task;
             if (!$task_id || get_post_meta($task_id, JVGH_AVAILABILITY_SOURCE_META, true) !== 'availability' ||
                 (int) get_post_meta($task_id, JVGH_AVAILABILITY_OWNER_META, true) !== $user_id ||
                 (int) get_post_meta($task_id, JVGH_AVAILABILITY_TEAM_META, true) !== $team_id) continue;
@@ -124,6 +129,28 @@ function jvgh_rest_reconcile_availability_assignments(WP_REST_Request $request) 
             $task['_schedule_id'] = (int) $schedule['id'];
             $existing[jvgh_availability_identity($user_id, $task)] = $task;
         }
+    }
+
+    // Resolve every client-supplied pair against the authoritative bulk response.
+    // A migration may remove only this user's signup from an ordinary planner task.
+    $legacy_migrations = array();
+    foreach ($migration_input as $migration) {
+        $task_id = (int) ($migration['taskId'] ?? 0);
+        $signup_id = (int) ($migration['signupId'] ?? 0);
+        $task = $tasks_by_id[$task_id] ?? null;
+        if (!$task_id || !$signup_id || !$task ||
+            get_post_meta($task_id, JVGH_AVAILABILITY_SOURCE_META, true) === 'availability')
+            return new WP_Error('jvgh_invalid_legacy_migration', 'Legacy-inschrijving bestaat niet of is niet migreerbaar.', array('status' => 400));
+        $owned_signup = null;
+        foreach ((array) ($task['signups'] ?? array()) as $signup) {
+            if ((int) ($signup['id'] ?? 0) === $signup_id &&
+                (int) ($signup['userId'] ?? $signup['user_id'] ?? 0) === $user_id) {
+                $owned_signup = $signup; break;
+            }
+        }
+        if (!$owned_signup)
+            return new WP_Error('jvgh_invalid_legacy_migration', 'Legacy-inschrijving behoort niet tot deze gebruiker.', array('status' => 403));
+        $legacy_migrations["$task_id:$signup_id"] = array('taskId' => $task_id, 'signupId' => $signup_id);
     }
 
     $wpdb->query('START TRANSACTION');
@@ -190,6 +217,13 @@ function jvgh_rest_reconcile_availability_assignments(WP_REST_Request $request) 
                 $deleted = jvgh_availability_internal_request('DELETE', "/jvgh/v1/schedules/{$task['_schedule_id']}/tasks/$task_id");
                 if (is_wp_error($deleted)) throw new Exception($deleted->get_error_message());
             }
+        }
+        // Replacement assignments now exist. Remove only the validated old signup;
+        // the shared legacy task and every other volunteer remain untouched.
+        foreach ($legacy_migrations as $migration) {
+            $deleted = jvgh_availability_internal_request('DELETE',
+                "/jvgh/v1/tasks/{$migration['taskId']}/signups/{$migration['signupId']}");
+            if (is_wp_error($deleted)) throw new Exception($deleted->get_error_message());
         }
         $wpdb->query('COMMIT');
     } catch (Exception $error) {

@@ -7,6 +7,10 @@ const path = require("node:path");
 const {
   buildAvailabilityTasksByCoveredSlotKey,
   getOtherScheduledVolunteers,
+  getTaskRange,
+  isLegacyPlannerAssignment,
+  mapLegacyPlannerTasks,
+  reconstructDirectSelection,
 } = require("../availability-volunteers.js");
 
 const source = (time, title = "Wedstrijd", teamId = 1, endTime = "16:00") => ({
@@ -86,4 +90,66 @@ test("backend canonicalizes only reused availability task titles", () => {
   assert.match(php, /array_intersect_key\(\$existing, \$desired\)/);
   assert.match(php, /\$canonical_title = "Kantinedienst \{\$assignment\['startTime'\]\}–\{\$assignment\['endTime'\]\}"/);
   assert.match(php, /'PUT',[\s\S]*?'title' => \$canonical_title/);
+});
+
+test("direct Ive signup maps by structured start and reconstructs the source intersection", () => {
+  const shift = source("08:30", "Wedstrijd", 1, "13:00");
+  const ive = { id: 14054, userId: 1, firstName: "Ive Vanlee", lastName: "" };
+  const direct = { id: 14053, date: "2026-09-05", time: "08:30", qty: 300,
+    title: "Kantinedienst 08:30", signups: [ive] };
+  assert.equal(isLegacyPlannerAssignment(direct), true);
+  const mapped = mapLegacyPlannerTasks([shift], [direct]);
+  assert.deepEqual(mapped.bySourceSlotKey.get("2026-09-05|08:30").map((task) => task.id), [14053]);
+  assert.equal(mapped.mappingReasonByTaskId.get(14053), "exact-start");
+  const selection = reconstructDirectSelection(shift, direct, ive, "exact-start");
+  assert.equal(selection.interval.start.getHours(), 8);
+  assert.equal(selection.interval.start.getMinutes(), 30);
+  assert.equal(selection.interval.end.getHours(), 13, "persisted 13:30 is capped at source end");
+  assert.equal(selection.userSignupTaskId, 14053);
+  assert.equal(selection.originSignupId, 14054);
+  assert.equal(selection.persistenceOrigin, "direct");
+});
+
+test("Carine fallback chooses latest containing shift and ignores the stale title", () => {
+  const shifts = [source("08:30", "A", 1, "13:00"), source("10:00", "B", 1, "14:30"),
+    source("11:30", "C", 1, "16:00")];
+  const carine = { id: 14172, userId: 990002, firstName: "Carine", lastName: "Sinatra" };
+  const legacy = { id: 14171, date: "2026-09-05", time: "10:30", qty: 330,
+    title: "Kantinedienst 08:30", signups: [carine] };
+  const range = getTaskRange(legacy);
+  assert.equal(`${range.start.getHours()}:${String(range.start.getMinutes()).padStart(2, "0")}`, "10:30");
+  assert.equal(`${range.end.getHours()}:${String(range.end.getMinutes()).padStart(2, "0")}`, "16:00");
+  const mapped = mapLegacyPlannerTasks(shifts, [legacy]);
+  assert.equal(mapped.bySourceSlotKey.get("2026-09-05|10:00")[0].id, 14171);
+  assert.equal(mapped.mappedTaskIds.has(14171), true);
+  assert.equal(mapped.unmappedTasks.length, 0);
+  const volunteers = getOtherScheduledVolunteers(shifts[1], {
+    directSignups: [], legacyTasksBySourceSlotKey: mapped.bySourceSlotKey,
+    signupsByTask: new Map([["14171", [carine]]]),
+  });
+  assert.deepEqual(volunteers.map((signup) => `${signup.firstName} ${signup.lastName}`), ["Carine Sinatra"]);
+  assert.deepEqual(legacy.signups, [carine], "mapping does not copy or move the persisted signup");
+});
+
+test("legacy fallback is same-day, positive-overlap, signup-backed, and leaves unsafe tasks standalone", () => {
+  const shift = source("10:00", "Wedstrijd", 1, "14:30");
+  const noOverlap = { id: 1, date: "2026-09-05", time: "15:00", qty: 60, signups: [{ id: 2 }] };
+  const nextDay = { ...noOverlap, id: 3, date: "2026-09-06", time: "10:30" };
+  const empty = { id: 4, date: "2026-09-05", time: "10:30", qty: 60, signups: [] };
+  const generated = { ...empty, id: 5, jvghSource: "availability", signups: [{ id: 6 }] };
+  const mapped = mapLegacyPlannerTasks([shift], [noOverlap, nextDay, empty, generated]);
+  assert.equal(mapped.mappedTaskIds.size, 0);
+  assert.deepEqual(mapped.unmappedTasks.map((task) => task.id), [1, 3, 4, 5]);
+});
+
+test("load/save separates unchanged direct origins and requests validated atomic migrations", () => {
+  const js = fs.readFileSync(path.join(__dirname, "..", "availability.js"), "utf8");
+  const php = fs.readFileSync(path.join(__dirname, "..", "wordpress", "jvgh-availability-assignments.php"), "utf8");
+  assert.match(js, /mapLegacyPlannerTasks\(sourceShifts, ordinaryPersistedTasks\)/);
+  assert.match(js, /!\(isLegacyOrigin\(state\) && !isStateDirty\(state\)\)/);
+  assert.match(js, /legacySignupMigrations,/);
+  assert.match(php, /Legacy-inschrijving behoort niet tot deze gebruiker/);
+  assert.match(php, /\/signups\/\{\$migration\['signupId'\]\}/);
+  assert.doesNotMatch(php, /tasks\/\{\$migration\['taskId'\]\}"/,
+    "migration never deletes the ordinary task itself");
 });

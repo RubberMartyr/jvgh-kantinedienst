@@ -1555,9 +1555,20 @@ async function saveChanges({
       scheduleByDay = new Map();
     }
 
-    const selectedNormalStates = entries.filter(
-      (state) => !isMonthUnavailableTask(state.task) && state.currentChecked
+    const isLegacyOrigin = (state) => state.persistenceOrigin === "direct" ||
+      state.persistenceOrigin === "legacy-mapped";
+    const isStateDirty = (state) => state.originalChecked !== state.currentChecked ||
+      (state.currentChecked && (state.selectedStartTime !== state.originalStartTime ||
+        state.selectedEndTime !== state.originalEndTime));
+    // An unchanged direct signup remains owned by its planner task and must not be
+    // represented a second time by availability reconciliation.
+    const selectedNormalStates = entries.filter((state) =>
+      !isMonthUnavailableTask(state.task) && state.currentChecked &&
+      !(isLegacyOrigin(state) && !isStateDirty(state))
     );
+    const legacySignupMigrations = dirtyEntries.filter(isLegacyOrigin).map((state) => ({
+      taskId: Number(state.originTaskId), signupId: Number(state.originSignupId),
+    }));
     const unresolvedSeparatedState = entries.find((state) =>
       state.hasUnresolvedSeparatedIntervals === true
     );
@@ -1601,6 +1612,7 @@ async function saveChanges({
       assignments: assignments.map(({ date, startTime, endTime, coveredSlotKeys }) => ({
         date, startTime, endTime, coveredSlotKeys,
       })),
+      legacySignupMigrations,
     });
     const deleteCurrentSignupFromState = async (state) => {
       const signup = state.userSignup;
@@ -1867,120 +1879,42 @@ document.addEventListener("DOMContentLoaded", async () => {
 
       currentScheduleByDay = scheduleByDay;
 
-      console.log(
-        "[availability] month-data loaded",
-        {
-          tasks: tasks.length,
-          signups:
-            Array.from(signupsByTask.values())
-              .reduce(
-                (sum, arr) => sum + arr.length,
-                0
-              )
-        }
-      );
-
       // task.signups from planner-month-data is authoritative for this load.
-      console.log("[availability] bundled signups loaded", {
-        tasks: tasks.filter((task) => task?.id !== null && task?.id !== undefined).length,
-        signups: Array.from(signupsByTask.values()).reduce((total, signups) => total + signups.length, 0),
-        currentUserId: Number(userId),
-      });
 
       const generatedCalendarShifts = await loadShiftSlotsForMonth(currentMonthKey, {
         teamMode: isTeamMode,
         resolvedTeamName,
       });
-      const validTeamShiftKeys = new Set(generatedCalendarShifts.map(
-        (shift) => `${shift.date}|${shift.time}`
-      ));
-
-      const persistedTasksBySlotKey = new Map();
       const availabilityAssignments = tasks.filter((task) =>
-        getAvailabilityMetadata(task).source === "availability"
+        JVGHAvailabilityVolunteers.isAvailabilityCreatedTask(task)
+      );
+      const generatedSourceSlotKeys = new Set(generatedCalendarShifts.map(
+        (shift) => JVGHAvailabilityVolunteers.sourceSlotKey(shift)
+      ));
+      const ordinaryPersistedTasks = tasks.filter((task) =>
+        !isPersistedMonthUnavailableTask(task, currentMonthKey) &&
+        JVGHAvailabilityVolunteers.isLegacyPlannerAssignment(task) &&
+        (!isTeamMode || generatedSourceSlotKeys.has(JVGHAvailabilityVolunteers.sourceSlotKey(task)))
       );
 
-      tasks.forEach((task) => {
-        if (isPersistedMonthUnavailableTask(task, currentMonthKey)) {
-          return;
-        }
-        if (getAvailabilityMetadata(task).source === "availability") return;
-
-        const key = persistedSlotKey(task);
-        const teamKey = `${String(task.date || "").slice(0, 10)}|${String(task.time || "").slice(0, 5)}`;
-        if (isTeamMode && !validTeamShiftKeys.has(teamKey)) return;
-
-        if (!persistedTasksBySlotKey.has(key)) {
-          persistedTasksBySlotKey.set(key, []);
-        }
-
-        persistedTasksBySlotKey.get(key).push(task);
-      });
-
-      console.log(
-        "[availability] persisted task groups",
-        Array.from(persistedTasksBySlotKey.entries()).map(
-          ([key, groupedTasks]) => ({
-            key,
-            taskIds: groupedTasks.map((task) => task.id),
-          })
-        )
-      );
-
+      // Group raw calendar objects first. Persisted assignment tasks are deliberately
+      // kept out of this collection so they cannot recursively become source shifts.
       const mergedByKey = new Map();
       generatedCalendarShifts.forEach((shift) => {
         const key = `${shift.date} ${shift.time}`;
         const existing = mergedByKey.get(key);
-        if (!existing) {
-          mergedByKey.set(key, shift);
-          return;
-        }
-
+        if (!existing) { mergedByKey.set(key, shift); return; }
         mergedByKey.set(key, {
           ...existing,
           sourceEvents: [...(existing.sourceEvents || []), ...(shift.sourceEvents || [])],
-          icsSummaries: Array.from(new Set([
-            ...(existing.icsSummaries || []),
-            ...(shift.icsSummaries || []),
-          ].filter(Boolean))),
-          teamNames: Array.from(new Set([
-            ...(existing.teamNames || []),
-            ...(shift.teamNames || []),
-          ].filter(Boolean))),
-        });
-      });
-      persistedTasksBySlotKey.forEach((groupedTasks, key) => {
-        const existing = mergedByKey.get(key);
-        if (isTeamMode && !existing) return;
-        /*
-         * Gebruik deterministisch de eerste persisted task
-         * als canonical task voor deze visuele shift.
-         */
-        const canonicalTask = groupedTasks[0];
-
-        mergedByKey.set(key, {
-          ...(existing || canonicalTask),
-          id: canonicalTask.id,
-          sheetId: canonicalTask.sheetId,
-          scheduleId: canonicalTask.scheduleId,
-          date: String(canonicalTask.date || "").slice(0, 10),
-          time: String(canonicalTask.time || "").slice(0, 5),
-          /*
-           * Bewaar alle task-ID's die dezelfde zichtbare shift
-           * vertegenwoordigen.
-           */
-          relatedTaskIds: groupedTasks
-            .map((task) => task.id)
-            .filter(
-              (taskId) => taskId !== null && taskId !== undefined
-            ),
+          icsSummaries: Array.from(new Set([...(existing.icsSummaries || []), ...(shift.icsSummaries || [])].filter(Boolean))),
+          teamNames: Array.from(new Set([...(existing.teamNames || []), ...(shift.teamNames || [])].filter(Boolean))),
         });
       });
       const monthUnavailable = monthUnavailableTask(currentMonthKey);
       const existingMonthUnavailable = tasks.find((task) =>
         isPersistedMonthUnavailableTask(task, currentMonthKey)
       );
-      console.log("[availability] existingMonthUnavailable", existingMonthUnavailable);
       if (!isTeamMode && existingMonthUnavailable) {
         mergedByKey.set("month-unavailable", {
           ...monthUnavailable,
@@ -1998,8 +1932,6 @@ document.addEventListener("DOMContentLoaded", async () => {
         if (isMonthUnavailableTask(b)) return 1;
         return `${a.date || ""} ${a.time || ""}`.localeCompare(`${b.date || ""} ${b.time || ""}`);
       });
-      console.log("[availability] allShifts", allShifts.length, allShifts);
-      console.log("[availability] visible shifts", allShifts.filter((task) => !isMonthUnavailableTask(task)).length);
 
       if (!isTeamMode && !resolvedName) {
         resolvedName = await resolveUserName({ providedName, userId, signupsByTask });
@@ -2012,6 +1944,8 @@ document.addEventListener("DOMContentLoaded", async () => {
       const sourceShifts = allShifts.filter((task) => !isMonthUnavailableTask(task));
       const availabilityLookup = JVGHAvailabilityVolunteers
         .buildAvailabilityTasksByCoveredSlotKey(sourceShifts, availabilityAssignments);
+      const legacyLookup = JVGHAvailabilityVolunteers
+        .mapLegacyPlannerTasks(sourceShifts, ordinaryPersistedTasks);
       const unmappedAvailabilityAssignments = availabilityAssignments.filter((assignment) =>
         !availabilityLookup.mappedTaskIds.has(Number(assignment.id))
       ).map((assignment) => ({
@@ -2019,7 +1953,9 @@ document.addEventListener("DOMContentLoaded", async () => {
         isAvailabilityAssignmentFallback: true,
         sourceReason: "Bestaande beschikbaarheidstoewijzing",
       }));
-      allShifts = [...allShifts, ...unmappedAvailabilityAssignments].sort((a, b) => {
+      // Mapped legacy tasks contribute signups to their source card. Only tasks for
+      // which no safe relationship exists remain standalone on availability.html.
+      allShifts = [...allShifts, ...legacyLookup.unmappedTasks, ...unmappedAvailabilityAssignments].sort((a, b) => {
         if (isMonthUnavailableTask(a)) return -1;
         if (isMonthUnavailableTask(b)) return 1;
         return `${a.date || ""} ${a.time || ""}`.localeCompare(`${b.date || ""} ${b.time || ""}`);
@@ -2047,9 +1983,10 @@ document.addEventListener("DOMContentLoaded", async () => {
           : JVGHAvailabilityVolunteers.getOtherScheduledVolunteers(task, {
               directSignups,
               availabilityTasksByCoveredSlotKey: availabilityLookup.bySlotKey,
+              legacyTasksBySourceSlotKey: legacyLookup.bySourceSlotKey,
               signupsByTask,
             });
-        const userSignup =
+        let userSignup =
           signups.find((signup) =>
             isSignupForCurrentUser(
               signup,
@@ -2057,10 +1994,24 @@ document.addEventListener("DOMContentLoaded", async () => {
               resolvedName
             )
           ) || null;
+        const mappedLegacyTasks = legacyLookup.bySourceSlotKey.get(
+          JVGHAvailabilityVolunteers.sourceSlotKey(task)
+        ) || [];
+        let directSelection = null;
+        for (const originTask of selection?.intervals?.length ? [] : mappedLegacyTasks) {
+          const originSignup = (signupsByTask.get(String(originTask.id)) || originTask.signups || [])
+            .find((signup) => isSignupForCurrentUser(signup, isTeamMode ? null : userId, resolvedName));
+          if (!originSignup) continue;
+          directSelection = JVGHAvailabilityVolunteers.reconstructDirectSelection(
+            task, originTask, { ...originSignup, __taskId: originTask.id },
+            legacyLookup.mappingReasonByTaskId.get(Number(originTask.id))
+          );
+          if (directSelection) { userSignup = directSelection.signup; break; }
+        }
         const isMonthUnavailable = isMonthUnavailableTask(task);
         const checked = isMonthUnavailableTask(task)
           ? Boolean(userSignup)
-          : Boolean(userSignup && selection?.intervals?.length && !isAvailabilityAssignmentFallback(task));
+          : Boolean(userSignup && (selection?.intervals?.length || directSelection) && !isAvailabilityAssignmentFallback(task));
         const state = {
           task,
           signups: [...signups],
@@ -2069,10 +2020,14 @@ document.addEventListener("DOMContentLoaded", async () => {
           originalChecked: checked,
           currentChecked: checked,
           hasUnresolvedSeparatedIntervals: Boolean(checked && selection?.separated),
+          persistenceOrigin: directSelection?.persistenceOrigin || (selection?.intervals?.length ? "availability" : "new"),
+          originTaskId: directSelection?.originTaskId ?? null,
+          originSignupId: directSelection?.originSignupId ?? null,
+          originTaskRange: directSelection?.originTaskRange ?? null,
         };
         if (!isMonthUnavailable) {
           const shiftRange = getShiftStartAndEnd(task);
-          const selectedInterval = checked ? selection.intervals[0] : null;
+          const selectedInterval = checked ? (selection?.intervals?.[0] || directSelection?.interval) : null;
           const selectedStart = selectedInterval?.start || shiftRange.start;
           const selectedEnd = selectedInterval?.end || shiftRange.end;
           state.shiftStartTime = `${pad2(shiftRange.start.getHours())}:${pad2(shiftRange.start.getMinutes())}`;
@@ -2084,10 +2039,6 @@ document.addEventListener("DOMContentLoaded", async () => {
         }
         currentStateByTask.set(shiftKey(task), state);
       });
-      console.log(
-        "[availability] month unavailable state",
-        getMonthUnavailableState(currentStateByTask)
-      );
 
       const currentCalendarShiftKeys = new Set(
         generatedCalendarShifts.map((task) => shiftKey(task))
@@ -2105,18 +2056,6 @@ document.addEventListener("DOMContentLoaded", async () => {
         }) === true;
         if (hidden) hiddenTaskIds.push(task.id ?? task.taskId ?? task.task_id);
         return !hidden;
-      });
-      console.info("[ghost-visual-filter]", {
-        page: "availability",
-        inputCount: allShifts.length,
-        visibleCount: visibleShifts.length,
-        hiddenTaskIds,
-      });
-      if (isTeamMode) console.info("[availability-team-mode]", {
-        teamId,
-        resolvedTeamName,
-        ...generatedCalendarShifts.teamModeCounts,
-        renderedShifts: visibleShifts.length,
       });
 
       renderList({
