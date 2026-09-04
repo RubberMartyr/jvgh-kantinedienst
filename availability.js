@@ -166,7 +166,11 @@ function formatShiftLabel(task) {
   const [y, m, d] = dateStr.split("-").map(Number);
   const [hh, mm] = timeStr.split(":").map(Number);
   const start = new Date(y, m - 1, d, hh || 0, mm || 0, 0);
-  const end = new Date(start.getTime() + getDurationMinutes(task.qty) * 60 * 1000);
+  const storedQty = Number(task.qty);
+  const duration = getAvailabilityMetadata(task).source === "availability" && storedQty > 0
+    ? storedQty
+    : getDurationMinutes(task.qty);
+  const end = new Date(start.getTime() + duration * 60 * 1000);
 
   const dateLabel = start.toLocaleDateString("nl-BE", {
     weekday: "short",
@@ -425,8 +429,38 @@ function getShiftStartAndEnd(task) {
   const start = new Date(y, m - 1, d, hh || 0, mm || 0, 0);
   if (Number.isNaN(start.getTime())) return null;
 
-  const end = new Date(start.getTime() + getDurationMinutes(task.qty) * 60 * 1000);
+  const storedQty = Number(task.qty);
+  const duration = getAvailabilityMetadata(task).source === "availability" && storedQty > 0
+    ? storedQty
+    : getDurationMinutes(task.qty);
+  const end = new Date(start.getTime() + duration * 60 * 1000);
   return { start, end };
+}
+
+function getAvailabilityMetadata(task) {
+  const source = task?.jvghSource ?? task?._jvgh_source ?? task?.meta?._jvgh_source;
+  const owner = Number(
+    task?.jvghOwnerUserId ?? task?._jvgh_owner_user_id ?? task?.meta?._jvgh_owner_user_id
+  );
+  const covered = task?.jvghCoveredSlots ?? task?._jvgh_covered_slots ??
+    task?.meta?._jvgh_covered_slots;
+  return {
+    source: String(source || ""),
+    ownerUserId: Number.isInteger(owner) && owner > 0 ? owner : null,
+    coveredSlotKeys: Array.isArray(covered) ? covered.map(String) : [],
+  };
+}
+
+function assignmentCoversVisibleSlot(assignment, slot) {
+  const metadata = getAvailabilityMetadata(assignment);
+  const slotRange = getShiftStartAndEnd(slot);
+  const assignmentRange = getShiftStartAndEnd(assignment);
+  const slotKey = `${String(slot.date || "").slice(0, 10)}|${String(slot.time || "").slice(0, 5)}`;
+  if (metadata.coveredSlotKeys.length) return metadata.coveredSlotKeys.includes(slotKey);
+  return Boolean(slotRange && assignmentRange &&
+    String(slot.date || "").slice(0, 10) === String(assignment.date || "").slice(0, 10) &&
+    slotRange.start.getTime() >= assignmentRange.start.getTime() &&
+    slotRange.end.getTime() <= assignmentRange.end.getTime());
 }
 
 function hasSavedNormalAvailabilityShift(stateByTask) {
@@ -451,19 +485,21 @@ function buildAvailabilityICS({ stateByTask, userName }) {
       !isMonthUnavailableTask(state.task) &&
       state.currentChecked
   );
-  const events = selectedStates
-    .map((state, index) => {
-      const range = getShiftStartAndEnd(state.task);
-      if (!range) return null;
+  const assignments = JVGHAvailabilityIntervals.mergeAvailabilityIntervals(
+    selectedStates,
+    getShiftStartAndEnd
+  );
+  const events = assignments
+    .map((assignment, index) => {
       const summary = `JVGH Kantinedienst - ${userName || "Vrijwilliger"}`;
-      const description = `Ingeplande kantinedienst (${formatShiftLabel(state.task)})`;
+      const description = `Ingeplande kantinedienst (${assignment.startTime}–${assignment.endTime})`;
       const uid = `jvgh-availability-${Date.now()}-${index}@jeugdherk.be`;
       return [
         "BEGIN:VEVENT",
         `UID:${uid}`,
         `DTSTAMP:${nowStamp}`,
-        `DTSTART:${formatICSDateUTC(range.start)}`,
-        `DTEND:${formatICSDateUTC(range.end)}`,
+        `DTSTART:${formatICSDateUTC(assignment.start)}`,
+        `DTEND:${formatICSDateUTC(assignment.end)}`,
         `SUMMARY:${escapeICSText(summary)}`,
         `DESCRIPTION:${escapeICSText(description)}`,
         "END:VEVENT",
@@ -1333,7 +1369,8 @@ async function saveChanges({
   isTeamMode = false,
   teamIsValid = true,
   teamId = null,
-  parentDetails = null
+  parentDetails = null,
+  onUserResolved = null
 }) {
   let parent = null;
   if (isTeamMode) {
@@ -1366,6 +1403,7 @@ async function saveChanges({
       userId = Number(person?.userId);
       userName = String(person?.displayName || `${parent.firstName} ${parent.lastName}`).trim();
       if (!Number.isInteger(userId) || userId <= 0) throw new Error("Geen geldige gebruiker ontvangen.");
+      if (typeof onUserResolved === "function") onUserResolved({ userId, userName });
       stateByTask.forEach((state) => {
         const match = state.signups.find((signup) => getSignupUserId(signup) === userId) || null;
         state.userSignup = match;
@@ -1402,10 +1440,15 @@ async function saveChanges({
 
   try {
     const entries = Array.from(stateByTask.values());
-    const toCreate = entries.filter((s) => !s.originalChecked && s.currentChecked);
-    const toDelete = entries.filter((s) => s.originalChecked && !s.currentChecked);
+    const dirtyEntries = entries.filter((s) => s.originalChecked !== s.currentChecked);
+    const toCreate = dirtyEntries.filter(
+      (s) => isMonthUnavailableTask(s.task) && s.currentChecked
+    );
+    const toDelete = dirtyEntries.filter(
+      (s) => isMonthUnavailableTask(s.task) && !s.currentChecked
+    );
 
-    if (!toCreate.length && !toDelete.length) {
+    if (!dirtyEntries.length) {
       setStatus("Geen wijzigingen om op te slaan.");
       setSaveDirtyState(false);
       return;
@@ -1414,6 +1457,38 @@ async function saveChanges({
     if (!(scheduleByDay instanceof Map)) {
       scheduleByDay = new Map();
     }
+
+    const selectedNormalStates = entries.filter(
+      (state) => !isMonthUnavailableTask(state.task) && state.currentChecked
+    );
+    const monthUnavailableSelected = entries.some(
+      (state) => isMonthUnavailableTask(state.task) && state.currentChecked
+    );
+    const assignments = monthUnavailableSelected
+      ? []
+      : JVGHAvailabilityIntervals.mergeAvailabilityIntervals(
+        selectedNormalStates,
+        getShiftStartAndEnd
+      );
+    const month = String(
+      assignments[0]?.date ||
+      entries.find((state) => state.task?.date)?.task.date ||
+      ""
+    ).slice(0, 7);
+    if (!/^\d{4}-\d{2}$/.test(month)) {
+      throw new Error("De maand voor availability reconciliation ontbreekt.");
+    }
+
+    // The backend owns creation and cleanup. This is one idempotent request:
+    // never attach a person to the original calendar or shared planner tasks.
+    await JVGHApi.reconcileAvailabilityAssignments({
+      userId: Number(userId),
+      teamId: isTeamMode ? Number(teamId) : null,
+      month,
+      assignments: assignments.map(({ date, startTime, endTime, coveredSlotKeys }) => ({
+        date, startTime, endTime, coveredSlotKeys,
+      })),
+    });
 
     const deleteCurrentSignupFromState = async (state) => {
       const signup = state.userSignup;
@@ -1447,21 +1522,7 @@ async function saveChanges({
     for (const state of toCreate) {
       const isUnavailable = isMonthUnavailableTask(state.task);
       if (isUnavailable) {
-        // Remove ALL normal shift signups first
-        for (const otherState of entries) {
-          if (
-            otherState === state ||
-            isMonthUnavailableTask(otherState.task)
-          ) {
-            continue;
-          }
-
-          const signup = otherState.userSignup;
-
-          if (signup?.id) {
-            await deleteCurrentSignupFromState(otherState);
-          }
-        }
+        // Normal assignments were already removed by the authoritative reconcile call.
       }
       const previousKey = shiftKey(state.task);
       if (
@@ -1493,26 +1554,6 @@ async function saveChanges({
           created?.signup && created.signup.id
             ? created.signup
             : created;
-
-        const normalizedSignup = {
-          ...signup,
-          __taskId: state.task.id,
-        };
-
-        state.signups.push(normalizedSignup);
-        state.userSignup = normalizedSignup;
-        state.userSignupTaskId = state.task.id;
-      }
-      if (!isUnavailable) {
-        const created = await JVGHApi.createSignup(state.task.id, {
-          firstName: parent?.firstName || userName,
-          lastName: parent?.lastName || "",
-          email: "",
-          phone: parent?.phone || "",
-          userId,
-        });
-
-        const signup = created?.signup && created.signup.id ? created.signup : created;
 
         const normalizedSignup = {
           ...signup,
@@ -1588,7 +1629,8 @@ document.addEventListener("DOMContentLoaded", async () => {
   // This is deliberately evaluated inside page initialization rather than at
   // module evaluation time. Every newly launched availability document reads
   // its own URL and gets a freshly calculated default month.
-  const { userRaw, userId, monthRaw, monthKey, userName: providedName, teamId, isTeamMode } = initializeAvailabilityFromCurrentUrl();
+  const { userRaw, userId: initialUserId, monthRaw, monthKey, userName: providedName, teamId, isTeamMode } = initializeAvailabilityFromCurrentUrl();
+  let userId = initialUserId;
   let resolvedTeamName = null;
   const unavailableContainer = document.querySelector(".availability-month-unavailable");
   if (unavailableContainer) {
@@ -1735,11 +1777,15 @@ document.addEventListener("DOMContentLoaded", async () => {
       ));
 
       const persistedTasksBySlotKey = new Map();
+      const availabilityAssignments = tasks.filter((task) =>
+        getAvailabilityMetadata(task).source === "availability"
+      );
 
       tasks.forEach((task) => {
         if (isPersistedMonthUnavailableTask(task, currentMonthKey)) {
           return;
         }
+        if (getAvailabilityMetadata(task).source === "availability") return;
 
         const key = persistedSlotKey(task);
         const teamKey = `${String(task.date || "").slice(0, 10)}|${String(task.time || "").slice(0, 5)}`;
@@ -1843,7 +1889,21 @@ document.addEventListener("DOMContentLoaded", async () => {
 
       currentStateByTask = new Map();
       allShifts.forEach((task) => {
-        const signups = collectSignupsForTaskGroup(task, signupsByTask);
+        const coveredAssignments = availabilityAssignments.filter((assignment) => {
+          const metadata = getAvailabilityMetadata(assignment);
+          return metadata.ownerUserId === Number(userId) &&
+            assignmentCoversVisibleSlot(assignment, task);
+        });
+        const assignmentSignups = coveredAssignments.flatMap((assignment) =>
+          (signupsByTask.get(String(assignment.id)) || []).map((signup) => ({
+            ...signup,
+            __taskId: assignment.id,
+          }))
+        );
+        const signups = [
+          ...collectSignupsForTaskGroup(task, signupsByTask),
+          ...assignmentSignups,
+        ];
         const userSignup =
           signups.find((signup) =>
             isSignupForCurrentUser(
@@ -1941,8 +2001,8 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 
   document.querySelectorAll(".availability-save-btn").forEach((saveButton) => {
-    saveButton.onclick = () => {
-      saveChanges({
+    saveButton.onclick = async () => {
+      await saveChanges({
         stateByTask: currentStateByTask,
         userId: isTeamMode ? null : userId,
         userName: resolvedName || "Gebruiker",
@@ -1950,7 +2010,11 @@ document.addEventListener("DOMContentLoaded", async () => {
         isTeamMode,
         teamIsValid: Boolean(resolvedTeamName),
         teamId: teamId,
-        parentDetails: isTeamMode ? getParentDetails() : null
+        parentDetails: isTeamMode ? getParentDetails() : null,
+        onUserResolved: (person) => {
+          userId = person.userId;
+          resolvedName = person.userName;
+        },
       });
     };
   });
