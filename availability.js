@@ -2003,8 +2003,6 @@ document.addEventListener("DOMContentLoaded", async () => {
         ownedAvailabilityAssignments,
         {
           getRange: getShiftStartAndEnd,
-          getCoveredSlotKeys: (assignment) => getAvailabilityMetadata(assignment).coveredSlotKeys,
-          getSlotKey: (slot) => `${String(slot.date || "").slice(0, 10)}|${String(slot.time || "").slice(0, 5)}`,
           isPseudoTask: (task) => isMonthUnavailableTask(task) || isAvailabilityAssignmentFallback(task),
         }
       );
@@ -2017,8 +2015,6 @@ document.addEventListener("DOMContentLoaded", async () => {
         currentUserLegacyAssignments,
         {
           getRange: getShiftStartAndEnd,
-          getCoveredSlotKeys: () => [],
-          getSlotKey: (slot) => JVGHAvailabilityVolunteers.sourceSlotKey(slot),
           isPseudoTask: (task) => isMonthUnavailableTask(task) || isAvailabilityAssignmentFallback(task),
         }
       );
@@ -2042,6 +2038,18 @@ document.addEventListener("DOMContentLoaded", async () => {
               resolvedName
             )
           ) || null;
+        if (!userSignup && selection?.intervals?.length) {
+          const selectedAssignments = selection.intervals.flatMap((interval) =>
+            interval.assignments || (interval.assignment ? [interval.assignment] : []));
+          for (const assignment of selectedAssignments) {
+            const assignmentSignup = (signupsByTask.get(String(assignment.id)) || assignment.signups || [])
+              .find((signup) => isSignupForCurrentUser(signup, isTeamMode ? null : userId, resolvedName));
+            if (assignmentSignup) {
+              userSignup = { ...assignmentSignup, __taskId: assignment.id };
+              break;
+            }
+          }
+        }
         const mappedLegacyTasks = legacyLookup.bySourceSlotKey.get(
           JVGHAvailabilityVolunteers.sourceSlotKey(task)
         ) || [];
