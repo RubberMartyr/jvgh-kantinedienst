@@ -1,5 +1,5 @@
 // Increase this version for every release that changes a cached shell file.
-const STATIC_CACHE = 'jvgh-planning-static-v33-legacy-assignments';
+const STATIC_CACHE = 'jvgh-planning-static-v34-match-windows';
 const CACHE_PREFIX = 'jvgh-planning-static-';
 const APP_SHELL = [
   './index.html', './availability.html', './availability.js', './styles.css', './pwa.css', './pwa.js', './main.js',

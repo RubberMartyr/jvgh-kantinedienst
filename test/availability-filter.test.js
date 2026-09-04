@@ -86,6 +86,17 @@ test('grouped match titles list every unique team in natural order', () => {
   );
 });
 
+test('match titles append the canonical actual time but event titles do not', () => {
+  assert.equal(getAvailabilityDisplayTitle({ sourceType: 'match', teamNames: ['U11'],
+    matchStart: '2026-09-05T09:30:00', matchEnd: '2026-09-05T11:00:00' }),
+  'Wedstrijd U11 (09:30–11:00)');
+  assert.equal(getAvailabilityDisplayTitle({ sourceType: 'match', teamNames: ['U11', 'U6 A', 'U6 B'],
+    matchStart: '2026-09-05T09:30:00', matchEnd: '2026-09-05T11:00:00' }),
+  'Wedstrijden U6 A, U6 B & U11 (09:30–11:00)');
+  assert.equal(getAvailabilityDisplayTitle({ sourceType: 'event', icsSummary: 'Feest',
+    icsStart: '2026-09-05T09:30:00', icsEnd: '2026-09-05T11:00:00' }), 'Feest');
+});
+
 test('event titles use their decoded full summary and retain safe fallbacks', () => {
   assert.equal(getAvailabilityDisplayTitle({
     sourceType: 'event',

@@ -146,7 +146,7 @@ test("load/save separates unchanged direct origins and requests validated atomic
   const js = fs.readFileSync(path.join(__dirname, "..", "availability.js"), "utf8");
   const php = fs.readFileSync(path.join(__dirname, "..", "wordpress", "jvgh-availability-assignments.php"), "utf8");
   assert.match(js, /mapLegacyPlannerTasks\(sourceShifts, ordinaryPersistedTasks\)/);
-  assert.match(js, /!\(isLegacyOrigin\(state\) && !isStateDirty\(state\)\)/);
+  assert.match(js, /dirtyOriginGroups\.has\(state\.originGroupKey\)/);
   assert.match(js, /legacySignupMigrations,/);
   assert.match(php, /Legacy-inschrijving behoort niet tot deze gebruiker/);
   assert.match(php, /\/signups\/\{\$migration\['signupId'\]\}/);
