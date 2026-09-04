@@ -23,18 +23,23 @@
     return `${pad2(Math.floor(minutes / 60))}:${pad2(minutes % 60)}`;
   }
 
-  function buildQuarterHourOptions(startTime, endTime) {
+  function buildQuarterHourOptions(startTime, endTime, additionalTimes = []) {
     const start = parseTimeToMinutes(startTime);
     const end = parseTimeToMinutes(endTime);
     if (start === null || end === null || end <= start) return [];
     const values = [start];
     for (let value = Math.ceil((start + 1) / 15) * 15; value < end; value += 15) values.push(value);
     values.push(end);
+    for (const time of additionalTimes) {
+      const value = parseTimeToMinutes(time);
+      if (value !== null && value >= start && value <= end) values.push(value);
+    }
     return Array.from(new Set(values)).sort((a, b) => a - b).map(formatMinutesAsTime);
   }
 
-  function normalizeAvailabilityRange(startTime, endTime, shiftStart, shiftEnd, changed = "start") {
-    const options = buildQuarterHourOptions(shiftStart, shiftEnd);
+  function normalizeAvailabilityRange(startTime, endTime, shiftStart, shiftEnd, changed = "start",
+    additionalTimes = []) {
+    const options = buildQuarterHourOptions(shiftStart, shiftEnd, additionalTimes);
     if (options.length < 2) return null;
     const minutes = options.map(parseTimeToMinutes);
     let start = parseTimeToMinutes(startTime);
@@ -47,6 +52,60 @@
     }
     if (start === undefined || end === undefined || start >= end) return null;
     return { startTime: formatMinutesAsTime(start), endTime: formatMinutesAsTime(end) };
+  }
+
+  function normalizeCoveredSlotKeys(value) {
+    if (Array.isArray(value)) return Array.from(new Set(value.map(String).map((key) => key.trim()).filter(Boolean)));
+    if (typeof value !== "string" || !value.trim()) return [];
+    try {
+      const parsed = JSON.parse(value);
+      if (Array.isArray(parsed)) return normalizeCoveredSlotKeys(parsed);
+    } catch (_) { /* Older APIs can return a comma-delimited meta value. */ }
+    return Array.from(new Set(value.split(",").map((key) => key.trim()).filter(Boolean)));
+  }
+
+  /** Map canonical saved assignments back onto their original, visible source slots. */
+  function reconstructAvailabilitySelections(sourceShifts, assignments, options = {}) {
+    const getRange = options.getRange || ((item) => ({ start: new Date(item.start), end: new Date(item.end) }));
+    const getCoveredSlotKeys = options.getCoveredSlotKeys || ((item) => item.coveredSlotKeys);
+    const getSlotKey = options.getSlotKey || ((item) => `${localDateKey(getRange(item).start)}|${localTime(getRange(item).start)}`);
+    const isPseudoTask = options.isPseudoTask || (() => false);
+    const result = new Map();
+
+    sourceShifts.forEach((shift) => {
+      if (isPseudoTask(shift)) return;
+      const shiftRange = getRange(shift);
+      if (!shiftRange || !Number.isFinite(shiftRange.start?.getTime()) ||
+          !Number.isFinite(shiftRange.end?.getTime())) return;
+      const slotKey = getSlotKey(shift);
+      const intersections = [];
+      assignments.forEach((assignment) => {
+        if (isPseudoTask(assignment)) return;
+        const assignmentRange = getRange(assignment);
+        if (!assignmentRange || !Number.isFinite(assignmentRange.start?.getTime()) ||
+            !Number.isFinite(assignmentRange.end?.getTime())) return;
+        const covered = normalizeCoveredSlotKeys(getCoveredSlotKeys(assignment));
+        const stableMatch = covered.length > 0 && covered.includes(slotKey);
+        const legacyMatch = covered.length === 0 &&
+          localDateKey(assignmentRange.start) === localDateKey(shiftRange.start) &&
+          assignmentRange.start < shiftRange.end && assignmentRange.end > shiftRange.start;
+        if (!stableMatch && !legacyMatch) return;
+        const start = new Date(Math.max(assignmentRange.start.getTime(), shiftRange.start.getTime()));
+        const end = new Date(Math.min(assignmentRange.end.getTime(), shiftRange.end.getTime()));
+        if (start < end) intersections.push({ start, end, assignment });
+      });
+      intersections.sort((a, b) => a.start - b.start);
+      const merged = [];
+      intersections.forEach((interval) => {
+        const previous = merged.at(-1);
+        if (previous && interval.start <= previous.end) {
+          if (interval.end > previous.end) previous.end = interval.end;
+          previous.assignments.push(interval.assignment);
+        } else merged.push({ start: interval.start, end: interval.end, assignments: [interval.assignment] });
+      });
+      result.set(shift, { intervals: merged, separated: merged.length > 1 });
+    });
+    return result;
   }
 
   /** Pure desired-state builder. Invalid input rejects the complete save. */
@@ -102,5 +161,6 @@
     }));
   }
   return { mergeAvailabilityIntervals, localDateKey, parseTimeToMinutes,
-    formatMinutesAsTime, buildQuarterHourOptions, normalizeAvailabilityRange };
+    formatMinutesAsTime, buildQuarterHourOptions, normalizeAvailabilityRange,
+    normalizeCoveredSlotKeys, reconstructAvailabilitySelections };
 });

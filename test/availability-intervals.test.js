@@ -6,6 +6,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const { mergeAvailabilityIntervals, parseTimeToMinutes, formatMinutesAsTime,
   buildQuarterHourOptions, normalizeAvailabilityRange } = require("../availability-intervals.js");
+const { reconstructAvailabilitySelections, normalizeCoveredSlotKeys } = require("../availability-intervals.js");
 
 const range = (state) => ({ start: new Date((state.task || state).start), end: new Date((state.task || state).end) });
 const slot = (date, start, end) => ({ task: { start: `${date}T${start}:00`, end: `${date}T${end}:00` } });
@@ -19,6 +20,81 @@ test("time helpers parse, format and retain shift boundaries", () => {
     { startTime: "09:00", endTime: "09:15" });
   assert.deepEqual(normalizeAvailabilityRange("11:30", "11:30", "08:30", "13:00", "end"),
     { startTime: "11:15", endTime: "11:30" });
+});
+
+const sourceShift = (start, end, key = `2026-09-05|${start}`) => ({
+  start: `2026-09-05T${start}:00`, end: `2026-09-05T${end}:00`, key,
+});
+const saved = (start, end, keys) => ({
+  start: `2026-09-05T${start}:00`, end: `2026-09-05T${end}:00`, coveredSlotKeys: keys,
+});
+const reconstruct = (shifts, assignments) => reconstructAvailabilitySelections(shifts, assignments, {
+  getSlotKey: (shift) => shift.key,
+});
+
+test("saved merged assignments reconstruct complete and partial source blocks", () => {
+  const shifts = [sourceShift("08:30", "10:00"), sourceShift("10:00", "11:30"), sourceShift("11:30", "13:00")];
+  const keys = shifts.map((shift) => shift.key);
+  let mapped = reconstruct(shifts.slice(0, 2), [saved("08:30", "11:30", keys.slice(0, 2))]);
+  assert.deepEqual(shifts.slice(0, 2).map((shift) => mapped.get(shift).intervals.map((i) => [local(i.start), local(i.end)])),
+    [[['08:30', '10:00']], [['10:00', '11:30']]]);
+
+  mapped = reconstruct(shifts, [saved("09:15", "12:15", keys)]);
+  assert.deepEqual(shifts.map((shift) => mapped.get(shift).intervals.map((i) => [local(i.start), local(i.end)])),
+    [[['09:15', '10:00']], [['10:00', '11:30']], [['11:30', '12:15']]]);
+});
+
+test("reconstructed source selections round-trip to the same merged assignment", () => {
+  const shifts = [sourceShift("08:30", "10:00"), sourceShift("10:00", "11:30"), sourceShift("11:30", "13:00")];
+  const persisted = saved("09:15", "12:15", shifts.map((shift) => shift.key));
+  const mapped = reconstruct(shifts, [persisted]);
+  const states = shifts.map((task) => {
+    const [interval] = mapped.get(task).intervals;
+    return { task, selected: interval };
+  });
+  const [roundTrip] = mergeAvailabilityIntervals(states, (state) => state.selected);
+  assert.deepEqual([roundTrip.startTime, roundTrip.endTime, roundTrip.coveredSlotKeys],
+    ["09:15", "12:15", shifts.map((shift) => shift.key)]);
+});
+
+function local(date) { return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`; }
+
+test("partial ranges, cross-boundary ranges and no-overlap ranges use true intersections", () => {
+  const a = sourceShift("08:30", "10:00");
+  const b = sourceShift("10:00", "11:30");
+  let mapped = reconstruct([a], [saved("09:15", "11:45", [a.key])]);
+  assert.deepEqual(mapped.get(a).intervals.map((i) => [local(i.start), local(i.end)]), [["09:15", "10:00"]]);
+  mapped = reconstruct([a, b], [saved("09:30", "10:30", [a.key, b.key])]);
+  assert.deepEqual([a, b].map((shift) => mapped.get(shift).intervals.map((i) => [local(i.start), local(i.end)])),
+    [[['09:30', '10:00']], [['10:00', '10:30']]]);
+  assert.equal(reconstruct([b], [saved("08:30", "09:45", [b.key])]).get(b).intervals.length, 0);
+});
+
+test("stable keys exclude unrelated overlaps while legacy data uses same-day overlap fallback", () => {
+  const intended = sourceShift("10:00", "11:30", "event-a");
+  const unrelated = sourceShift("10:15", "11:00", "event-b");
+  const keyed = reconstruct([intended, unrelated], [saved("10:00", "11:30", ["event-a"])]);
+  assert.equal(keyed.get(intended).intervals.length, 1);
+  assert.equal(keyed.get(unrelated).intervals.length, 0);
+  const legacy = reconstruct([intended, unrelated], [saved("10:30", "10:45", [])]);
+  assert.equal(legacy.get(intended).intervals.length, 1);
+  assert.equal(legacy.get(unrelated).intervals.length, 1);
+});
+
+test("non-quarter persisted boundaries remain options and covered keys normalize", () => {
+  assert.deepEqual(buildQuarterHourOptions("08:30", "10:00", ["09:17", "09:43"]),
+    ["08:30", "08:45", "09:00", "09:15", "09:17", "09:30", "09:43", "09:45", "10:00"]);
+  assert.deepEqual(normalizeCoveredSlotKeys('["slot-a","slot-b"]'), ["slot-a", "slot-b"]);
+});
+
+test("separated persisted intervals are reported without expanding the gap", () => {
+  const shift = sourceShift("08:30", "13:00");
+  const result = reconstruct([shift], [
+    saved("09:00", "10:00", [shift.key]), saved("11:00", "12:00", [shift.key]),
+  ]).get(shift);
+  assert.equal(result.separated, true);
+  assert.deepEqual(result.intervals.map((i) => [local(i.start), local(i.end)]),
+    [["09:00", "10:00"], ["11:00", "12:00"]]);
 });
 
 test("selected adjacent ranges merge without expanding to source shifts", () => {
