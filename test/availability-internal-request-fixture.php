@@ -79,6 +79,7 @@ foreach ($GLOBALS['requests'] as $request) {
         'route' => $request->route,
         'query' => $request->query_params,
         'contentType' => $request->headers['Content-Type'] ?? null,
+        'rawBody' => $request->body,
         'json' => $request->body === '' ? null : json_decode($request->body, true),
         'bodyParams' => $request->body_params,
     );

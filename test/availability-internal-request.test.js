@@ -16,13 +16,17 @@ test("availability reconciliation sends method-appropriate internal REST data", 
 
   assert.equal(schedule.method, "POST");
   assert.equal(schedule.contentType, "application/json");
+  assert.notEqual(schedule.rawBody, "");
   assert.equal(schedule.json.title, "Kantinedienst 2026-09-05");
   assert.deepEqual(schedule.bodyParams, schedule.json);
 
+  assert.equal(task.method, "POST");
+  assert.equal(task.contentType, "application/json");
   assert.equal(task.json.title, "Kantinedienst 08:30–14:30");
   assert.deepEqual(task.json, {
     title: "Kantinedienst 08:30–14:30", qty: 360, date: "2026-09-05", time: "08:30",
   });
+  assert.equal(signup.contentType, "application/json");
   assert.deepEqual(signup.json, {
     firstName: "Test User", lastName: "", email: "", phone: "", userId: 42,
   });
@@ -33,6 +37,8 @@ test("availability reconciliation sends method-appropriate internal REST data", 
   assert.equal(planner.json, null);
 
   assert.equal(deletion.method, "DELETE");
+  assert.equal(deletion.contentType, null);
+  assert.equal(deletion.rawBody, "");
   assert.equal(deletion.json, null);
   assert.deepEqual(deletion.bodyParams, []);
   assert.equal(requests.preservedError, true);
