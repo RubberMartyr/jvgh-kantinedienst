@@ -4,10 +4,37 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
-const { mergeAvailabilityIntervals } = require("../availability-intervals.js");
+const { mergeAvailabilityIntervals, parseTimeToMinutes, formatMinutesAsTime,
+  buildQuarterHourOptions, normalizeAvailabilityRange } = require("../availability-intervals.js");
 
-const range = (task) => ({ start: new Date(task.start), end: new Date(task.end) });
+const range = (state) => ({ start: new Date((state.task || state).start), end: new Date((state.task || state).end) });
 const slot = (date, start, end) => ({ task: { start: `${date}T${start}:00`, end: `${date}T${end}:00` } });
+
+test("time helpers parse, format and retain shift boundaries", () => {
+  assert.equal(parseTimeToMinutes("09:15"), 555);
+  assert.equal(parseTimeToMinutes("24:00"), null);
+  assert.equal(formatMinutesAsTime(555), "09:15");
+  assert.deepEqual(buildQuarterHourOptions("08:32", "09:07"), ["08:32", "08:45", "09:00", "09:07"]);
+  assert.deepEqual(normalizeAvailabilityRange("09:00", "09:00", "08:30", "13:00", "start"),
+    { startTime: "09:00", endTime: "09:15" });
+  assert.deepEqual(normalizeAvailabilityRange("11:30", "11:30", "08:30", "13:00", "end"),
+    { startTime: "11:15", endTime: "11:30" });
+});
+
+test("selected adjacent ranges merge without expanding to source shifts", () => {
+  const states = [
+    { task: { start: "2026-09-05T08:30:00", end: "2026-09-05T10:00:00" }, selected: ["09:00", "10:00"] },
+    { task: { start: "2026-09-05T10:00:00", end: "2026-09-05T11:30:00" }, selected: ["10:00", "11:00"] },
+  ];
+  const selectedRange = (state) => ({
+    start: new Date(`2026-09-05T${state.selected[0]}:00`), end: new Date(`2026-09-05T${state.selected[1]}:00`),
+  });
+  const [merged] = mergeAvailabilityIntervals(states, selectedRange);
+  assert.deepEqual([merged.startTime, merged.endTime, merged.coveredSlotKeys],
+    ["09:00", "11:00", ["2026-09-05|08:30", "2026-09-05|10:00"]]);
+  states[0].selected = ["09:00", "09:45"];
+  assert.equal(mergeAvailabilityIntervals(states, selectedRange).length, 2);
+});
 
 test("overlapping availability intervals become one real assignment", () => {
   const [merged] = mergeAvailabilityIntervals([

@@ -487,7 +487,7 @@ function buildAvailabilityICS({ stateByTask, userName }) {
   );
   const assignments = JVGHAvailabilityIntervals.mergeAvailabilityIntervals(
     selectedStates,
-    getShiftStartAndEnd
+    getSelectedAvailabilityStartAndEnd
   );
   const events = assignments
     .map((assignment, index) => {
@@ -1115,9 +1115,31 @@ function checkboxHoverTitle(
 function computeDirtyCount(stateByTask) {
   let count = 0;
   for (const state of stateByTask.values()) {
-    if (state.currentChecked !== state.originalChecked) count += 1;
+    if (state.currentChecked !== state.originalChecked ||
+        (state.currentChecked && (state.selectedStartTime !== state.originalStartTime ||
+          state.selectedEndTime !== state.originalEndTime))) count += 1;
   }
   return count;
+}
+
+function getSelectedAvailabilityStartAndEnd(state) {
+  const original = getShiftStartAndEnd(state.task);
+  if (!original) return null;
+  const startMinutes = JVGHAvailabilityIntervals.parseTimeToMinutes(state.selectedStartTime);
+  const endMinutes = JVGHAvailabilityIntervals.parseTimeToMinutes(state.selectedEndTime);
+  if (startMinutes === null || endMinutes === null) return null;
+  const start = new Date(original.start.getTime());
+  const end = new Date(original.start.getTime());
+  start.setHours(Math.floor(startMinutes / 60), startMinutes % 60, 0, 0);
+  end.setHours(Math.floor(endMinutes / 60), endMinutes % 60, 0, 0);
+  return { start, end };
+}
+
+function isValidAvailabilityState(state) {
+  const original = getShiftStartAndEnd(state.task);
+  const selected = getSelectedAvailabilityStartAndEnd(state);
+  return Boolean(original && selected && selected.start >= original.start &&
+    selected.end <= original.end && selected.start < selected.end);
 }
 
 function getMonthUnavailableState(stateByTask) {
@@ -1303,6 +1325,56 @@ function renderList({
     }
 
     details.appendChild(reason);
+    const timeRange = document.createElement("div");
+    timeRange.className = "availability-time-range";
+    const optionTimes = JVGHAvailabilityIntervals.buildQuarterHourOptions(
+      state.shiftStartTime, state.shiftEndTime
+    );
+    const selects = {};
+    const makeTimeSelect = (kind, labelText) => {
+      const field = document.createElement("label");
+      const caption = document.createElement("span");
+      const select = document.createElement("select");
+      select.id = `availability-${kind}-${taskIndex}`;
+      caption.textContent = labelText;
+      field.htmlFor = select.id;
+      field.append(caption, select);
+      const renderOptions = () => {
+        const selectedStart = JVGHAvailabilityIntervals.parseTimeToMinutes(state.selectedStartTime);
+        const selectedEnd = JVGHAvailabilityIntervals.parseTimeToMinutes(state.selectedEndTime);
+        const validTimes = optionTimes.filter((time) => {
+          const value = JVGHAvailabilityIntervals.parseTimeToMinutes(time);
+          return kind === "start" ? value < selectedEnd : value > selectedStart;
+        });
+        select.replaceChildren(...validTimes.map((time) => {
+          const option = document.createElement("option");
+          option.value = option.textContent = time;
+          return option;
+        }));
+        select.value = kind === "start" ? state.selectedStartTime : state.selectedEndTime;
+      };
+      select.addEventListener("click", (event) => event.stopPropagation());
+      select.addEventListener("change", () => {
+        if (kind === "start") state.selectedStartTime = select.value;
+        else state.selectedEndTime = select.value;
+        const normalized = JVGHAvailabilityIntervals.normalizeAvailabilityRange(
+          state.selectedStartTime, state.selectedEndTime,
+          state.shiftStartTime, state.shiftEndTime, kind
+        );
+        if (normalized) {
+          state.selectedStartTime = normalized.startTime;
+          state.selectedEndTime = normalized.endTime;
+        }
+        Object.values(selects).forEach((control) => control.renderOptions());
+        updateDirtyUi(stateByTask);
+      });
+      selects[kind] = { select, renderOptions };
+      renderOptions();
+      return field;
+    };
+    timeRange.append(makeTimeSelect("start", "Start"), makeTimeSelect("end", "Einde"));
+    timeRange.hidden = !state.currentChecked;
+    details.appendChild(timeRange);
     const volunteersHeading = document.createElement("div");
     volunteersHeading.style.marginTop = "6px";
     const volunteersLabel = document.createElement("strong");
@@ -1335,6 +1407,8 @@ function renderList({
       if (!state) return;
 
       state.currentChecked = Boolean(checkbox.checked);
+      timeRange.hidden = !state.currentChecked;
+      if (state.currentChecked && !details.classList.contains("is-open")) expandButton.click();
 
       const monthUnavailableState = getMonthUnavailableState(stateByTask);
       if (monthUnavailableState && state.currentChecked) {
@@ -1440,7 +1514,8 @@ async function saveChanges({
 
   try {
     const entries = Array.from(stateByTask.values());
-    const dirtyEntries = entries.filter((s) => s.originalChecked !== s.currentChecked);
+    const dirtyEntries = entries.filter((s) => s.originalChecked !== s.currentChecked ||
+      (s.currentChecked && (s.selectedStartTime !== s.originalStartTime || s.selectedEndTime !== s.originalEndTime)));
     const toCreate = dirtyEntries.filter(
       (s) => isMonthUnavailableTask(s.task) && s.currentChecked
     );
@@ -1461,6 +1536,14 @@ async function saveChanges({
     const selectedNormalStates = entries.filter(
       (state) => !isMonthUnavailableTask(state.task) && state.currentChecked
     );
+    const invalidState = selectedNormalStates.find((state) => !isValidAvailabilityState(state));
+    if (invalidState) {
+      setStatus("Het gekozen start- en einduur valt niet binnen deze shift.", true);
+      document.querySelector(`[data-shift-key="${shiftKey(invalidState.task)}"]`)
+        ?.closest(".availability-item")?.querySelector(".availability-time-range select")?.focus();
+      setSaveDirtyState(true);
+      return;
+    }
     const monthUnavailableSelected = entries.some(
       (state) => isMonthUnavailableTask(state.task) && state.currentChecked
     );
@@ -1468,7 +1551,7 @@ async function saveChanges({
       ? []
       : JVGHAvailabilityIntervals.mergeAvailabilityIntervals(
         selectedNormalStates,
-        getShiftStartAndEnd
+        getSelectedAvailabilityStartAndEnd
       );
     const month = String(
       assignments[0]?.date ||
@@ -1489,7 +1572,6 @@ async function saveChanges({
         date, startTime, endTime, coveredSlotKeys,
       })),
     });
-
     const deleteCurrentSignupFromState = async (state) => {
       const signup = state.userSignup;
       if (!signup?.id) return;
@@ -1596,6 +1678,12 @@ async function saveChanges({
       await deleteCurrentSignupFromState(state);
     }
 
+    entries.filter((state) => !isMonthUnavailableTask(state.task)).forEach((state) => {
+      state.originalChecked = state.currentChecked;
+      state.originalStartTime = state.selectedStartTime;
+      state.originalEndTime = state.selectedEndTime;
+    });
+
     setStatus("Wijzigingen opgeslagen.");
     showAvailabilityToast(
       "✅ Beschikbaarheid opgeslagen"
@@ -1610,9 +1698,9 @@ async function saveChanges({
     }
   } catch (err) {
     console.error(err);
-    setStatus("Fout bij opslaan van wijzigingen.", true);
+    setStatus(err.message || "Fout bij opslaan van wijzigingen.", true);
     showAvailabilityToast(
-      "❌ Fout bij opslaan",
+      `❌ ${err.message || "Fout bij opslaan"}`,
       true
     );
     saveButtons.forEach((saveButton) => {
@@ -1914,14 +2002,31 @@ document.addEventListener("DOMContentLoaded", async () => {
           ) || null;
         const isMonthUnavailable = isMonthUnavailableTask(task);
         const checked = Boolean(userSignup);
-        currentStateByTask.set(shiftKey(task), {
+        const state = {
           task,
           signups: [...signups],
           userSignup,
           userSignupTaskId: userSignup?.__taskId ?? task.id ?? null,
           originalChecked: checked,
           currentChecked: checked,
-        });
+        };
+        if (!isMonthUnavailable) {
+          const shiftRange = getShiftStartAndEnd(task);
+          const savedRanges = coveredAssignments.map(getShiftStartAndEnd).filter(Boolean);
+          const selectedStart = savedRanges.length
+            ? new Date(Math.max(shiftRange.start.getTime(), Math.min(...savedRanges.map((range) => range.start.getTime()))))
+            : shiftRange.start;
+          const selectedEnd = savedRanges.length
+            ? new Date(Math.min(shiftRange.end.getTime(), Math.max(...savedRanges.map((range) => range.end.getTime()))))
+            : shiftRange.end;
+          state.shiftStartTime = `${pad2(shiftRange.start.getHours())}:${pad2(shiftRange.start.getMinutes())}`;
+          state.shiftEndTime = `${pad2(shiftRange.end.getHours())}:${pad2(shiftRange.end.getMinutes())}`;
+          state.selectedStartTime = `${pad2(selectedStart.getHours())}:${pad2(selectedStart.getMinutes())}`;
+          state.selectedEndTime = `${pad2(selectedEnd.getHours())}:${pad2(selectedEnd.getMinutes())}`;
+          state.originalStartTime = state.selectedStartTime;
+          state.originalEndTime = state.selectedEndTime;
+        }
+        currentStateByTask.set(shiftKey(task), state);
       });
       console.log(
         "[availability] month unavailable state",

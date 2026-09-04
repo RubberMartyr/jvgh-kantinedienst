@@ -337,6 +337,22 @@
       padding: 0;
     }
 
+    .availability-time-range {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      gap: 10px;
+      margin-top: 12px;
+      max-width: 420px;
+    }
+    .availability-time-range[hidden] { display: none; }
+    .availability-time-range label { min-width: 0; font-weight: 700; }
+    .availability-time-range label span { display: block; margin-bottom: 5px; }
+    .availability-time-range select {
+      width: 100%; min-width: 0; min-height: 44px; padding: 8px 10px;
+      border: 1px solid #cbd5e1; border-radius: 8px; background: #fff;
+      color: #1f2937; font: inherit;
+    }
+
     .availability-error {
       color: #b91c1c;
       font-weight: 600;
@@ -465,6 +481,7 @@
         transition: none;
       }
     }
+    @media (max-width: 300px) { .availability-time-range { grid-template-columns: minmax(0, 1fr); } }
   </style>
 </head>
 <body>
