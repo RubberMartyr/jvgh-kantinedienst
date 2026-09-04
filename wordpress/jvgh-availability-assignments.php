@@ -128,6 +128,27 @@ function jvgh_rest_reconcile_availability_assignments(WP_REST_Request $request) 
 
     $wpdb->query('START TRANSACTION');
     try {
+        // Identity-equal availability tasks are reused. Keep their persisted fields and
+        // title canonical as well; this is deliberately scoped to owned generated tasks.
+        foreach (array_intersect_key($existing, $desired) as $identity => $task) {
+            $assignment = $desired[$identity];
+            $canonical_title = "Kantinedienst {$assignment['startTime']}–{$assignment['endTime']}";
+            $current_title = (string) ($task['title'] ?? '');
+            $current_date = substr((string) ($task['date'] ?? ''), 0, 10);
+            $current_time = substr((string) ($task['time'] ?? ''), 0, 5);
+            $current_qty = (int) ($task['qty'] ?? 0);
+            if ($current_title !== $canonical_title || $current_date !== $assignment['date'] ||
+                $current_time !== $assignment['startTime'] || $current_qty !== $assignment['qty']) {
+                $updated = jvgh_availability_internal_request(
+                    'PUT',
+                    "/jvgh/v1/schedules/{$task['_schedule_id']}/tasks/" . (int) $task['id'],
+                    array('title' => $canonical_title, 'qty' => $assignment['qty'],
+                        'date' => $assignment['date'], 'time' => $assignment['startTime'])
+                );
+                if (is_wp_error($updated)) throw new Exception($updated->get_error_message());
+            }
+        }
+
         foreach (array_diff_key($desired, $existing) as $identity => $assignment) {
             $date = $assignment['date'];
             if (empty($schedule_by_day[$date])) {
