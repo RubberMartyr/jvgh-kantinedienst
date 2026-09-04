@@ -9,6 +9,7 @@ const {
 
 let requestedTeamName = "";
 let updateSaveStateForMode = null;
+let availabilityUserEditGeneration = 0;
 const availabilityMonthDataLoader =
   window.JVGHAvailabilityMonthData.createMonthDataLoader({
     getPlannerMonthData: (monthKey) => JVGHApi.getPlannerMonthData(monthKey),
@@ -447,7 +448,7 @@ function getAvailabilityMetadata(task) {
   return {
     source: String(source || ""),
     ownerUserId: Number.isInteger(owner) && owner > 0 ? owner : null,
-    coveredSlotKeys: Array.isArray(covered) ? covered.map(String) : [],
+    coveredSlotKeys: JVGHAvailabilityIntervals.normalizeCoveredSlotKeys(covered),
   };
 }
 
@@ -1328,7 +1329,8 @@ function renderList({
     const timeRange = document.createElement("div");
     timeRange.className = "availability-time-range";
     const optionTimes = JVGHAvailabilityIntervals.buildQuarterHourOptions(
-      state.shiftStartTime, state.shiftEndTime
+      state.shiftStartTime, state.shiftEndTime,
+      [state.selectedStartTime, state.selectedEndTime, state.originalStartTime, state.originalEndTime]
     );
     const selects = {};
     const makeTimeSelect = (kind, labelText) => {
@@ -1355,11 +1357,14 @@ function renderList({
       };
       select.addEventListener("click", (event) => event.stopPropagation());
       select.addEventListener("change", () => {
+        availabilityUserEditGeneration += 1;
+        state.hasUnresolvedSeparatedIntervals = false;
         if (kind === "start") state.selectedStartTime = select.value;
         else state.selectedEndTime = select.value;
         const normalized = JVGHAvailabilityIntervals.normalizeAvailabilityRange(
           state.selectedStartTime, state.selectedEndTime,
-          state.shiftStartTime, state.shiftEndTime, kind
+          state.shiftStartTime, state.shiftEndTime, kind,
+          [state.originalStartTime, state.originalEndTime]
         );
         if (normalized) {
           state.selectedStartTime = normalized.startTime;
@@ -1375,6 +1380,17 @@ function renderList({
     timeRange.append(makeTimeSelect("start", "Start"), makeTimeSelect("end", "Einde"));
     timeRange.hidden = !state.currentChecked;
     details.appendChild(timeRange);
+    if (state.hasUnresolvedSeparatedIntervals) {
+      const warning = document.createElement("p");
+      warning.className = "availability-interval-warning";
+      warning.setAttribute("role", "alert");
+      warning.textContent = "Voor deze shift zijn meerdere afzonderlijke beschikbaarheidsperiodes opgeslagen.";
+      details.appendChild(warning);
+      details.classList.add("is-open");
+      expandButton.textContent = "−";
+      expandButton.title = "Details verbergen";
+      expandButton.setAttribute("aria-expanded", "true");
+    }
     const volunteersHeading = document.createElement("div");
     volunteersHeading.style.marginTop = "6px";
     const volunteersLabel = document.createElement("strong");
@@ -1403,10 +1419,12 @@ function renderList({
     });
 
     checkbox.addEventListener("change", () => {
+      availabilityUserEditGeneration += 1;
       const state = findStateForTask(stateByTask, task);
       if (!state) return;
 
       state.currentChecked = Boolean(checkbox.checked);
+      state.hasUnresolvedSeparatedIntervals = false;
       timeRange.hidden = !state.currentChecked;
       if (state.currentChecked && !details.classList.contains("is-open")) expandButton.click();
 
@@ -1536,6 +1554,14 @@ async function saveChanges({
     const selectedNormalStates = entries.filter(
       (state) => !isMonthUnavailableTask(state.task) && state.currentChecked
     );
+    const unresolvedSeparatedState = entries.find((state) =>
+      state.hasUnresolvedSeparatedIntervals === true
+    );
+    if (unresolvedSeparatedState) {
+      setStatus("Pas eerst bewust de shift met meerdere afzonderlijke beschikbaarheidsperiodes aan.", true);
+      setSaveDirtyState(true);
+      return;
+    }
     const invalidState = selectedNormalStates.find((state) => !isValidAvailabilityState(state));
     if (invalidState) {
       setStatus("Het gekozen start- en einduur valt niet binnen deze shift.", true);
@@ -1821,6 +1847,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   window.loadMonth = async function loadMonth() {
     if (monthLoading) return;
     monthLoading = true;
+    const editGenerationAtRequestStart = availabilityUserEditGeneration;
     const currentMonthKey = monthKeyFromDate(currentMonthDate);
     try {
       setSaveButtonsVisible(false);
@@ -1975,13 +2002,28 @@ document.addEventListener("DOMContentLoaded", async () => {
         renderMetaHeader();
       }
 
+      // Keep a slow/stale response from replacing controls the user edited while it was in flight.
+      if (availabilityUserEditGeneration !== editGenerationAtRequestStart) return;
+
+      const ownedAvailabilityAssignments = availabilityAssignments.filter((assignment) =>
+        getAvailabilityMetadata(assignment).ownerUserId === Number(userId)
+      );
+      const reconstructedSelections = JVGHAvailabilityIntervals.reconstructAvailabilitySelections(
+        allShifts,
+        ownedAvailabilityAssignments,
+        {
+          getRange: getShiftStartAndEnd,
+          getCoveredSlotKeys: (assignment) => getAvailabilityMetadata(assignment).coveredSlotKeys,
+          getSlotKey: (slot) => `${String(slot.date || "").slice(0, 10)}|${String(slot.time || "").slice(0, 5)}`,
+          isPseudoTask: isMonthUnavailableTask,
+        }
+      );
       currentStateByTask = new Map();
       allShifts.forEach((task) => {
-        const coveredAssignments = availabilityAssignments.filter((assignment) => {
-          const metadata = getAvailabilityMetadata(assignment);
-          return metadata.ownerUserId === Number(userId) &&
-            assignmentCoversVisibleSlot(assignment, task);
-        });
+        const selection = reconstructedSelections.get(task);
+        const coveredAssignments = Array.from(new Set(
+          (selection?.intervals || []).flatMap((interval) => interval.assignments)
+        ));
         const assignmentSignups = coveredAssignments.flatMap((assignment) =>
           (signupsByTask.get(String(assignment.id)) || []).map((signup) => ({
             ...signup,
@@ -2001,7 +2043,9 @@ document.addEventListener("DOMContentLoaded", async () => {
             )
           ) || null;
         const isMonthUnavailable = isMonthUnavailableTask(task);
-        const checked = Boolean(userSignup);
+        const checked = isMonthUnavailableTask(task)
+          ? Boolean(userSignup)
+          : Boolean(userSignup && selection?.intervals?.length);
         const state = {
           task,
           signups: [...signups],
@@ -2009,16 +2053,13 @@ document.addEventListener("DOMContentLoaded", async () => {
           userSignupTaskId: userSignup?.__taskId ?? task.id ?? null,
           originalChecked: checked,
           currentChecked: checked,
+          hasUnresolvedSeparatedIntervals: Boolean(checked && selection?.separated),
         };
         if (!isMonthUnavailable) {
           const shiftRange = getShiftStartAndEnd(task);
-          const savedRanges = coveredAssignments.map(getShiftStartAndEnd).filter(Boolean);
-          const selectedStart = savedRanges.length
-            ? new Date(Math.max(shiftRange.start.getTime(), Math.min(...savedRanges.map((range) => range.start.getTime()))))
-            : shiftRange.start;
-          const selectedEnd = savedRanges.length
-            ? new Date(Math.min(shiftRange.end.getTime(), Math.max(...savedRanges.map((range) => range.end.getTime()))))
-            : shiftRange.end;
+          const selectedInterval = checked ? selection.intervals[0] : null;
+          const selectedStart = selectedInterval?.start || shiftRange.start;
+          const selectedEnd = selectedInterval?.end || shiftRange.end;
           state.shiftStartTime = `${pad2(shiftRange.start.getHours())}:${pad2(shiftRange.start.getMinutes())}`;
           state.shiftEndTime = `${pad2(shiftRange.end.getHours())}:${pad2(shiftRange.end.getMinutes())}`;
           state.selectedStartTime = `${pad2(selectedStart.getHours())}:${pad2(selectedStart.getMinutes())}`;
@@ -2087,6 +2128,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   const monthUnavailableCheckbox = document.getElementById("availability-month-unavailable-checkbox");
   if (monthUnavailableCheckbox) {
     monthUnavailableCheckbox.addEventListener("change", () => {
+      availabilityUserEditGeneration += 1;
       const monthUnavailableState = getMonthUnavailableState(currentStateByTask);
       if (!monthUnavailableState) return;
 

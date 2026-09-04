@@ -12,7 +12,7 @@ test('availability PWA launches links in a new browsing context', () => {
 
 test('service worker refreshes critical launch assets and advances its cache', () => {
   const worker = fs.readFileSync(path.join(root, 'service-worker.js'), 'utf8');
-  assert.match(worker, /jvgh-planning-static-v29-availability-time-ranges/);
+  assert.match(worker, /jvgh-planning-static-v30-availability-reconstruction/);
   assert.match(worker, /request\.mode === 'navigate'/);
   assert.match(worker, /url\.pathname\.endsWith\('\.js'\)/);
   assert.match(worker, /await self\.skipWaiting\(\)/);
@@ -25,4 +25,13 @@ test('availability context is initialized from the current URL at DOM initializa
   assert.match(source, /const explicitMonth = parseMonthInput\(explicitMonthRaw\)/);
   assert.match(source, /const monthKey = explicitMonth \|\| getDefaultAvailabilityMonthKey\(now\)/);
   assert.match(source, /initializeAvailabilityFromCurrentUrl\(\);/);
+});
+
+test('loaded state stays clean and stale loads cannot replace user edits', () => {
+  const source = fs.readFileSync(path.join(root, 'availability.js'), 'utf8');
+  assert.match(source, /originalChecked: checked,[\s\S]*currentChecked: checked/);
+  assert.match(source, /state\.originalStartTime = state\.selectedStartTime/);
+  assert.match(source, /state\.originalEndTime = state\.selectedEndTime/);
+  assert.match(source, /availabilityUserEditGeneration !== editGenerationAtRequestStart/);
+  assert.match(source, /availabilityUserEditGeneration \+= 1/);
 });
