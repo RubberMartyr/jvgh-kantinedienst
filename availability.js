@@ -990,7 +990,8 @@ async function loadShiftSlotsForMonth(monthKey, { teamMode = false, resolvedTeam
         sourceEvents: [ev],
         icsSummaries: [ev.summary || ""].filter(Boolean),
         teamNames: ev.sourceType === "match"
-          ? [teamMode ? resolvedTeamName : recognizedTeamName(splitMatchSummary(ev.summary).leftSide)].filter(Boolean)
+          ? [teamMode ? resolvedTeamName : extractIcsTeamCode(ev) ||
+              recognizedTeamName(splitMatchSummary(ev.summary).leftSide)].filter(Boolean)
           : [],
       };
     })
