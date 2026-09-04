@@ -1,11 +1,11 @@
 // Increase this version for every release that changes a cached shell file.
-const STATIC_CACHE = 'jvgh-planning-static-v31-loaded-end-boundaries';
+const STATIC_CACHE = 'jvgh-planning-static-v32-covered-volunteers';
 const CACHE_PREFIX = 'jvgh-planning-static-';
 const APP_SHELL = [
   './index.html', './availability.html', './availability.js', './styles.css', './pwa.css', './pwa.js', './main.js',
   './jvgh-api.js', './jvgh-access-control.js', './shared/jvgh-core.js',
   './vendor/event-calendar.min.css', './vendor/event-calendar.min.js',
-  './shared/ghost-shifts.js', './availability-month-data.js', './availability-intervals.js',
+  './shared/ghost-shifts.js', './availability-month-data.js', './availability-intervals.js', './availability-volunteers.js',
   './availability-filter.js',
   './manifest.webmanifest', './availability.webmanifest'
 ];

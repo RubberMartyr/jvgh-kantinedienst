@@ -464,6 +464,10 @@ function assignmentCoversVisibleSlot(assignment, slot) {
     slotRange.end.getTime() <= assignmentRange.end.getTime());
 }
 
+function isAvailabilityAssignmentFallback(task) {
+  return task?.isAvailabilityAssignmentFallback === true;
+}
+
 function hasSavedNormalAvailabilityShift(stateByTask) {
   return Array.from(stateByTask.values()).some(
     (state) =>
@@ -1257,6 +1261,7 @@ function renderList({
     checkbox.type = "checkbox";
     checkbox.id = `availability-shift-${taskIndex}`;
     checkbox.checked = Boolean(state.currentChecked);
+    checkbox.disabled = isAvailabilityAssignmentFallback(task);
     checkbox.title =
       checkboxHoverTitle(
         state.signups,
@@ -1378,7 +1383,7 @@ function renderList({
       return field;
     };
     timeRange.append(makeTimeSelect("start", "Start"), makeTimeSelect("end", "Einde"));
-    timeRange.hidden = !state.currentChecked;
+    timeRange.hidden = !state.currentChecked || isAvailabilityAssignmentFallback(task);
     details.appendChild(timeRange);
     if (state.hasUnresolvedSeparatedIntervals) {
       const warning = document.createElement("p");
@@ -1988,7 +1993,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         mergedByKey.set("month-unavailable", monthUnavailable);
       }
 
-      const allShifts = Array.from(mergedByKey.values()).sort((a, b) => {
+      let allShifts = Array.from(mergedByKey.values()).sort((a, b) => {
         if (isMonthUnavailableTask(a)) return -1;
         if (isMonthUnavailableTask(b)) return 1;
         return `${a.date || ""} ${a.time || ""}`.localeCompare(`${b.date || ""} ${b.time || ""}`);
@@ -2004,6 +2009,22 @@ document.addEventListener("DOMContentLoaded", async () => {
       // Keep a slow/stale response from replacing controls the user edited while it was in flight.
       if (availabilityUserEditGeneration !== editGenerationAtRequestStart) return;
 
+      const sourceShifts = allShifts.filter((task) => !isMonthUnavailableTask(task));
+      const availabilityLookup = JVGHAvailabilityVolunteers
+        .buildAvailabilityTasksByCoveredSlotKey(sourceShifts, availabilityAssignments);
+      const unmappedAvailabilityAssignments = availabilityAssignments.filter((assignment) =>
+        !availabilityLookup.mappedTaskIds.has(Number(assignment.id))
+      ).map((assignment) => ({
+        ...assignment,
+        isAvailabilityAssignmentFallback: true,
+        sourceReason: "Bestaande beschikbaarheidstoewijzing",
+      }));
+      allShifts = [...allShifts, ...unmappedAvailabilityAssignments].sort((a, b) => {
+        if (isMonthUnavailableTask(a)) return -1;
+        if (isMonthUnavailableTask(b)) return 1;
+        return `${a.date || ""} ${a.time || ""}`.localeCompare(`${b.date || ""} ${b.time || ""}`);
+      });
+
       const ownedAvailabilityAssignments = availabilityAssignments.filter((assignment) =>
         getAvailabilityMetadata(assignment).ownerUserId === Number(userId)
       );
@@ -2014,25 +2035,20 @@ document.addEventListener("DOMContentLoaded", async () => {
           getRange: getShiftStartAndEnd,
           getCoveredSlotKeys: (assignment) => getAvailabilityMetadata(assignment).coveredSlotKeys,
           getSlotKey: (slot) => `${String(slot.date || "").slice(0, 10)}|${String(slot.time || "").slice(0, 5)}`,
-          isPseudoTask: isMonthUnavailableTask,
+          isPseudoTask: (task) => isMonthUnavailableTask(task) || isAvailabilityAssignmentFallback(task),
         }
       );
       currentStateByTask = new Map();
       allShifts.forEach((task) => {
         const selection = reconstructedSelections.get(task);
-        const coveredAssignments = Array.from(new Set(
-          (selection?.intervals || []).flatMap((interval) => interval.assignments)
-        ));
-        const assignmentSignups = coveredAssignments.flatMap((assignment) =>
-          (signupsByTask.get(String(assignment.id)) || []).map((signup) => ({
-            ...signup,
-            __taskId: assignment.id,
-          }))
-        );
-        const signups = [
-          ...collectSignupsForTaskGroup(task, signupsByTask),
-          ...assignmentSignups,
-        ];
+        const directSignups = collectSignupsForTaskGroup(task, signupsByTask);
+        const signups = isAvailabilityAssignmentFallback(task)
+          ? directSignups
+          : JVGHAvailabilityVolunteers.getOtherScheduledVolunteers(task, {
+              directSignups,
+              availabilityTasksByCoveredSlotKey: availabilityLookup.bySlotKey,
+              signupsByTask,
+            });
         const userSignup =
           signups.find((signup) =>
             isSignupForCurrentUser(
@@ -2044,7 +2060,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         const isMonthUnavailable = isMonthUnavailableTask(task);
         const checked = isMonthUnavailableTask(task)
           ? Boolean(userSignup)
-          : Boolean(userSignup && selection?.intervals?.length);
+          : Boolean(userSignup && selection?.intervals?.length && !isAvailabilityAssignmentFallback(task));
         const state = {
           task,
           signups: [...signups],
