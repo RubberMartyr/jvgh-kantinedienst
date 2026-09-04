@@ -42,8 +42,17 @@ add_filter('rest_post_dispatch', function ($response, $server, $request) {
 }, 10, 3);
 
 function jvgh_availability_internal_request($method, $route, $body = array()) {
+    $method = strtoupper((string) $method);
     $request = new WP_REST_Request($method, $route);
-    foreach ($body as $key => $value) $request->set_param($key, $value);
+
+    if ($method === 'GET') {
+        $request->set_query_params($body);
+    } elseif (!empty($body)) {
+        $request->set_header('Content-Type', 'application/json');
+        $request->set_body(wp_json_encode($body));
+        $request->set_body_params($body);
+    }
+
     $response = rest_do_request($request);
     if ($response->is_error()) return $response->as_error();
     return $response->get_data();
