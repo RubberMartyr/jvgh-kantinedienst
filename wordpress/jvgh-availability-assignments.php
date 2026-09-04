@@ -54,7 +54,11 @@ function jvgh_availability_internal_request($method, $route, $body = array()) {
     }
 
     $response = rest_do_request($request);
-    if ($response->is_error()) return $response->as_error();
+
+    if ($response->is_error()) {
+        return $response->as_error();
+    }
+
     return $response->get_data();
 }
 
