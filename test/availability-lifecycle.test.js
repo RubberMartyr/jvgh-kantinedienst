@@ -12,12 +12,30 @@ test('availability PWA launches links in a new browsing context', () => {
 
 test('service worker refreshes critical launch assets and advances its cache', () => {
   const worker = fs.readFileSync(path.join(root, 'service-worker.js'), 'utf8');
-  assert.match(worker, /jvgh-planning-static-v35-grouped-match-titles/);
+  assert.match(worker, /jvgh-planning-static-v36-import-team-helper/);
   assert.match(worker, /\.\/availability-volunteers\.js/);
   assert.match(worker, /request\.mode === 'navigate'/);
   assert.match(worker, /url\.pathname\.endsWith\('\.js'\)/);
   assert.match(worker, /await self\.skipWaiting\(\)/);
   assert.match(worker, /self\.clients\.claim\(\)/);
+});
+
+test('availability helper is loaded before the page logic and both files are cached', () => {
+  const html = fs.readFileSync(path.join(root, 'availability.html'), 'utf8');
+  const worker = fs.readFileSync(path.join(root, 'service-worker.js'), 'utf8');
+  assert.ok(html.indexOf('<script src="availability-filter.js"></script>')
+    < html.indexOf('<script src="availability.js"></script>'));
+  assert.match(worker, /['"]\.\/availability-filter\.js['"]/);
+  assert.match(worker, /['"]\.\/availability\.js['"]/);
+});
+
+test('availability imports the ICS team helper and fails clearly when its module is absent', () => {
+  const source = fs.readFileSync(path.join(root, 'availability.js'), 'utf8');
+  assert.match(source, /const availabilityFilter = window\.JVGHAvailabilityFilter;/);
+  assert.match(source, /if \(!availabilityFilter\) \{[\s\S]*?Load availability-filter\.js before availability\.js/);
+  assert.match(source, /const \{\s*extractIcsTeamCode,/);
+  assert.match(source, /teamNames: ev\.sourceType === "match"[\s\S]*?extractIcsTeamCode\(ev\)/);
+  assert.doesNotMatch(source, /function extractIcsTeamCode\s*\(/);
 });
 
 test('selecting availability does not change the details expansion state', () => {
@@ -39,6 +57,8 @@ test('availability context is initialized from the current URL at DOM initializa
   assert.match(source, /const explicitMonth = parseMonthInput\(explicitMonthRaw\)/);
   assert.match(source, /const monthKey = explicitMonth \|\| getDefaultAvailabilityMonthKey\(now\)/);
   assert.match(source, /initializeAvailabilityFromCurrentUrl\(\);/);
+  assert.match(source, /window\.loadMonth = async function loadMonth\(\)[\s\S]*?renderList\(\{/);
+  assert.match(source, /document\.addEventListener\("DOMContentLoaded", async \(\) => \{[\s\S]*?await loadMonth\(\);\s*\}\);/);
 });
 
 test('loaded state stays clean and stale loads cannot replace user edits', () => {
