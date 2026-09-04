@@ -12,7 +12,7 @@ test('availability PWA launches links in a new browsing context', () => {
 
 test('service worker refreshes critical launch assets and advances its cache', () => {
   const worker = fs.readFileSync(path.join(root, 'service-worker.js'), 'utf8');
-  assert.match(worker, /jvgh-planning-static-v36-import-team-helper/);
+  assert.match(worker, /jvgh-planning-static-v37-independent-availability-overlaps/);
   assert.match(worker, /\.\/availability-volunteers\.js/);
   assert.match(worker, /request\.mode === 'navigate'/);
   assert.match(worker, /url\.pathname\.endsWith\('\.js'\)/);

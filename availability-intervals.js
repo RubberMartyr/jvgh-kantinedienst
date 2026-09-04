@@ -79,71 +79,68 @@
     return Array.from(new Set(value.split(",").map((key) => key.trim()).filter(Boolean)));
   }
 
+  /** Return the positive overlap of two date ranges without mutating either range. */
+  function intersectDateRanges(assignmentRange, sourceShiftRange) {
+    if (!assignmentRange || !sourceShiftRange) return null;
+    const assignmentStart = assignmentRange.start;
+    const assignmentEnd = assignmentRange.end;
+    const shiftStart = sourceShiftRange.start;
+    const shiftEnd = sourceShiftRange.end;
+    if (![assignmentStart, assignmentEnd, shiftStart, shiftEnd].every((date) =>
+      date instanceof Date && Number.isFinite(date.getTime()))) return null;
+    const start = new Date(Math.max(assignmentStart.getTime(), shiftStart.getTime()));
+    const end = new Date(Math.min(assignmentEnd.getTime(), shiftEnd.getTime()));
+    return start < end ? { start, end } : null;
+  }
+
   /** Map canonical saved assignments back onto their original, visible source slots. */
   function reconstructAvailabilitySelections(sourceShifts, assignments, options = {}) {
     const getRange = options.getRange || ((item) => ({ start: new Date(item.start), end: new Date(item.end) }));
-    const getCoveredSlotKeys = options.getCoveredSlotKeys || ((item) => item.coveredSlotKeys);
-    const getSlotKey = options.getSlotKey || ((item) => `${localDateKey(getRange(item).start)}|${localTime(getRange(item).start)}`);
     const isPseudoTask = options.isPseudoTask || (() => false);
     const result = new Map();
 
     const validShifts = sourceShifts.filter((shift) => !isPseudoTask(shift)).map((shift) => ({
-      shift, range: getRange(shift), key: getSlotKey(shift),
+      shift, range: getRange(shift),
     })).filter(({ range }) => range && Number.isFinite(range.start?.getTime()) &&
       Number.isFinite(range.end?.getTime()) && range.end > range.start)
-      .sort((a, b) => a.range.start - b.range.start || a.range.end - b.range.end || a.key.localeCompare(b.key));
+      .sort((a, b) => a.range.start - b.range.start || a.range.end - b.range.end);
 
     sourceShifts.forEach((shift) => {
       if (isPseudoTask(shift)) return;
       result.set(shift, { intervals: [], separated: false });
     });
 
+    const assignmentsByDate = new Map();
     assignments.forEach((assignment) => {
       if (isPseudoTask(assignment)) return;
       const assignmentRange = getRange(assignment);
       if (!assignmentRange || !Number.isFinite(assignmentRange.start?.getTime()) ||
           !Number.isFinite(assignmentRange.end?.getTime()) || assignmentRange.end <= assignmentRange.start) return;
-      const covered = normalizeCoveredSlotKeys(getCoveredSlotKeys(assignment));
-      const sameDay = validShifts.filter(({ range }) =>
-        localDateKey(range.start) === localDateKey(assignmentRange.start));
-      const candidates = covered.length ? sameDay.filter(({ key }) => covered.includes(key)) : sameDay;
-      const overlapping = candidates.filter(({ range }) =>
-        range.start < assignmentRange.end && range.end > assignmentRange.start);
-      if (!overlapping.length) return;
-      let current = overlapping.find(({ key }) => key ===
-        `${localDateKey(assignmentRange.start)}|${localTime(assignmentRange.start)}`);
-      if (!current) current = overlapping.filter(({ range }) =>
-        range.start <= assignmentRange.start && assignmentRange.start < range.end)
-        .sort((a, b) => b.range.start - a.range.start ||
-          (b.range.end - assignmentRange.start) - (a.range.end - assignmentRange.start) ||
-          a.key.localeCompare(b.key))[0];
-      if (!current) current = overlapping.sort((a, b) =>
-        Math.max(assignmentRange.start, a.range.start) - Math.max(assignmentRange.start, b.range.start) ||
-        b.range.end - a.range.end || a.key.localeCompare(b.key))[0];
-
-      let cursor = new Date(Math.max(assignmentRange.start, current.range.start));
-      const used = new Set();
-      while (current && cursor < assignmentRange.end) {
-        const end = new Date(Math.min(assignmentRange.end, current.range.end));
-        if (cursor < end) {
-          result.get(current.shift).intervals.push({ start: new Date(cursor), end, assignment,
-            assignments: [assignment] });
-          cursor = end;
-        }
-        used.add(current.shift);
-        if (cursor >= assignmentRange.end) break;
-        const continuing = candidates.filter(({ shift, range }) => !used.has(shift) &&
-          range.start <= cursor && range.end > cursor);
-        current = continuing.sort((a, b) =>
-          Number(covered.includes(b.key)) - Number(covered.includes(a.key)) ||
-          Number(b.range.start.getTime() === cursor.getTime()) - Number(a.range.start.getTime() === cursor.getTime()) ||
-          b.range.start - a.range.start || b.range.end - a.range.end || a.key.localeCompare(b.key))[0];
-      }
+      const date = localDateKey(assignmentRange.start);
+      if (!assignmentsByDate.has(date)) assignmentsByDate.set(date, []);
+      assignmentsByDate.get(date).push({ assignment, range: assignmentRange });
     });
-    result.forEach((selection) => {
-      selection.intervals.sort((a, b) => a.start - b.start);
-      selection.separated = selection.intervals.some((interval, index) =>
-        index > 0 && interval.start > selection.intervals[index - 1].end);
+
+    validShifts.forEach(({ shift, range }) => {
+      const intersections = (assignmentsByDate.get(localDateKey(range.start)) || [])
+        .map(({ assignment, range: assignmentRange }) => {
+          const intersection = intersectDateRanges(assignmentRange, range);
+          return intersection && { ...intersection, assignment, assignments: [assignment] };
+        }).filter(Boolean).sort((a, b) => a.start - b.start || a.end - b.end);
+      const merged = [];
+      intersections.forEach((intersection) => {
+        const previous = merged.at(-1);
+        if (previous && intersection.start <= previous.end) {
+          if (intersection.end > previous.end) previous.end = new Date(intersection.end);
+          previous.assignments.push(...intersection.assignments);
+        } else {
+          merged.push({ ...intersection, start: new Date(intersection.start), end: new Date(intersection.end),
+            assignments: [...intersection.assignments] });
+        }
+      });
+      const selection = result.get(shift);
+      selection.intervals = merged;
+      selection.separated = merged.length > 1;
     });
     return result;
   }
@@ -202,5 +199,5 @@
   }
   return { getMatchAvailabilityWindow, mergeAvailabilityIntervals, localDateKey, parseTimeToMinutes,
     formatMinutesAsTime, buildQuarterHourOptions, normalizeAvailabilityRange,
-    normalizeCoveredSlotKeys, reconstructAvailabilitySelections };
+    normalizeCoveredSlotKeys, intersectDateRanges, reconstructAvailabilitySelections };
 });
