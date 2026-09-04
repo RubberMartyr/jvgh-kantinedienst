@@ -105,15 +105,22 @@
       const teamNames = Array.isArray(task?.teamNames)
         ? naturalSortTeamNames(task.teamNames)
         : [];
+      let title;
       if (teamNames.length) {
-        if (teamNames.length === 1) return `Wedstrijd ${teamNames[0]}`;
-        const lastTeam = teamNames[teamNames.length - 1];
-        const precedingTeams = teamNames.slice(0, -1).join(", ");
-        return `Wedstrijden ${precedingTeams} & ${lastTeam}`;
+        if (teamNames.length === 1) title = `Wedstrijd ${teamNames[0]}`;
+        else {
+          const lastTeam = teamNames[teamNames.length - 1];
+          const precedingTeams = teamNames.slice(0, -1).join(", ");
+          title = `Wedstrijden ${precedingTeams} & ${lastTeam}`;
+        }
+      } else {
+        const { leftSide } = splitMatchSummary(summary);
+        const teamName = recognizedTeamName(leftSide);
+        title = teamName ? `Wedstrijd ${teamName}` : "Wedstrijd";
       }
-      const { leftSide } = splitMatchSummary(summary);
-      const teamName = recognizedTeamName(leftSide);
-      return teamName ? `Wedstrijd ${teamName}` : "Wedstrijd";
+      const actualTime = formatActualMatchTime(task?.matchStart ?? task?.icsStart,
+        task?.matchEnd ?? task?.icsEnd);
+      return actualTime ? `${title} (${actualTime})` : title;
     }
 
     if (sourceType === "event") {
@@ -121,6 +128,14 @@
     }
 
     return task?.sourceLabel || task?.title || "Shift";
+  }
+
+  function formatActualMatchTime(startValue, endValue) {
+    const start = new Date(startValue);
+    const end = new Date(endValue);
+    if (!Number.isFinite(start.getTime()) || !Number.isFinite(end.getTime()) || end <= start) return "";
+    const time = (date) => `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
+    return `${time(start)}–${time(end)}`;
   }
 
   function naturalSortTeamNames(teamNames) {
@@ -167,6 +182,7 @@
     decodeAndTrimIcsText,
     extractIcsTeamCode,
     filterHomeEventsByTeam,
+    formatActualMatchTime,
     getDefaultAvailabilityMonth,
     getAvailabilityDisplayTitle,
     homeSideMatchesTeam,

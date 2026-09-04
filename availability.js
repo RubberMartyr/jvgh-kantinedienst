@@ -961,8 +961,14 @@ async function loadShiftSlotsForMonth(monthKey, { teamMode = false, resolvedTeam
 
   const shifts = dailyEvents
     .map((ev) => {
-      const shiftStart = new Date(ev.start.getTime() - 60 * 60 * 1000);
-      const shiftEnd = new Date(ev.end.getTime() + 2 * 60 * 60 * 1000);
+      const window = ev.sourceType === "match"
+        ? JVGHAvailabilityIntervals.getMatchAvailabilityWindow(ev.start, ev.end)
+        : {
+            start: new Date(ev.start.getTime() - 60 * 60 * 1000),
+            end: new Date(ev.end.getTime() + 2 * 60 * 60 * 1000),
+          };
+      const shiftStart = window.start;
+      const shiftEnd = window.end;
       const date = `${shiftStart.getFullYear()}-${pad2(shiftStart.getMonth() + 1)}-${pad2(shiftStart.getDate())}`;
       const time = `${pad2(shiftStart.getHours())}:${pad2(shiftStart.getMinutes())}`;
       return {
@@ -977,6 +983,8 @@ async function loadShiftSlotsForMonth(monthKey, { teamMode = false, resolvedTeam
         icsSummary: ev.summary || "",
         icsStart: ev.start.toISOString(),
         icsEnd: ev.end.toISOString(),
+        matchStart: ev.sourceType === "match" ? ev.start.toISOString() : null,
+        matchEnd: ev.sourceType === "match" ? ev.end.toISOString() : null,
         sourceType: ev.sourceType,
         sourceLabel: ev.sourceLabel,
         sourceEvents: [ev],
@@ -1560,15 +1568,18 @@ async function saveChanges({
     const isStateDirty = (state) => state.originalChecked !== state.currentChecked ||
       (state.currentChecked && (state.selectedStartTime !== state.originalStartTime ||
         state.selectedEndTime !== state.originalEndTime));
+    const dirtyOriginGroups = new Set(dirtyEntries.map((state) => state.originGroupKey).filter(Boolean));
     // An unchanged direct signup remains owned by its planner task and must not be
     // represented a second time by availability reconciliation.
     const selectedNormalStates = entries.filter((state) =>
       !isMonthUnavailableTask(state.task) && state.currentChecked &&
-      !(isLegacyOrigin(state) && !isStateDirty(state))
+      !(isLegacyOrigin(state) && !isStateDirty(state) && !dirtyOriginGroups.has(state.originGroupKey))
     );
-    const legacySignupMigrations = dirtyEntries.filter(isLegacyOrigin).map((state) => ({
-      taskId: Number(state.originTaskId), signupId: Number(state.originSignupId),
-    }));
+    const legacySignupMigrations = Array.from(new Map(
+      dirtyEntries.filter(isLegacyOrigin).map((state) => [state.originGroupKey || `${state.originTaskId}:${state.originSignupId}`, {
+        taskId: Number(state.originTaskId), signupId: Number(state.originSignupId),
+      }])
+    ).values());
     const unresolvedSeparatedState = entries.find((state) =>
       state.hasUnresolvedSeparatedIntervals === true
     );
@@ -1909,6 +1920,17 @@ document.addEventListener("DOMContentLoaded", async () => {
           sourceEvents: [...(existing.sourceEvents || []), ...(shift.sourceEvents || [])],
           icsSummaries: Array.from(new Set([...(existing.icsSummaries || []), ...(shift.icsSummaries || [])].filter(Boolean))),
           teamNames: Array.from(new Set([...(existing.teamNames || []), ...(shift.teamNames || [])].filter(Boolean))),
+          matchStart: existing.sourceType === "match"
+            ? [existing.matchStart, shift.matchStart].filter(Boolean).sort()[0] : existing.matchStart,
+          matchEnd: existing.sourceType === "match"
+            ? [existing.matchEnd, shift.matchEnd].filter(Boolean).sort().at(-1) : existing.matchEnd,
+          icsStart: existing.sourceType === "match"
+            ? [existing.icsStart, shift.icsStart].filter(Boolean).sort()[0] : existing.icsStart,
+          icsEnd: existing.sourceType === "match"
+            ? [existing.icsEnd, shift.icsEnd].filter(Boolean).sort().at(-1) : existing.icsEnd,
+          end: new Date(Math.max(new Date(existing.end).getTime(), new Date(shift.end).getTime())).toISOString(),
+          qty: Math.round((Math.max(new Date(existing.end).getTime(), new Date(shift.end).getTime()) -
+            new Date(existing.start).getTime()) / 60000),
         });
       });
       const monthUnavailable = monthUnavailableTask(currentMonthKey);
@@ -1974,6 +1996,20 @@ document.addEventListener("DOMContentLoaded", async () => {
           isPseudoTask: (task) => isMonthUnavailableTask(task) || isAvailabilityAssignmentFallback(task),
         }
       );
+      const currentUserLegacyAssignments = ordinaryPersistedTasks.filter((assignment) =>
+        (signupsByTask.get(String(assignment.id)) || assignment.signups || []).some((signup) =>
+          isSignupForCurrentUser(signup, isTeamMode ? null : userId, resolvedName))
+      );
+      const reconstructedLegacySelections = JVGHAvailabilityIntervals.reconstructAvailabilitySelections(
+        sourceShifts,
+        currentUserLegacyAssignments,
+        {
+          getRange: getShiftStartAndEnd,
+          getCoveredSlotKeys: () => [],
+          getSlotKey: (slot) => JVGHAvailabilityVolunteers.sourceSlotKey(slot),
+          isPseudoTask: (task) => isMonthUnavailableTask(task) || isAvailabilityAssignmentFallback(task),
+        }
+      );
       currentStateByTask = new Map();
       allShifts.forEach((task) => {
         const selection = reconstructedSelections.get(task);
@@ -1998,14 +2034,21 @@ document.addEventListener("DOMContentLoaded", async () => {
           JVGHAvailabilityVolunteers.sourceSlotKey(task)
         ) || [];
         let directSelection = null;
-        for (const originTask of selection?.intervals?.length ? [] : mappedLegacyTasks) {
+        const distributedLegacyInterval = reconstructedLegacySelections.get(task)?.intervals?.[0] || null;
+        const distributedOriginTask = distributedLegacyInterval?.assignment || null;
+        const directCandidates = distributedOriginTask
+          ? [distributedOriginTask]
+          : mappedLegacyTasks;
+        for (const originTask of selection?.intervals?.length ? [] : directCandidates) {
           const originSignup = (signupsByTask.get(String(originTask.id)) || originTask.signups || [])
             .find((signup) => isSignupForCurrentUser(signup, isTeamMode ? null : userId, resolvedName));
           if (!originSignup) continue;
-          directSelection = JVGHAvailabilityVolunteers.reconstructDirectSelection(
-            task, originTask, { ...originSignup, __taskId: originTask.id },
-            legacyLookup.mappingReasonByTaskId.get(Number(originTask.id))
-          );
+          const baseSelection = JVGHAvailabilityVolunteers.reconstructDirectSelection(task, originTask,
+            { ...originSignup, __taskId: originTask.id },
+            legacyLookup.mappingReasonByTaskId.get(Number(originTask.id)));
+          directSelection = baseSelection && distributedLegacyInterval
+            ? { ...baseSelection, interval: distributedLegacyInterval }
+            : baseSelection;
           if (directSelection) { userSignup = directSelection.signup; break; }
         }
         const isMonthUnavailable = isMonthUnavailableTask(task);
@@ -2024,6 +2067,10 @@ document.addEventListener("DOMContentLoaded", async () => {
           originTaskId: directSelection?.originTaskId ?? null,
           originSignupId: directSelection?.originSignupId ?? null,
           originTaskRange: directSelection?.originTaskRange ?? null,
+          originGroupKey: directSelection
+            ? `legacy:${directSelection.originTaskId}:${directSelection.originSignupId}`
+            : (selection?.intervals?.[0]?.assignment?.id
+                ? `availability:${selection.intervals[0].assignment.id}` : null),
         };
         if (!isMonthUnavailable) {
           const shiftRange = getShiftStartAndEnd(task);

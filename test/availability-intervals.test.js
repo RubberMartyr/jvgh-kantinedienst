@@ -7,6 +7,7 @@ const path = require("node:path");
 const { mergeAvailabilityIntervals, parseTimeToMinutes, formatMinutesAsTime,
   buildQuarterHourOptions, normalizeAvailabilityRange } = require("../availability-intervals.js");
 const { reconstructAvailabilitySelections, normalizeCoveredSlotKeys } = require("../availability-intervals.js");
+const { getMatchAvailabilityWindow } = require("../availability-intervals.js");
 
 const range = (state) => ({ start: new Date((state.task || state).start), end: new Date((state.task || state).end) });
 const slot = (date, start, end) => ({ task: { start: `${date}T${start}:00`, end: `${date}T${end}:00` } });
@@ -44,16 +45,16 @@ test("saved merged assignments reconstruct complete and partial source blocks", 
     [[['09:15', '10:00']], [['10:00', '11:30']], [['11:30', '12:15']]]);
 });
 
-test("loaded assignment over overlapping blocks ends at the next selected start", () => {
-  const shifts = [sourceShift("08:30", "13:00"), sourceShift("10:00", "14:30")];
+test("loaded assignment carries a remainder without duplicating overlapping source time", () => {
+  const shifts = [sourceShift("08:30", "12:00"), sourceShift("10:00", "13:30")];
   const persisted = saved("08:30", "13:00", shifts.map((shift) => shift.key));
   const mapped = reconstruct(shifts, [persisted]);
   const ranges = shifts.map((shift) => mapped.get(shift).intervals[0])
     .map((interval) => [local(interval.start), local(interval.end)]);
 
-  assert.deepEqual(ranges, [["08:30", "10:00"], ["10:00", "13:00"]]);
+  assert.deepEqual(ranges, [["08:30", "12:00"], ["12:00", "13:00"]]);
   assert.equal(ranges[0][1], ranges[1][0], "the first end is the next reconstructed start");
-  assert.deepEqual(ranges.map(([start]) => start), ["08:30", "10:00"],
+  assert.deepEqual(ranges.map(([start]) => start), ["08:30", "12:00"],
     "reconstructing ends does not alter starts");
   assert.ok(shifts.every((shift) => {
     const interval = mapped.get(shift).intervals[0];
@@ -67,7 +68,7 @@ test("loaded assignment over overlapping blocks ends at the next selected start"
   assert.deepEqual([roundTrip.startTime, roundTrip.endTime], ["08:30", "13:00"]);
 });
 
-test("loaded end boundaries preserve partial starts and cap the last block at both ends", () => {
+test("loaded end boundaries carry the cursor only into a source that contains it", () => {
   const shifts = [
     sourceShift("08:30", "13:00"),
     sourceShift("10:00", "14:30"),
@@ -76,13 +77,13 @@ test("loaded end boundaries preserve partial starts and cap the last block at bo
   let mapped = reconstruct(shifts, [saved("09:00", "15:00", shifts.map((shift) => shift.key))]);
   assert.deepEqual(shifts.map((shift) => mapped.get(shift).intervals.map((interval) =>
     [local(interval.start), local(interval.end)])), [
-    [["09:00", "10:00"]], [["10:00", "11:30"]], [["11:30", "14:00"]],
+    [["09:00", "13:00"]], [["14:00", "14:30"]], [["13:00", "14:00"]],
   ]);
 
   mapped = reconstruct(shifts.slice(0, 2), [saved("09:15", "12:00", shifts.slice(0, 2).map((shift) => shift.key))]);
   assert.deepEqual(shifts.slice(0, 2).map((shift) => mapped.get(shift).intervals.map((interval) =>
     [local(interval.start), local(interval.end)])), [
-    [["09:15", "10:00"]], [["10:00", "12:00"]],
+    [["09:15", "12:00"]], [],
   ]);
 });
 
@@ -119,15 +120,35 @@ test("partial ranges, cross-boundary ranges and no-overlap ranges use true inter
   assert.equal(reconstruct([b], [saved("08:30", "09:45", [b.key])]).get(b).intervals.length, 0);
 });
 
-test("stable keys exclude unrelated overlaps while legacy data uses same-day overlap fallback", () => {
+test("stable keys exclude unrelated overlaps while legacy data chooses one safe initial shift", () => {
   const intended = sourceShift("10:00", "11:30", "event-a");
   const unrelated = sourceShift("10:15", "11:00", "event-b");
   const keyed = reconstruct([intended, unrelated], [saved("10:00", "11:30", ["event-a"])]);
   assert.equal(keyed.get(intended).intervals.length, 1);
   assert.equal(keyed.get(unrelated).intervals.length, 0);
   const legacy = reconstruct([intended, unrelated], [saved("10:30", "10:45", [])]);
-  assert.equal(legacy.get(intended).intervals.length, 1);
+  assert.equal(legacy.get(intended).intervals.length, 0);
   assert.equal(legacy.get(unrelated).intervals.length, 1);
+});
+
+test("match availability windows use actual duration plus two buffers without mutation", () => {
+  for (const [start, end, expectedStart, expectedEnd] of [
+    ["09:30", "11:00", "08:30", "12:00"],
+    ["11:00", "12:30", "10:00", "13:30"],
+    ["10:00", "11:00", "09:00", "12:00"],
+  ]) {
+    const actualStart = new Date(`2026-09-05T${start}:00+02:00`);
+    const actualEnd = new Date(`2026-09-05T${end}:00+02:00`);
+    const before = [actualStart.getTime(), actualEnd.getTime()];
+    const window = getMatchAvailabilityWindow(actualStart, actualEnd);
+    const brussels = new Intl.DateTimeFormat("nl-BE", { timeZone: "Europe/Brussels",
+      hour: "2-digit", minute: "2-digit", hour12: false });
+    assert.deepEqual([brussels.format(window.start), brussels.format(window.end)], [expectedStart, expectedEnd]);
+    assert.deepEqual([actualStart.getTime(), actualEnd.getTime()], before);
+  }
+  assert.throws(() => getMatchAvailabilityWindow(new Date("bad"), new Date()), TypeError);
+  assert.throws(() => getMatchAvailabilityWindow(new Date("2026-09-05T11:00:00Z"),
+    new Date("2026-09-05T10:00:00Z")), RangeError);
 });
 
 test("non-quarter persisted boundaries remain options and covered keys normalize", () => {

@@ -10,6 +10,21 @@
     `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}`;
   const localTime = (date) => `${pad2(date.getHours())}:${pad2(date.getMinutes())}`;
 
+  function getMatchAvailabilityWindow(matchStart, matchEnd) {
+    if (!(matchStart instanceof Date) || !(matchEnd instanceof Date) ||
+        !Number.isFinite(matchStart.getTime()) || !Number.isFinite(matchEnd.getTime())) {
+      throw new TypeError("Wedstrijdstart en -einde moeten geldige datums zijn.");
+    }
+    if (matchEnd.getTime() <= matchStart.getTime()) {
+      throw new RangeError("Het wedstrijdeinde moet na de wedstrijdstart liggen.");
+    }
+    const buffer = 60 * 60 * 1000;
+    return {
+      start: new Date(matchStart.getTime() - buffer),
+      end: new Date(matchEnd.getTime() + buffer),
+    };
+  }
+
   function parseTimeToMinutes(time) {
     const match = String(time || "").match(/^(\d{2}):(\d{2})$/);
     if (!match) return null;
@@ -72,60 +87,63 @@
     const isPseudoTask = options.isPseudoTask || (() => false);
     const result = new Map();
 
+    const validShifts = sourceShifts.filter((shift) => !isPseudoTask(shift)).map((shift) => ({
+      shift, range: getRange(shift), key: getSlotKey(shift),
+    })).filter(({ range }) => range && Number.isFinite(range.start?.getTime()) &&
+      Number.isFinite(range.end?.getTime()) && range.end > range.start)
+      .sort((a, b) => a.range.start - b.range.start || a.range.end - b.range.end || a.key.localeCompare(b.key));
+
     sourceShifts.forEach((shift) => {
       if (isPseudoTask(shift)) return;
-      const shiftRange = getRange(shift);
-      if (!shiftRange || !Number.isFinite(shiftRange.start?.getTime()) ||
-          !Number.isFinite(shiftRange.end?.getTime())) return;
-      const slotKey = getSlotKey(shift);
-      const intersections = [];
-      assignments.forEach((assignment) => {
-        if (isPseudoTask(assignment)) return;
-        const assignmentRange = getRange(assignment);
-        if (!assignmentRange || !Number.isFinite(assignmentRange.start?.getTime()) ||
-            !Number.isFinite(assignmentRange.end?.getTime())) return;
-        const covered = normalizeCoveredSlotKeys(getCoveredSlotKeys(assignment));
-        const stableMatch = covered.length > 0 && covered.includes(slotKey);
-        const legacyMatch = covered.length === 0 &&
-          localDateKey(assignmentRange.start) === localDateKey(shiftRange.start) &&
-          assignmentRange.start < shiftRange.end && assignmentRange.end > shiftRange.start;
-        if (!stableMatch && !legacyMatch) return;
-        const start = new Date(Math.max(assignmentRange.start.getTime(), shiftRange.start.getTime()));
-        const end = new Date(Math.min(assignmentRange.end.getTime(), shiftRange.end.getTime()));
-        if (start < end) intersections.push({ start, end, assignment });
-      });
-      intersections.sort((a, b) => a.start - b.start);
-      const merged = [];
-      intersections.forEach((interval) => {
-        const previous = merged.at(-1);
-        if (previous && interval.start <= previous.end) {
-          if (interval.end > previous.end) previous.end = interval.end;
-          previous.assignments.push(interval.assignment);
-        } else merged.push({ start: interval.start, end: interval.end, assignments: [interval.assignment] });
-      });
-      result.set(shift, { intervals: merged, separated: merged.length > 1 });
+      result.set(shift, { intervals: [], separated: false });
     });
 
-    // A canonical assignment can cover overlapping source shifts. Its persisted
-    // end is therefore a valid intersection end for more than one shift, but
-    // showing that end on every row would duplicate time in the form. Split only
-    // the loaded representation at the next later reconstructed start; saving
-    // the adjacent pieces will still merge into the canonical assignment.
     assignments.forEach((assignment) => {
-      const selected = [];
-      sourceShifts.forEach((shift) => {
-        (result.get(shift)?.intervals || []).forEach((interval) => {
-          if (interval.assignments.includes(assignment)) selected.push(interval);
-        });
-      });
-      selected.sort((a, b) => a.start.getTime() - b.start.getTime());
-      selected.forEach((interval, index) => {
-        const next = selected.slice(index + 1)
-          .find((candidate) => candidate.start.getTime() > interval.start.getTime());
-        if (!next) return;
-        const reconstructedEnd = Math.min(interval.end.getTime(), next.start.getTime());
-        if (reconstructedEnd > interval.start.getTime()) interval.end = new Date(reconstructedEnd);
-      });
+      if (isPseudoTask(assignment)) return;
+      const assignmentRange = getRange(assignment);
+      if (!assignmentRange || !Number.isFinite(assignmentRange.start?.getTime()) ||
+          !Number.isFinite(assignmentRange.end?.getTime()) || assignmentRange.end <= assignmentRange.start) return;
+      const covered = normalizeCoveredSlotKeys(getCoveredSlotKeys(assignment));
+      const sameDay = validShifts.filter(({ range }) =>
+        localDateKey(range.start) === localDateKey(assignmentRange.start));
+      const candidates = covered.length ? sameDay.filter(({ key }) => covered.includes(key)) : sameDay;
+      const overlapping = candidates.filter(({ range }) =>
+        range.start < assignmentRange.end && range.end > assignmentRange.start);
+      if (!overlapping.length) return;
+      let current = overlapping.find(({ key }) => key ===
+        `${localDateKey(assignmentRange.start)}|${localTime(assignmentRange.start)}`);
+      if (!current) current = overlapping.filter(({ range }) =>
+        range.start <= assignmentRange.start && assignmentRange.start < range.end)
+        .sort((a, b) => b.range.start - a.range.start ||
+          (b.range.end - assignmentRange.start) - (a.range.end - assignmentRange.start) ||
+          a.key.localeCompare(b.key))[0];
+      if (!current) current = overlapping.sort((a, b) =>
+        Math.max(assignmentRange.start, a.range.start) - Math.max(assignmentRange.start, b.range.start) ||
+        b.range.end - a.range.end || a.key.localeCompare(b.key))[0];
+
+      let cursor = new Date(Math.max(assignmentRange.start, current.range.start));
+      const used = new Set();
+      while (current && cursor < assignmentRange.end) {
+        const end = new Date(Math.min(assignmentRange.end, current.range.end));
+        if (cursor < end) {
+          result.get(current.shift).intervals.push({ start: new Date(cursor), end, assignment,
+            assignments: [assignment] });
+          cursor = end;
+        }
+        used.add(current.shift);
+        if (cursor >= assignmentRange.end) break;
+        const continuing = candidates.filter(({ shift, range }) => !used.has(shift) &&
+          range.start <= cursor && range.end > cursor);
+        current = continuing.sort((a, b) =>
+          Number(covered.includes(b.key)) - Number(covered.includes(a.key)) ||
+          Number(b.range.start.getTime() === cursor.getTime()) - Number(a.range.start.getTime() === cursor.getTime()) ||
+          b.range.start - a.range.start || b.range.end - a.range.end || a.key.localeCompare(b.key))[0];
+      }
+    });
+    result.forEach((selection) => {
+      selection.intervals.sort((a, b) => a.start - b.start);
+      selection.separated = selection.intervals.some((interval, index) =>
+        index > 0 && interval.start > selection.intervals[index - 1].end);
     });
     return result;
   }
@@ -182,7 +200,7 @@
       coveredSlotKeys: Array.from(new Set(interval.coveredSlotKeys)).sort(),
     }));
   }
-  return { mergeAvailabilityIntervals, localDateKey, parseTimeToMinutes,
+  return { getMatchAvailabilityWindow, mergeAvailabilityIntervals, localDateKey, parseTimeToMinutes,
     formatMinutesAsTime, buildQuarterHourOptions, normalizeAvailabilityRange,
     normalizeCoveredSlotKeys, reconstructAvailabilitySelections };
 });
