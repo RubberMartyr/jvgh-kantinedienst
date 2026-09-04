@@ -1995,8 +1995,14 @@ document.addEventListener("DOMContentLoaded", async () => {
         return `${a.date || ""} ${a.time || ""}`.localeCompare(`${b.date || ""} ${b.time || ""}`);
       });
 
+      // The persisted signup is authoritative for older availability tasks that
+      // predate owner metadata.  Once an assignment is known to belong to the
+      // current user, reconstruct it against every source shift independently;
+      // covered-slot provenance must not limit genuine time-range overlaps.
       const ownedAvailabilityAssignments = availabilityAssignments.filter((assignment) =>
-        getAvailabilityMetadata(assignment).ownerUserId === Number(userId)
+        getAvailabilityMetadata(assignment).ownerUserId === Number(userId) ||
+        (signupsByTask.get(String(assignment.id)) || assignment.signups || []).some((signup) =>
+          isSignupForCurrentUser(signup, isTeamMode ? null : userId, resolvedName))
       );
       const reconstructedSelections = JVGHAvailabilityIntervals.reconstructAvailabilitySelections(
         allShifts,

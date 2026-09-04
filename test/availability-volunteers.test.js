@@ -110,6 +110,20 @@ test("direct Ive signup maps by structured start and reconstructs the source int
   assert.equal(selection.persistenceOrigin, "direct");
 });
 
+test("direct Ive assignment independently covers all three production source shifts", () => {
+  const shifts = [source("08:30", "A", 1, "12:00"), source("10:00", "B", 1, "13:30"),
+    source("11:30", "C", 1, "15:00")];
+  const ive = { id: 14054, userId: 1, firstName: "Ive", lastName: "Vanlee" };
+  const direct = { id: 14053, date: "2026-09-05", time: "08:30", qty: 300, signups: [ive] };
+  const displayed = shifts.map((shift) => reconstructDirectSelection(shift, direct, ive)?.interval);
+  const localTime = (date) => `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
+
+  assert.equal(displayed.every(Boolean), true, "all independently overlapping rows are checked");
+  assert.deepEqual(displayed.map((interval) => [localTime(interval.start), localTime(interval.end)]), [
+    ["08:30", "12:00"], ["10:00", "13:30"], ["11:30", "13:30"],
+  ]);
+});
+
 test("Carine fallback chooses latest containing shift and ignores the stale title", () => {
   const shifts = [source("08:30", "A", 1, "13:00"), source("10:00", "B", 1, "14:30"),
     source("11:30", "C", 1, "16:00")];
