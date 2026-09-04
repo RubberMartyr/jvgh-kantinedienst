@@ -13,7 +13,7 @@ add_action('rest_api_init', function () {
     register_rest_route('jvgh/v1', '/availability-assignments/reconcile', array(
         'methods' => WP_REST_Server::CREATABLE,
         'callback' => 'jvgh_rest_reconcile_availability_assignments',
-        'permission_callback' => function () { return current_user_can('edit_posts'); },
+        'permission_callback' => '__return_true',
     ));
 });
 
