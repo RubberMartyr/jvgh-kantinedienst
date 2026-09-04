@@ -12,11 +12,24 @@ test('availability PWA launches links in a new browsing context', () => {
 
 test('service worker refreshes critical launch assets and advances its cache', () => {
   const worker = fs.readFileSync(path.join(root, 'service-worker.js'), 'utf8');
-  assert.match(worker, /jvgh-planning-static-v30-availability-reconstruction/);
+  assert.match(worker, /jvgh-planning-static-v31-loaded-end-boundaries/);
   assert.match(worker, /request\.mode === 'navigate'/);
   assert.match(worker, /url\.pathname\.endsWith\('\.js'\)/);
   assert.match(worker, /await self\.skipWaiting\(\)/);
   assert.match(worker, /self\.clients\.claim\(\)/);
+});
+
+test('selecting availability does not change the details expansion state', () => {
+  const source = fs.readFileSync(path.join(root, 'availability.js'), 'utf8');
+  const handler = source.match(/checkbox\.addEventListener\("change", \(\) => \{([\s\S]*?)\n    \}\);/);
+  assert.ok(handler);
+  assert.match(handler[1], /state\.currentChecked = Boolean\(checkbox\.checked\)/);
+  assert.match(handler[1], /timeRange\.hidden = !state\.currentChecked/);
+  assert.match(handler[1], /syncAvailabilityDom\(stateByTask\)/);
+  assert.match(handler[1], /updateDirtyUi\(stateByTask\)/);
+  assert.doesNotMatch(handler[1], /details\.classList|expandButton\.click|classList\.toggle/);
+
+  assert.match(source, /expandButton\.addEventListener\("click", \(\) => \{[\s\S]*?details\.classList\.toggle\("is-open"\)/);
 });
 
 test('availability context is initialized from the current URL at DOM initialization', () => {
